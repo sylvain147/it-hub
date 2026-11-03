@@ -173,12 +173,15 @@ function image(n: RichNode, ctx: Ctx): Content {
   if (!img) return { text: ctx.labels.missingImage, italics: true, color: '#7F7F7F' };
   // 1 px (96 dpi) = 0,75 pt
   const { width } = fitImage(img, CONTENT_WIDTH_PT / 0.75, 950);
-  return {
+  const picture = {
     image: `data:image/${img.type === 'jpg' ? 'jpeg' : 'png'};base64,${img.data.toString('base64')}`,
     width: width * 0.75,
     alignment: 'center',
     margin: [0, 6, 0, 6],
   };
+  const caption = n.attrs?.alt ? String(n.attrs.alt) : '';
+  if (!caption) return picture;
+  return { stack: [{ ...picture, margin: [0, 6, 0, 2] }, { text: caption, italics: true, fontSize: 9, color: '#595959', alignment: 'center', margin: [0, 0, 0, 6] }], unbreakable: true };
 }
 
 function inline(nodes: RichNode[], ctx: Ctx): Content[] {

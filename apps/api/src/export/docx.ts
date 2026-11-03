@@ -280,6 +280,7 @@ function imageParagraph(n: RichNode, ctx: Ctx): Paragraph {
     spacing: { before: 120, after: 120 },
     children: [
       new ImageRun({ type: img.type, data: img.data, transformation: { width, height }, altText: caption ? { name: caption, description: caption, title: caption } : undefined }),
+      ...(caption ? [new TextRun({ text: caption, italics: true, size: 18, color: '595959', break: 1 })] : []),
     ],
   });
 }

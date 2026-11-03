@@ -101,6 +101,7 @@ export function createApp() {
   api.put('/cdcs/:id', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, saveCdcBody);
+    b.document.meta.jalons = b.document.meta.jalons.filter((j) => j.label.trim() || j.date);
     await assertNoActiveJob(id);
     const errors = validationErrorsForStatus(b.document);
     if (errors.length) throw new HttpError(422, `Impossible de passer à ce statut : ${errors.join(' ')}`, errors);
