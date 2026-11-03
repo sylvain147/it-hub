@@ -1,5 +1,11 @@
 import type {
   AddSourceBody,
+  AdjustFileTypeBody,
+  CreateFileTypeBody,
+  FileSpec,
+  FileTypeDetail,
+  FileTypeSummary,
+  FileTypeVersionInfo,
   CdcDetail,
   CdcDocument,
   CdcSummary,
@@ -81,6 +87,19 @@ export const api = {
   resolveAssets: (refs: string[]) => request<Record<string, string>>('POST', '/assets/resolve', { refs }),
 
   getJob: (id: string) => request<JobInfo>('GET', `/jobs/${id}`),
+
+  listFileTypes: () => request<FileTypeSummary[]>('GET', '/filetypes'),
+  getFileType: (id: string) => request<FileTypeDetail>('GET', `/filetypes/${id}`),
+  createFileType: (b: CreateFileTypeBody) => request<{ id: string; job: JobInfo }>('POST', '/filetypes', b),
+  renameFileType: (id: string, name: string, description: string) => request<FileTypeDetail>('PATCH', `/filetypes/${id}`, { name, description }),
+  deleteFileType: (id: string) => request<null>('DELETE', `/filetypes/${id}`),
+  saveFileTypeSpec: (id: string, baseSeq: number, spec: FileSpec, comment: string) =>
+    request<{ version: FileTypeVersionInfo; detail: FileTypeDetail }>('PUT', `/filetypes/${id}/spec`, { baseSeq, spec, comment }),
+  adjustFileType: (id: string, b: AdjustFileTypeBody) => request<JobInfo>('POST', `/filetypes/${id}/adjust`, b),
+  retryFileType: (id: string) => request<JobInfo>('POST', `/filetypes/${id}/retry`),
+  listFileTypeVersions: (id: string) => request<FileTypeVersionInfo[]>('GET', `/filetypes/${id}/versions`),
+  restoreFileTypeVersion: (id: string, seq: number, baseSeq: number) =>
+    request<{ version: FileTypeVersionInfo; detail: FileTypeDetail }>('POST', `/filetypes/${id}/versions/${seq}/restore`, { baseSeq }),
   usage: (month: string) => request<UsageReport>('GET', `/usage?month=${month}`),
 };
 

@@ -18,6 +18,13 @@ export const MODULES: HubModule[] = [
     path: '/cdc',
     icon: '📄',
   },
+  {
+    id: 'fichiers',
+    title: 'Lecteur de fichiers',
+    description: 'Décortiquer les fichiers à plat, CSV et exports des flux : l’assistant apprend chaque format une fois, la lecture est ensuite instantanée et reste sur votre poste.',
+    path: '/fichiers',
+    icon: '🗂️',
+  },
 ];
 
 export const ADMIN_LINKS = [{ title: 'Consommation IA', path: '/consommation', icon: '📊' }];

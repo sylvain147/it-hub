@@ -141,7 +141,8 @@ export class HubStack extends Stack {
       description: 'Hub IT – tâches IA (génération, intégration, traduction)',
       entry: join(root, 'apps/api/src/worker.ts'),
       memorySize: 1024,
-      timeout: Duration.minutes(10),
+      // Maximum Lambda : une création de fiche de lecture peut enchaîner deux à trois appels longs.
+      timeout: Duration.minutes(15),
       logGroup: new logs.LogGroup(this, 'WorkerLogs', { retention: logs.RetentionDays.THREE_MONTHS, removalPolicy: RemovalPolicy.DESTROY }),
     });
     // Pas de nouvelle tentative automatique : une erreur est remontée à l'utilisateur, qui relance s'il le souhaite.

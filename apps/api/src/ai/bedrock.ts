@@ -16,14 +16,23 @@ export class BedrockProvider implements LlmProvider {
   }
 
   async structured<T>(call: StructuredCall<T>, model: string): Promise<{ output: T; usage: LlmUsage }> {
-    const response = await this.client.messages.parse({
+    // Les instructions système (et le contexte stable éventuel) sont identiques d'un appel à l'autre : on les met en cache.
+    const system = [
+      { type: 'text' as const, text: call.system, cache_control: { type: 'ephemeral' as const } },
+      ...(call.context ? [{ type: 'text' as const, text: call.context, cache_control: { type: 'ephemeral' as const } }] : []),
+    ];
+    const params = {
       model,
       max_tokens: call.maxTokens,
-      // Les instructions système sont identiques d'un appel à l'autre : on les met en cache.
-      system: [{ type: 'text', text: call.system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: call.input }],
+      system,
+      messages: [{ role: 'user' as const, content: call.input }],
       output_config: { effort: call.effort, format: zodOutputFormat(call.schema) },
-    });
+    };
+    // Au-delà de 16 000 tokens de sortie, la réponse est reçue en flux (évite les délais d'attente HTTP).
+    const response =
+      call.maxTokens > 16000
+        ? await this.client.messages.stream(params, { timeout: 7 * 60 * 1000, maxRetries: 0 }).finalMessage()
+        : await this.client.messages.parse(params);
 
     if (response.stop_reason === 'refusal') {
       throw new Error('Le modèle a refusé de traiter la demande. Reformulez ou retirez le contenu sensible.');
@@ -31,12 +40,13 @@ export class BedrockProvider implements LlmProvider {
     if (response.stop_reason === 'max_tokens') {
       throw new Error('La réponse du modèle a été tronquée (document trop long). Réessayez sur une partie plus réduite.');
     }
-    if (response.parsed_output == null) {
+    const output = 'parsed_output' in response && response.parsed_output != null ? response.parsed_output : parseText(response.content, call.schema);
+    if (output == null) {
       throw new Error('Réponse du modèle illisible. Réessayez.');
     }
     const u = response.usage;
     return {
-      output: response.parsed_output as T,
+      output: output as T,
       usage: {
         inputTokens: u.input_tokens,
         outputTokens: u.output_tokens,
@@ -44,5 +54,17 @@ export class BedrockProvider implements LlmProvider {
         cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
       },
     };
+  }
+}
+
+function parseText<T>(content: { type: string; text?: string }[], schema: StructuredCall<T>['schema']): T | null {
+  const text = content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text ?? '')
+    .join('');
+  try {
+    return schema.parse(JSON.parse(text));
+  } catch {
+    return null;
   }
 }

@@ -16,6 +16,17 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 - **Exports Word et PDF** fidèles au modèle (bandeau Version / Échéance cible / Statut / Estimation).
 - **Traduction** anglais / allemand, avec cache paragraphe par paragraphe.
 
+### 🗂️ Lecteur de fichiers
+
+Pour décortiquer les fichiers à plat, CSV et exports qui circulent sur les FTP.
+
+- **Un type de fichier = une fiche de lecture**, créée par l'assistant à partir d'un **fichier exemple**, et si disponibles de la **spécification** (Excel), du **code qui génère le fichier** (PL/SQL…) et d'explications en vrac.
+- La fiche décrit le format sans code : positions fixes ou CSV, types de ligne (en-tête, facture, ligne d'article, totaux…) et rattachements, champs (dates, montants avec décimales implicites, codes avec libellés), **contrôles** (nombre de lignes ou totaux annoncés en fin de fichier).
+- On la **teste** sur un vrai fichier, on la corrige à la main ou en demandant un **ajustement** à l'assistant ; chaque modification crée une version.
+- Ensuite, on dépose n'importe quel fichier : le type est **reconnu automatiquement** et le fichier est affiché clairement (synthèse, vue structurée par facture, tableaux filtrables, anomalies, contenu brut coloré) et **exportable en Excel**.
+- **Confidentialité** : les fichiers sont lus **dans le navigateur**, jamais envoyés ni conservés. Seul un extrait de l'exemple part à l'IA lors de la création d'un type, **anonymisé par défaut** (lettres et chiffres remplacés au hasard ; longueurs, dates et codes courts conservés) et visible avant l'envoi.
+- **Coût** : quelques centimes une seule fois par type de fichier ; la lecture des fichiers n'utilise jamais l'IA.
+
 ### 📊 Consommation IA
 
 Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).

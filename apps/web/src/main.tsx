@@ -9,6 +9,10 @@ import { CdcList } from './pages/CdcList';
 import { CdcNew } from './pages/CdcNew';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
+import { FilesHome } from './files/FilesHome';
+import { FileTypeNew } from './files/FileTypeNew';
+import { FileTypePage } from './files/FileTypePage';
+import { FileViewer } from './files/FileViewer';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -20,6 +24,10 @@ const router = createBrowserRouter([
       { path: 'cdc', element: <CdcList /> },
       { path: 'cdc/nouveau', element: <CdcNew /> },
       { path: 'cdc/:id', element: <CdcEditorPage /> },
+      { path: 'fichiers', element: <FilesHome /> },
+      { path: 'fichiers/types/nouveau', element: <FileTypeNew /> },
+      { path: 'fichiers/types/:id', element: <FileTypePage /> },
+      { path: 'fichiers/lecture', element: <FileViewer /> },
       { path: 'consommation', element: <Usage /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],

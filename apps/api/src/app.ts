@@ -1,5 +1,4 @@
 import { Hono, type Context } from 'hono';
-import type { z } from 'zod';
 import {
   addSourceBody,
   assetRef,
@@ -21,6 +20,8 @@ import {
   type CdcDocument,
 } from '@samm/shared';
 import { authMiddleware, userName } from './auth.js';
+import { body, intParam } from './lib/http.js';
+import { fileTypeRoutes } from './filetypes/routes.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
 import * as repo from './db/repo.js';
@@ -31,27 +32,6 @@ import { sectionId } from './ai/pipeline.js';
 import { exportFileName, loadImages } from './export/common.js';
 import { renderDocx } from './export/docx.js';
 import { renderPdf } from './export/pdf.js';
-
-async function body<S extends z.ZodType>(c: Context, schema: S): Promise<z.infer<S>> {
-  let raw: unknown;
-  try {
-    raw = await c.req.json();
-  } catch {
-    throw new HttpError(400, 'Corps de requête JSON invalide');
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw new HttpError(400, first ? `${first.path.join('.') || 'requête'} : ${first.message}` : 'Requête invalide', parsed.error.issues);
-  }
-  return parsed.data;
-}
-
-function intParam(c: Context, name: string): number {
-  const n = Number(c.req.param(name));
-  if (!Number.isInteger(n) || n < 1) throw new HttpError(400, `Paramètre ${name} invalide`);
-  return n;
-}
 
 async function assertNoActiveJob(cdcId: string) {
   const cdc = await repo.requireCdc(cdcId);
@@ -276,6 +256,8 @@ export function createApp() {
     if (!/^\d{4}-\d{2}$/.test(month)) throw new HttpError(400, 'Mois invalide (AAAA-MM)');
     return c.json(await repo.usageReport(month));
   });
+
+  api.route('/filetypes', fileTypeRoutes());
 
   app.route('/api', api);
   app.notFound((c) => c.json({ error: 'Route inconnue' }, 404));

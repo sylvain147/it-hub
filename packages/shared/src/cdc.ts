@@ -259,7 +259,7 @@ export interface TranslationInfo {
 // Jobs IA
 // ---------------------------------------------------------------------------
 
-export const JOB_TYPES = ['create_from_transcript', 'add_transcript', 'integrate_answers', 'rework_section', 'translate'] as const;
+export const JOB_TYPES = ['create_from_transcript', 'add_transcript', 'integrate_answers', 'rework_section', 'translate', 'filetype_create', 'filetype_adjust'] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
   create_from_transcript: 'Génération du cahier des charges',
@@ -267,6 +267,8 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   integrate_answers: 'Intégration des réponses',
   rework_section: 'Retravail d’une section',
   translate: 'Traduction',
+  filetype_create: 'Création de la fiche de lecture',
+  filetype_adjust: 'Ajustement de la fiche de lecture',
 };
 
 export type JobStatus = 'en_attente' | 'en_cours' | 'termine' | 'erreur';
@@ -275,7 +277,8 @@ export interface JobInfo {
   id: string;
   type: JobType;
   status: JobStatus;
-  cdcId: string;
+  /** Élément concerné : identifiant du CDC ou du type de fichier. */
+  targetId: string;
   step: string;
   error: string;
   createdAt: string;

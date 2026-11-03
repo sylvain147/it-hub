@@ -278,31 +278,31 @@ export async function getVersion(id: string, seq: number): Promise<{ info: Versi
   return { info: stripVersion(v), document };
 }
 
-/** Réserve le CDC pour un job IA (un seul à la fois). */
-export async function claimForJob(id: string, jobId: string): Promise<void> {
+/** Réserve un élément (CDC, type de fichier) pour un job IA : un seul à la fois. */
+export async function claimForJob(key: { pk: string; sk: string }, jobId: string): Promise<void> {
   const staleBefore = new Date(Date.now() - config.staleJobMinutes * 60000).toISOString();
   try {
     await ddb().send(
       new UpdateCommand({
         TableName: T(),
-        Key: keys.cdc(id),
+        Key: key,
         ConditionExpression: 'attribute_exists(pk) AND (attribute_not_exists(activeJobId) OR activeJobId = :null OR activeJobAt < :stale)',
         UpdateExpression: 'SET activeJobId = :job, activeJobAt = :now',
         ExpressionAttributeValues: { ':job': jobId, ':now': nowIso(), ':null': null, ':stale': staleBefore },
       }),
     );
   } catch (e) {
-    if (isConditionFailed(e)) throw new HttpError(409, 'Une tâche IA est déjà en cours sur ce cahier des charges. Patientez quelques instants.');
+    if (isConditionFailed(e)) throw new HttpError(409, 'Une tâche IA est déjà en cours sur cet élément. Patientez quelques instants.');
     throw e;
   }
 }
 
-export async function releaseJob(id: string, jobId: string): Promise<void> {
+export async function releaseJob(key: { pk: string; sk: string }, jobId: string): Promise<void> {
   try {
     await ddb().send(
       new UpdateCommand({
         TableName: T(),
-        Key: keys.cdc(id),
+        Key: key,
         ConditionExpression: 'activeJobId = :job',
         UpdateExpression: 'SET activeJobId = :null, activeJobAt = :null',
         ExpressionAttributeValues: { ':job': jobId, ':null': null },
@@ -491,7 +491,7 @@ export interface JobItem extends JobInfo {
   ttl: number;
 }
 
-export async function createJob(input: { type: JobType; cdcId: string; user: string; payload: Record<string, unknown> }): Promise<JobItem> {
+export async function createJob(input: { type: JobType; targetId: string; user: string; payload: Record<string, unknown> }): Promise<JobItem> {
   const id = newId();
   const now = nowIso();
   const job: JobItem = {
@@ -499,7 +499,7 @@ export async function createJob(input: { type: JobType; cdcId: string; user: str
     id,
     type: input.type,
     status: 'en_attente',
-    cdcId: input.cdcId,
+    targetId: input.targetId,
     step: 'En file d’attente',
     error: '',
     createdAt: now,
@@ -519,7 +519,7 @@ export async function getJob(id: string): Promise<JobItem | null> {
 }
 
 export function jobInfo(j: JobItem): JobInfo {
-  const { id, type, cdcId, step, createdAt, updatedAt, resultVersionSeq } = j;
+  const { id, type, targetId, step, createdAt, updatedAt, resultVersionSeq } = j;
   let { status, error } = j;
   // Une tâche sans nouvelles depuis trop longtemps a été interrompue (arrêt de la Lambda) : le CDC est de nouveau libre.
   const stale = (status === 'en_cours' || status === 'en_attente') && Date.now() - Date.parse(updatedAt) > config.staleJobMinutes * 60000;
@@ -527,7 +527,7 @@ export function jobInfo(j: JobItem): JobInfo {
     status = 'erreur';
     error = 'La tâche a été interrompue. Relancez-la.';
   }
-  return { id, type, status, cdcId, step, error, createdAt, updatedAt, resultVersionSeq };
+  return { id, type, status, targetId, step, error, createdAt, updatedAt, resultVersionSeq };
 }
 
 export async function updateJob(

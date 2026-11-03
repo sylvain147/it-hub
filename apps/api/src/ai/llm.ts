@@ -19,6 +19,11 @@ export interface StructuredCall<T> {
   operation: string;
   /** Instructions stables : mises en cache côté modèle d'un appel à l'autre. */
   system: string;
+  /**
+   * Contexte volumineux et stable d'un appel à l'autre (documentation d'un format…) :
+   * envoyé comme second bloc système, lui aussi mis en cache.
+   */
+  context?: string;
   /** Données variables de l'appel. */
   input: string;
   schema: z.ZodType<T>;

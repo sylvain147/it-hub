@@ -7,15 +7,23 @@ import type { CdcDocument, JobInfo, JobType, Question, TranslationLanguage } fro
 import { config } from '../config.js';
 import { HttpError, newId, nowIso } from '../lib/util.js';
 import * as repo from '../db/repo.js';
+import { keys } from '../db/schema.js';
+import { fileTypeKeys } from '../filetypes/repo.js';
+import { runFileTypeJob } from '../filetypes/jobs.js';
 import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
 import * as ai from '../ai/pipeline.js';
 
-export async function startJob(type: JobType, cdcId: string, user: string, payload: Record<string, unknown>): Promise<JobInfo> {
+/** Élément verrouillé pendant le job. */
+function targetKey(type: JobType, targetId: string) {
+  return type.startsWith('filetype_') ? fileTypeKeys.meta(targetId) : keys.cdc(targetId);
+}
+
+export async function startJob(type: JobType, targetId: string, user: string, payload: Record<string, unknown>): Promise<JobInfo> {
   await assertBudget();
-  const job = await repo.createJob({ type, cdcId, user, payload });
+  const job = await repo.createJob({ type, targetId, user, payload });
   try {
-    await repo.claimForJob(cdcId, job.id);
+    await repo.claimForJob(targetKey(type, targetId), job.id);
   } catch (e) {
     await repo.updateJob(job.id, { status: 'erreur', error: (e as Error).message });
     await repo.clearJobPayload(job.id);
@@ -45,7 +53,7 @@ async function dispatch(jobId: string) {
 export async function runJob(jobId: string): Promise<void> {
   const job = await repo.getJob(jobId);
   if (!job || job.status !== 'en_attente') return; // déjà traité (invocation rejouée)
-  const ctx = { user: job.user, cdcId: job.cdcId };
+  const ctx = { user: job.user, cdcId: job.targetId };
   const step = (s: string) => repo.updateJob(jobId, { status: 'en_cours', step: s });
   try {
     await step('Démarrage');
@@ -54,28 +62,32 @@ export async function runJob(jobId: string): Promise<void> {
     let doneMessage = 'Terminé';
     switch (job.type) {
       case 'create_from_transcript':
-        resultSeq = await createFromTranscript(job.cdcId, await pendingText(p), String(p.title ?? ''), ctx, step);
+        resultSeq = await createFromTranscript(job.targetId, await pendingText(p), String(p.title ?? ''), ctx, step);
         break;
       case 'add_transcript':
-        resultSeq = await addTranscript(job.cdcId, Number(p.baseSeq), await pendingText(p), String(p.title ?? ''), ctx, step);
+        resultSeq = await addTranscript(job.targetId, Number(p.baseSeq), await pendingText(p), String(p.title ?? ''), ctx, step);
         break;
       case 'integrate_answers':
-        resultSeq = await integrateAnswers(job.cdcId, Number(p.baseSeq), ctx, step);
+        resultSeq = await integrateAnswers(job.targetId, Number(p.baseSeq), ctx, step);
         break;
       case 'rework_section':
-        resultSeq = await rework(job.cdcId, Number(p.baseSeq), String(p.sectionId), String(p.instruction), ctx, step);
+        resultSeq = await rework(job.targetId, Number(p.baseSeq), String(p.sectionId), String(p.instruction), ctx, step);
         break;
       case 'translate':
-        doneMessage = await translate(job.cdcId, p.lang as TranslationLanguage, ctx, step);
+        doneMessage = await translate(job.targetId, p.lang as TranslationLanguage, ctx, step);
+        break;
+      case 'filetype_create':
+      case 'filetype_adjust':
+        ({ seq: resultSeq, message: doneMessage } = await runFileTypeJob(job.type, job.targetId, p, ctx, step));
         break;
     }
     // Libère le CDC avant d'annoncer la fin, pour que le navigateur puisse éditer dès qu'il voit « terminé ».
-    await repo.releaseJob(job.cdcId, jobId);
+    await repo.releaseJob(targetKey(job.type, job.targetId), jobId);
     await repo.updateJob(jobId, { status: 'termine', step: doneMessage, resultVersionSeq: resultSeq });
   } catch (e) {
     console.error(`Job ${jobId} (${job.type}) en erreur`, e);
     const message = e instanceof HttpError ? e.message : `${(e as Error).message || 'Erreur inconnue'}`;
-    await repo.releaseJob(job.cdcId, jobId);
+    await repo.releaseJob(targetKey(job.type, job.targetId), jobId);
     await repo.updateJob(jobId, { status: 'erreur', error: message });
   } finally {
     await repo.clearJobPayload(jobId);

@@ -48,6 +48,22 @@ Garde-fous : le modèle ne peut modifier que les sections qui lui ont été mont
 
 En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PROVIDER=mock`).
 
+## Module « Lecteur de fichiers »
+
+- **Fiche de lecture** (`packages/shared/src/files/spec.ts`) : description déclarative d'un format (positions fixes ou délimité, types de ligne reconnus par des règles « zone = valeur », champs typés, rattachement parent/enfant, contrôles). L'IA ne produit jamais de code exécutable.
+- **Moteur de lecture** (`packages/shared/src/files/parse.ts`) : exécuté **dans le navigateur** pour les fichiers des utilisateurs (rien n'est envoyé au serveur) et côté serveur pour produire un **diagnostic** de la fiche sur l'extrait (lignes non reconnues, valeurs illisibles, premier enregistrement de chaque type décodé champ par champ). Ce diagnostic guide l'IA dans ses corrections.
+- **Création d'un type** (`apps/api/src/filetypes/pipeline.ts`) :
+  1. s'il y a de la documentation (spec Excel convertie en texte dans le navigateur, code source) : le modèle rapide en tire une fiche complète ;
+  2. le modèle de rédaction confronte la fiche à l'extrait et renvoie un **correctif** (seuls les types de ligne à corriger) ;
+  3. une passe d'auto-correction au plus si des anomalies subsistent.
+- **Ajustements** : consigne en français + lignes en anomalie du fichier de test (anonymisées) → correctif → nouvelle version. La documentation (≤ 80 000 caractères) est envoyée comme bloc système mis en cache.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `FTYPE#<id>` | `META` | Type de fichier : nom, version courante, remarques de l'IA (index `gsi1`) |
+| `FTYPE#<id>` | `VER#<seq>` | Version de la fiche ; contenu JSON dans S3 |
+| (S3) `ftypes/<id>/context.json` | | Extrait (anonymisé), documentation en texte |
+
 ## Ajouter un module au hub
 
 1. Créer les pages dans `apps/web/src/pages/` (ou un dossier dédié), et les routes dans `apps/web/src/main.tsx`.

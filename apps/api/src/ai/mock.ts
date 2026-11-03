@@ -4,6 +4,7 @@
  */
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
+import type { SpecPatch } from '../filetypes/ai-schemas.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
 
@@ -39,6 +40,12 @@ export class MockProvider implements LlmProvider {
         return this.draft(call.input);
       case 'traduction':
         return this.translate(call.input);
+      case 'fichier_brouillon':
+        return { settings: guessSettings(excerptOf(call.input)), recordTypes: guessRecordTypes(excerptOf(call.input)), checks: [], remarks: ['Fiche simulée (aucun appel IA).'] };
+      case 'fichier_mise_au_point':
+      case 'fichier_correction':
+      case 'fichier_ajustement':
+        return this.filePatch(call.input, call.operation);
       default:
         return this.update(call.input, call.operation);
     }
@@ -119,6 +126,24 @@ export class MockProvider implements LlmProvider {
     };
   }
 
+  private filePatch(input: string, operation: string): SpecPatch {
+    const empty = /<fiche_actuelle>\n\(vide/.test(input);
+    if (empty) {
+      const excerpt = excerptOf(input);
+      return { settings: guessSettings(excerpt), upsertRecordTypes: guessRecordTypes(excerpt), removeRecordTypes: [], checks: null, summary: 'Fiche simulée créée à partir de l’extrait', remarks: ['Fiche simulée (aucun appel IA) : vérifiez les champs.'] };
+    }
+    const first = /## \[([^\]]+)\] ([^—]+) —/.exec(input);
+    const demande = between(input, 'demande');
+    return {
+      settings: null,
+      upsertRecordTypes: [],
+      removeRecordTypes: [],
+      checks: null,
+      summary: operation === 'fichier_ajustement' ? `Simulation : ajustement demandé (« ${demande.slice(0, 60)} »)${first ? ` ; premier type ${first[1]}` : ''}` : 'Simulation : fiche vérifiée',
+      remarks: [],
+    };
+  }
+
   private translate(input: string): Translation {
     const lang = /Langue cible : (\w+)/.exec(input)?.[1] === 'allemand' ? 'DE' : 'EN';
     const items = JSON.parse(between(input, 'elements')) as { key: string; text: string }[];
@@ -133,4 +158,44 @@ export class MockProvider implements LlmProvider {
       })),
     };
   }
+}
+
+/** Lignes de l'extrait (numéros de ligne retirés). */
+function excerptOf(input: string): string[] {
+  const block = /<extrait[^>]*>\n?([\s\S]*?)\n?<\/extrait>/.exec(input)?.[1] ?? '';
+  return block.split('\n').map((l) => l.replace(/^\s*\d+│/, '')).filter((l) => l.trim());
+}
+
+function guessSettings(excerpt: string | string[]) {
+  const lines = Array.isArray(excerpt) ? excerpt : excerpt.split('\n').map((l) => l.replace(/^\s*\d+│/, ''));
+  const delimited = lines.length > 0 && lines.every((l) => l.includes(';'));
+  return { format: delimited ? ('delimited' as const) : ('fixed' as const), encoding: 'utf-8' as const, delimiter: ';', quote: '"', skipLines: 0, fileNamePattern: '' };
+}
+
+/** Heuristique simple : le début de ligne (8 caractères) sert de code de type. */
+function guessRecordTypes(lines: string[]): SpecPatch['upsertRecordTypes'] {
+  const base = { description: '', impliedDecimals: 0, dateFormat: '', values: [], hidden: false };
+  if (lines.length && lines.every((l) => l.includes(';'))) {
+    const cols = lines[0]!.split(';').length;
+    return [{ code: 'ligne', name: 'Ligne', description: '', role: 'detail', match: [], parent: null, fields: Array.from({ length: cols }, (_, i) => ({ ...base, key: `colonne_${i + 1}`, label: `Colonne ${i + 1}`, start: i + 1, length: 0, type: 'text' as const })) }];
+  }
+  const width = Math.min(8, ...lines.map((l) => l.length));
+  const groups = new Map<string, number>();
+  for (const l of lines) groups.set(l.slice(0, width), Math.max(groups.get(l.slice(0, width)) ?? 0, l.length));
+  if (groups.size > 20 || width < 1) {
+    const max = Math.max(...lines.map((l) => l.length));
+    return [{ code: 'ligne', name: 'Ligne', description: '', role: 'detail', match: [], parent: null, fields: [{ ...base, key: 'contenu', label: 'Contenu', start: 1, length: max, type: 'text' }] }];
+  }
+  return [...groups.entries()].map(([code, max]) => ({
+    code: code.trim() || 'vide',
+    name: `Ligne ${code.trim()}`,
+    description: '',
+    role: 'other' as const,
+    match: [{ start: 1, length: width, value: code }],
+    parent: null,
+    fields: [
+      { ...base, key: 'code', label: 'Code', start: 1, length: width, type: 'code' as const },
+      ...(max > width ? [{ ...base, key: 'contenu', label: 'Contenu', start: width + 1, length: max - width, type: 'text' as const }] : []),
+    ],
+  }));
 }
