@@ -326,7 +326,7 @@ export async function reworkSection(
 // ---------------------------------------------------------------------------
 
 const LANG_NAMES: Record<TranslationLanguage, string> = { en: 'anglais', de: 'allemand' };
-const MAX_BATCH_CHARS = 40_000;
+const MAX_BATCH_CHARS = 20_000;
 
 export async function translateDocument(doc: CdcDocument, lang: TranslationLanguage, ctx: Ctx): Promise<{ document: CdcDocument; translatedBlocks: number; cachedBlocks: number }> {
   const items: { key: string; text: string }[] = [
@@ -372,7 +372,7 @@ export async function translateDocument(doc: CdcDocument, lang: TranslationLangu
       system: TRANSLATION_SYSTEM,
       input: `Langue cible : ${LANG_NAMES[lang]}\n\n<elements>\n${JSON.stringify(batch.map((b) => ({ key: b.key, text: b.text })), null, 1)}\n</elements>`,
       schema: translationSchema,
-      maxTokens: 32000,
+      maxTokens: 16000,
       effort: 'low',
       ctx,
     });

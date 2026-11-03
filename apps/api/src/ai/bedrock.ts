@@ -1,4 +1,4 @@
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
+import { AnthropicBedrockMantle, type BedrockMantleClientOptions } from '@anthropic-ai/bedrock-sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
@@ -8,7 +8,12 @@ import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
  * Les identifiants AWS viennent du rôle IAM de la Lambda.
  */
 export class BedrockProvider implements LlmProvider {
-  private client = new AnthropicBedrockMantle({ awsRegion: config.bedrockRegion, timeout: 8 * 60 * 1000, maxRetries: 2 });
+  private client: AnthropicBedrockMantle;
+
+  constructor(options: Partial<BedrockMantleClientOptions> = {}) {
+    // 2 tentatives de 4 min au plus : reste sous la durée maximale de la Lambda worker (10 min).
+    this.client = new AnthropicBedrockMantle({ awsRegion: config.bedrockRegion, timeout: 4 * 60 * 1000, maxRetries: 1, ...options });
+  }
 
   async structured<T>(call: StructuredCall<T>, model: string): Promise<{ output: T; usage: LlmUsage }> {
     const response = await this.client.messages.parse({

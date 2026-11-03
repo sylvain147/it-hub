@@ -519,7 +519,14 @@ export async function getJob(id: string): Promise<JobItem | null> {
 }
 
 export function jobInfo(j: JobItem): JobInfo {
-  const { id, type, status, cdcId, step, error, createdAt, updatedAt, resultVersionSeq } = j;
+  const { id, type, cdcId, step, createdAt, updatedAt, resultVersionSeq } = j;
+  let { status, error } = j;
+  // Une tâche sans nouvelles depuis trop longtemps a été interrompue (arrêt de la Lambda) : le CDC est de nouveau libre.
+  const stale = (status === 'en_cours' || status === 'en_attente') && Date.now() - Date.parse(updatedAt) > config.staleJobMinutes * 60000;
+  if (stale) {
+    status = 'erreur';
+    error = 'La tâche a été interrompue. Relancez-la.';
+  }
   return { id, type, status, cdcId, step, error, createdAt, updatedAt, resultVersionSeq };
 }
 

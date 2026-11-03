@@ -1,5 +1,5 @@
 /** Export PDF : même mise en page que l'export Word (pdfmake, polices standard PDF, aucun fichier à embarquer). */
-import { createRequire } from 'node:module';
+import pdfmakeLib from 'pdfmake';
 import { sectionNumbers, type CdcDocument, type Language, type RichNode } from '@samm/shared';
 import { COLORS, deadlineLines, estimateLine, fitImage, LABELS, phaseLine, type ExportLabels, type LoadedImage } from './common.js';
 
@@ -10,12 +10,11 @@ interface PdfMake {
   setLocalAccessPolicy(cb: (path: string) => boolean): void;
   createPdf(def: unknown): { getBuffer(): Promise<Buffer> };
 }
-const require = createRequire(import.meta.url);
 const STANDARD_FONTS = new Set(['Times-Roman', 'Times-Bold', 'Times-Italic', 'Times-BoldItalic', 'Courier', 'Courier-Bold', 'Courier-Oblique', 'Courier-BoldOblique']);
 let pdfmake: PdfMake | null = null;
 function engine(): PdfMake {
   if (!pdfmake) {
-    pdfmake = require('pdfmake') as PdfMake;
+    pdfmake = pdfmakeLib as unknown as PdfMake;
     pdfmake.setFonts({ Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' }, Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' } });
     // Aucune ressource externe ni fichier local, hormis les polices standard PDF : les images sont fournies en mémoire.
     pdfmake.setUrlAccessPolicy(() => false);

@@ -32,6 +32,8 @@ export const blobKeys = {
   translation: (id: string, lang: string, seq: number) => `cdc/${id}/translations/${lang}-${seq}.json`,
   asset: (id: string, assetId: string) => `cdc/${id}/assets/${assetId}`,
   export: (id: string, name: string) => `exports/${id}/${name}`,
+  /** Texte en attente de traitement par un job (supprimé automatiquement après quelques jours). */
+  pendingText: (id: string) => `uploads/${id}.txt`,
 };
 
 /** TTL DynamoDB (secondes epoch). */

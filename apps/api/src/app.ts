@@ -59,6 +59,13 @@ async function assertNoActiveJob(cdcId: string) {
   return cdc;
 }
 
+/** Les transcriptions peuvent dépasser la taille maximale d'un élément DynamoDB : elles transitent par le bucket. */
+async function stashText(text: string): Promise<string> {
+  const key = blobKeys.pendingText(newId());
+  await blobs().put(key, text, 'text/plain; charset=utf-8');
+  return key;
+}
+
 function skeleton(meta: Partial<CdcDocument['meta']>): CdcDocument {
   return {
     meta: cdcMetaSchema.parse({ status: 'brouillon', ...meta, title: meta.title?.trim() || 'Nouveau cahier des charges' }),
@@ -91,7 +98,7 @@ export function createApp() {
     const { id } = await repo.createCdc(doc, user);
     let job = null;
     if (b.transcript?.trim()) {
-      job = await startJob('create_from_transcript', id, user, { text: b.transcript, title: b.transcriptTitle ?? b.meta.title ?? '' });
+      job = await startJob('create_from_transcript', id, user, { textKey: await stashText(b.transcript), title: b.transcriptTitle ?? b.meta.title ?? '' });
     }
     return c.json({ id, job }, 201);
   });
@@ -178,7 +185,7 @@ export function createApp() {
   api.post('/cdcs/:id/sources', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, addSourceBody);
-    return c.json(await startJob('add_transcript', id, userName(c), { baseSeq: b.baseSeq, title: b.title, text: b.text }), 202);
+    return c.json(await startJob('add_transcript', id, userName(c), { baseSeq: b.baseSeq, title: b.title, textKey: await stashText(b.text) }), 202);
   });
 
   // ---- Retravail d'une section -------------------------------------------------

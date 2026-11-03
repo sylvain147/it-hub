@@ -1,1 +1,65 @@
-# samm
+# Hub IT
+
+Application interne de l'équipe IT (chargés de projet en lien avec les prestataires). Le hub est **modulaire** : chaque fonctionnalité est un module accessible depuis le menu.
+
+## Modules
+
+### 📄 Générateur de cahiers des charges
+
+- **Génération depuis une transcription brute** : on colle la transcription d'une réunion, l'assistant fait le tri et rédige le CDC selon le modèle de l'équipe (Contexte obligatoire → sections adaptées au sujet → Annexes).
+- **Champs** : titre et statut (obligatoires), phase du projet, prestataire, projet, estimation en jours/homme, échéances (plusieurs jalons datés). Échéances et estimation deviennent obligatoires pour passer en « Validé » ou « Envoyé ».
+- **Questions de l'assistant** : liste priorisée (bloquante / importante / optionnelle) des points à préciser. On répond dans l'interface, puis on intègre les réponses : seules les sections concernées sont réécrites.
+- **Nouvelles réunions** : une transcription supplémentaire est intégrée au CDC existant, et met à jour les questions.
+- **Retravail ciblé** d'une section (« plus concis », consigne libre…).
+- **Édition type Word** : sous-sections numérotées automatiquement (3.1, 3.2…), listes, tableaux, images collées directement.
+- **Versionning** : chaque enregistrement crée une version (0.1, 0.2… puis 1.0 à la validation). On peut comparer deux versions, restaurer une version et exporter n'importe laquelle.
+- **Exports Word et PDF** fidèles au modèle (bandeau Version / Échéance cible / Statut / Estimation).
+- **Traduction** anglais / allemand, avec cache paragraphe par paragraphe.
+
+### 📊 Consommation IA
+
+Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).
+
+## Maîtrise des coûts IA (Bedrock)
+
+| Levier | Effet |
+|---|---|
+| Deux modèles : **Claude Haiku 5.5** (tri, traductions) et **Claude Sonnet 5.5** (rédaction) | Le gros volume (la transcription brute) passe par le modèle ~20× moins cher |
+| La transcription n'est lue **qu'une fois** ; on conserve les notes structurées | La rédaction travaille sur un texte 5 à 10× plus court |
+| Mises à jour **ciblées** (seules les sections utiles sont envoyées, seules les sections modifiées reviennent) | Pas de régénération complète du document |
+| Traductions **en cache par paragraphe** | Une mise à jour ne retraduit que ce qui a changé |
+| Instructions système stables + **cache de prompt** | Les appels successifs relisent les instructions à ~10 % du prix |
+| Aucun appel IA automatique | L'IA ne tourne que sur clic ; l'édition manuelle est gratuite |
+| Suivi par appel + budget mensuel | Pas de mauvaise surprise |
+
+Ordre de grandeur (tarifs publics Anthropic, à confirmer sur la facture Bedrock) : **~0,10 $ pour générer un CDC** à partir d'une réunion d'une heure, quelques centimes pour une intégration de réponses ou une traduction.
+
+## Démarrage en local
+
+Prérequis : Node 22+, pnpm (`corepack enable`).
+
+```bash
+pnpm install
+pnpm dev          # API sur :3001 (IA simulée, aucune donnée envoyée), front sur http://localhost:5173
+```
+
+En local, la base DynamoDB est émulée **en mémoire** (données perdues au redémarrage) et l'IA est **simulée** (réponses factices, coût nul). Pour tester avec le vrai Bedrock : `LLM_PROVIDER=bedrock pnpm --filter @samm/api dev` avec des identifiants AWS valides.
+
+```bash
+pnpm test         # tests (conversion Markdown, parcours complet de l'API, exports)
+pnpm typecheck
+pnpm export:exemple /tmp   # génère un CDC exemple en Word et PDF pour vérifier la mise en page
+```
+
+## Déploiement
+
+Voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md). L'architecture est décrite dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Structure
+
+```
+apps/api        API (Hono sur Lambda), pipeline IA, exports Word/PDF, tests
+apps/web        Front React (Vite, TipTap, Amplify Auth)
+packages/shared Modèle de données, schémas de validation, conversion Markdown ⇄ éditeur
+infra           Infrastructure AWS (CDK TypeScript)
+```

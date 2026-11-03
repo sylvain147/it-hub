@@ -7,6 +7,7 @@ import type { CdcDocument, JobInfo, JobType, Question, TranslationLanguage } fro
 import { config } from '../config.js';
 import { HttpError, newId, nowIso } from '../lib/util.js';
 import * as repo from '../db/repo.js';
+import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
 import * as ai from '../ai/pipeline.js';
 
@@ -53,10 +54,10 @@ export async function runJob(jobId: string): Promise<void> {
     let doneMessage = 'Terminé';
     switch (job.type) {
       case 'create_from_transcript':
-        resultSeq = await createFromTranscript(job.cdcId, String(p.text), String(p.title ?? ''), ctx, step);
+        resultSeq = await createFromTranscript(job.cdcId, await pendingText(p), String(p.title ?? ''), ctx, step);
         break;
       case 'add_transcript':
-        resultSeq = await addTranscript(job.cdcId, Number(p.baseSeq), String(p.text), String(p.title ?? ''), ctx, step);
+        resultSeq = await addTranscript(job.cdcId, Number(p.baseSeq), await pendingText(p), String(p.title ?? ''), ctx, step);
         break;
       case 'integrate_answers':
         resultSeq = await integrateAnswers(job.cdcId, Number(p.baseSeq), ctx, step);
@@ -82,6 +83,12 @@ export async function runJob(jobId: string): Promise<void> {
 }
 
 type Step = (s: string) => Promise<void>;
+
+async function pendingText(payload: Record<string, unknown>): Promise<string> {
+  const buf = await blobs().get(String(payload.textKey));
+  if (!buf) throw new HttpError(404, 'Transcription introuvable. Relancez l’opération.');
+  return buf.toString('utf8');
+}
 type Ctx = { user: string; cdcId: string };
 
 async function currentDoc(cdcId: string, expectedSeq?: number): Promise<{ doc: CdcDocument; seq: number }> {
