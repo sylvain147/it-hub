@@ -1,0 +1,36 @@
+{
+  "name": "@samm/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/local.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^26.6.6",
+    "@types/pdfmake": "^0.3.3",
+    "dynalite": "^4.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^1.1.1",
+    "@anthropic-ai/sdk": "^1.4.0",
+    "@aws-sdk/client-dynamodb": "^3.1161.0",
+    "@aws-sdk/client-lambda": "^3.1161.0",
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@aws-sdk/lib-dynamodb": "^3.1161.0",
+    "@aws-sdk/s3-request-presigner": "^3.1161.0",
+    "@hono/node-server": "^2.1.6",
+    "@samm/shared": "workspace:*",
+    "docx": "^9.15.1",
+    "hono": "^4.13.16",
+    "image-size": "^2.0.4",
+    "pdfmake": "^0.3.13",
+    "zod": "^4.6.7"
+  }
+}

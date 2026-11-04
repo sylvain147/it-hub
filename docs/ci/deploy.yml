@@ -1,0 +1,38 @@
+name: Déploiement
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC vers AWS (aucune clé stockée)
+  contents: read
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    # Inactif tant que le rôle de déploiement n'est pas configuré (voir docs/DEPLOIEMENT.md).
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @samm/web build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      - name: Déploiement CDK
+        run: pnpm --filter @samm/infra exec cdk deploy HubIt --require-approval never

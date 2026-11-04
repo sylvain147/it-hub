@@ -1,0 +1,18 @@
+{
+  "name": "samm",
+  "private": true,
+  "description": "Hub de l'équipe IT – modules métier (générateur de cahiers des charges, …)",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @samm/api --filter @samm/web dev",
+    "build": "pnpm --filter @samm/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "synth": "pnpm --filter @samm/infra exec cdk synth HubIt --quiet",
+    "deploy": "pnpm --filter @samm/web build && pnpm --filter @samm/infra exec cdk deploy HubIt",
+    "export:exemple": "pnpm --filter @samm/api exec tsx scripts/sample-export.ts"
+  }
+}
