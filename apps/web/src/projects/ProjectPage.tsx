@@ -52,6 +52,11 @@ export function ProjectPage() {
     void reload();
   }, [reload]);
 
+  // Sur mobile, la barre d'onglets défile : on garde l'onglet actif visible.
+  useEffect(() => {
+    document.querySelector('.tabs-scroll .tab.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [tab, project === null]);
+
   const job = useJobPolling(jobId, async (j) => {
     setJobId(null);
     if (j.status === 'termine') toast(`${JOB_TYPE_LABELS[j.type]} : ${j.step.charAt(0).toLowerCase()}${j.step.slice(1)}.`);

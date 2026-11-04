@@ -94,19 +94,21 @@ function Timeline() {
   const span = Math.max(max - min, 86400000);
   const pos = (d: string) => 2 + ((Date.parse(d) - min) / span) * 96;
   return (
-    <div className="card timeline">
-      <div className="tl-axis" />
-      <div className="tl-today" style={{ left: `${pos(today)}%` }} title="Aujourd’hui"><span>Aujourd’hui</span></div>
-      {points.map((p, i) => (
-        <div key={i} className={`tl-point ${p.cls} ${i % 2 ? 'tl-below' : 'tl-above'}${pos(p.date) < 12 ? ' tl-start' : pos(p.date) > 88 ? ' tl-end' : ''}`} style={{ left: `${pos(p.date)}%` }} title={`${p.label} — ${formatDate(p.date)}`}>
-          <span className="tl-dot" />
-          <span className="tl-label">
-            <strong>{p.label}</strong>
-            <br />
-            {formatDate(p.date)}
-          </span>
-        </div>
-      ))}
+    <div className="card timeline-wrap">
+      <div className="timeline">
+        <div className="tl-axis" />
+        <div className="tl-today" style={{ left: `${pos(today)}%` }} title="Aujourd’hui"><span>Aujourd’hui</span></div>
+        {points.map((p, i) => (
+          <div key={i} className={`tl-point ${p.cls} ${i % 2 ? 'tl-below' : 'tl-above'}${pos(p.date) < 12 ? ' tl-start' : pos(p.date) > 88 ? ' tl-end' : ''}`} style={{ left: `${pos(p.date)}%` }} title={`${p.label} — ${formatDate(p.date)}`}>
+            <span className="tl-dot" />
+            <span className="tl-label">
+              <strong>{p.label}</strong>
+              <br />
+              {formatDate(p.date)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

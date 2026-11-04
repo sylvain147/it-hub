@@ -41,4 +41,5 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - En local, dynalite tourne en mémoire : les données disparaissent au redémarrage de l'API (les fichiers restent dans `apps/api/.data`).
 - Mesurer les performances du moteur de lecture sur un bundle (esbuild/Vite), pas via `tsx` : `tsx` est 4 à 5 fois plus lent.
 - `RichEditor` : n'émettre `onChange` que si `transaction.docChanged` (sinon `setEditable` marque le document comme modifié).
+- Responsive : sous 900 px le menu devient un tiroir (`Layout.tsx`), sous 640 px les tableaux `.table-wrap` passent en cartes (libellés posés automatiquement par `useResponsiveTables` ; ajouter `table-scroll` pour garder un tableau défilant) et les modales s'ouvrent en bas d'écran.
 - Le front charge `/config.json` (généré au déploiement) ; en local, son absence active le mode `dev` (pas de Cognito, en-tête `x-dev-user`).
