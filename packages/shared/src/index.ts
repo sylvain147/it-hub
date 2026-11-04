@@ -6,3 +6,4 @@ export * from './files/parse.js';
 export * from './files/excerpt.js';
 export * from './files/xlsx.js';
 export * from './files/api.js';
+export * from './project.js';

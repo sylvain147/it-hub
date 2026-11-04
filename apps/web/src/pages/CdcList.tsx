@@ -3,10 +3,14 @@ import { Link } from 'react-router';
 import { CDC_STATUSES, CDC_STATUS_LABELS, PROJECT_PHASE_LABELS, type CdcStatus } from '@samm/shared';
 import { api } from '../api';
 import { useLoad } from '../hooks';
+import { ProjectStatusBadge } from '../projects/common';
 import { EmptyState, ErrorBox, Spinner, StatusBadge, formatDate, shortUser } from '../components/ui';
 
 export function CdcList() {
   const { data, error, loading } = useLoad(() => api.listCdcs(), []);
+  const { data: projects } = useLoad(() => api.listProjects(), []);
+  const projectById = new Map((projects ?? []).map((p) => [p.id, p]));
+  const [orphans, setOrphans] = useState(false);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<CdcStatus | 'actifs' | 'tous'>('actifs');
 
@@ -15,16 +19,20 @@ export function CdcList() {
     return (data ?? []).filter((c) => {
       if (status === 'actifs' && c.status === 'archive') return false;
       if (status !== 'actifs' && status !== 'tous' && c.status !== status) return false;
+      if (orphans && c.projectId) return false;
       if (!needle) return true;
       return [c.title, c.prestataire, c.projet].some((s) => s.toLowerCase().includes(needle));
     });
-  }, [data, q, status]);
+  }, [data, q, status, orphans]);
 
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Cahiers des charges</h1>
-        <Link to="/cdc/nouveau" className="btn btn-primary">+ Nouveau cahier des charges</Link>
+        <div>
+          <h1>Cahiers des charges</h1>
+          <p className="muted">Tous les cahiers des charges de l’équipe. Pour en rédiger un nouveau, ouvrez le projet concerné (onglet « Cahiers des charges »).</p>
+        </div>
+        <Link to="/projets" className="btn btn-primary">📁 Aller aux projets</Link>
       </div>
       <div className="filters">
         <input className="input" placeholder="Rechercher (titre, prestataire, projet)…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -35,13 +43,16 @@ export function CdcList() {
             <option key={s} value={s}>{CDC_STATUS_LABELS[s]}</option>
           ))}
         </select>
+        <label className="check">
+          <input type="checkbox" checked={orphans} onChange={(e) => setOrphans(e.target.checked)} /> Sans projet uniquement
+        </label>
       </div>
       <ErrorBox error={error} />
       {loading && !data ? (
         <Spinner />
       ) : rows.length === 0 ? (
         <EmptyState>
-          {data?.length ? 'Aucun cahier des charges ne correspond à la recherche.' : 'Aucun cahier des charges pour l’instant. Créez le premier à partir d’une transcription de réunion.'}
+          {data?.length ? 'Aucun cahier des charges ne correspond à la recherche.' : 'Aucun cahier des charges pour l’instant. Créez-les depuis un projet.'}
         </EmptyState>
       ) : (
         <div className="table-wrap">
@@ -49,6 +60,7 @@ export function CdcList() {
             <thead>
               <tr>
                 <th>Titre</th>
+                <th>Projet</th>
                 <th>Prestataire</th>
                 <th>Statut</th>
                 <th>Phase</th>
@@ -62,7 +74,14 @@ export function CdcList() {
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id}>
-                  <td><Link to={`/cdc/${c.id}`} className="strong">{c.title}</Link>{c.projet && <div className="muted small">{c.projet}</div>}</td>
+                  <td><Link to={`/cdc/${c.id}`} className="strong">{c.title}</Link></td>
+                  <td>
+                    {c.projectId && projectById.get(c.projectId) ? (
+                      <><Link to={`/projets/${c.projectId}?onglet=cdc`}>{projectById.get(c.projectId)!.name}</Link> <ProjectStatusBadge status={projectById.get(c.projectId)!.status} /></>
+                    ) : (
+                      <span className="muted">{c.projet || '—'}{!c.projectId && <span className="badge">sans projet</span>}</span>
+                    )}
+                  </td>
                   <td>{c.prestataire || <span className="muted">—</span>}</td>
                   <td><StatusBadge status={c.status} /></td>
                   <td>{c.phase ? PROJECT_PHASE_LABELS[c.phase] : <span className="muted">—</span>}</td>

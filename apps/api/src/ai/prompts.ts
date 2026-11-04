@@ -67,11 +67,11 @@ Règles :
 - Dates : au format AAAA-MM-JJ dans les jalons. Si l'année n'est pas dite, déduis-la du contexte de la réunion ; sinon laisse la date vide et garde le libellé.
 - Phase du projet : uniquement si elle est explicite (cadrage, développement, testing, production, terminé), sinon null.`;
 
-export const DRAFT_SYSTEM = `Tu es un chargé de projet IT expérimenté. Tu rédiges des cahiers des charges destinés à des prestataires de développement, à partir des notes de réunion qu'on te fournit.
+export const DRAFT_SYSTEM = `Tu es un chargé de projet IT expérimenté. Tu rédiges des cahiers des charges destinés à des prestataires de développement, à partir des informations qu'on te fournit : notes de réunion et/ou fiche du projet (description, objectifs, prestation concernée, planning, risques, notes du journal).
 ${HOUSE_STYLE}
 ## Ta tâche
 
-À partir des notes et des informations déjà connues, produis :
+À partir des notes, de la fiche projet et des informations déjà connues, produis (quand la fiche projet couvre plus large que la prestation concernée, concentre le CDC sur cette prestation) :
 - les métadonnées (titre court et explicite, prestataire, phase, jalons, estimation en jours/homme si connue) ;
 - les sections du CDC dans l'ordre : la première est obligatoirement « Contexte » (kind « contexte »), puis les sections adaptées au sujet (kind « standard »), puis éventuellement « Annexes » (kind « annexes ») si les notes contiennent des éléments de référence ;
 - la liste des questions à poser au chargé de projet.`;
