@@ -26,6 +26,13 @@ export const MODULES: HubModule[] = [
     path: '/fichiers',
     icon: '🗂️',
   },
+  {
+    id: 'tma',
+    title: 'Suivi TMA',
+    description: 'Importer les exports de tickets Desk et le relevé mensuel du prestataire : temps passé par ticket et par intervenant, récurrences par thème, synthèse rédigée par l’IA.',
+    path: '/tma',
+    icon: '⏱️',
+  },
 ];
 
 export const ADMIN_LINKS = [{ title: 'Consommation IA', path: '/consommation', icon: '📊' }];

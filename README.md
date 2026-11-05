@@ -47,6 +47,18 @@ Pour décortiquer les fichiers à plat, CSV et exports qui circulent sur les FTP
 - **Confidentialité** : les fichiers sont lus **dans le navigateur**, jamais envoyés ni conservés. Seul un extrait de l'exemple part à l'IA lors de la création d'un type, **anonymisé par défaut** (lettres et chiffres remplacés au hasard ; longueurs, dates et codes courts conservés) et visible avant l'envoi.
 - **Coût** : quelques centimes une seule fois par type de fichier ; la lecture des fichiers n'utilise jamais l'IA.
 
+### ⏱️ Suivi TMA
+
+Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
+
+- **Export des tickets Desk** (CSV, idéalement 90 jours pour démarrer) : les tickets sont ajoutés ou mis à jour à chaque import.
+- **Relevé mensuel du temps passé** (Excel : date, nombre de jours, nom, prénom, commentaire) : le temps de chaque ligne est réparti entre les tickets cités dans le commentaire (« Desk #11373, #11375 », « Desk365#8720 (45 min) »…), selon les durées écrites ou à parts égales ; le reste est classé en pilotage / réunions ou autres activités. Une journée = 8 h.
+- **Rapport du mois** : temps par intervenant, par ticket, par catégorie Desk et par thème, tickets créés (catégorie, cause, priorité, thème), activités hors ticket, comparaison avec le mois précédent, export Excel.
+- **Thèmes et récurrences** : l'assistant attribue un thème à chaque ticket (« Chèques – erreur de montant / impayé »…) pour repérer les problèmes qui reviennent, mois par mois, avec le temps TMA associé.
+- **Synthèse du mois** rédigée par l'assistant à partir des seuls chiffres calculés.
+- **Confidentialité** : les fichiers sont lus dans le navigateur ; seules les colonnes utiles sont envoyées, après **masquage des données personnelles** (e-mails, téléphones, numéros de client / commande / chèque, noms après une civilité, noms des demandeurs, signatures). Un nom cité sans civilité au milieu d'une phrase peut subsister.
+- **Coût** : classement des tickets par le modèle rapide, une seule fois par ticket (moins d'un euro pour un an de tickets) ; quelques centimes par synthèse. Les rapports eux-mêmes n'utilisent pas l'IA.
+
 ### 📊 Consommation IA
 
 Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).

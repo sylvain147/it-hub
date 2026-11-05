@@ -5,6 +5,7 @@
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
 import type { SpecPatch } from '../filetypes/ai-schemas.js';
+import type { SynthesisOutput, ThemesOutput } from '../tma/ai-schemas.js';
 import type { Digest, Report } from '../projects/ai.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
@@ -51,6 +52,10 @@ export class MockProvider implements LlmProvider {
       case 'fichier_correction':
       case 'fichier_ajustement':
         return this.filePatch(call.input, call.operation);
+      case 'tma_themes':
+        return this.themes(call.input);
+      case 'tma_synthese':
+        return this.tmaSynthesis(call.input);
       default:
         return this.update(call.input, call.operation);
     }
@@ -147,6 +152,30 @@ export class MockProvider implements LlmProvider {
       summary: operation === 'fichier_ajustement' ? `Simulation : ajustement demandé (« ${demande.slice(0, 60)} »)${first ? ` ; premier type ${first[1]}` : ''}` : 'Simulation : fiche vérifiée',
       remarks: [],
     };
+  }
+
+  /** Thème simulé d'après quelques mots-clés du sujet. */
+  private themes(input: string): ThemesOutput {
+    const rules: [RegExp, string][] = [
+      [/ch[eè]que/i, 'Chèques – erreur de montant / impayé'],
+      [/paypal|paiement/i, 'Paiements – à rattacher'],
+      [/rembours/i, 'Remboursements – non déclenchés'],
+      [/annul/i, 'Annulations de commandes ou d’articles'],
+    ];
+    return {
+      items: [...between(input, 'tickets').matchAll(/^### #(\d+) — (.*)$/gm)].map((m) => ({
+        id: m[1]!,
+        theme: rules.find(([re]) => re.test(m[2]!))?.[1] ?? 'Autres demandes',
+      })),
+    };
+  }
+
+  private tmaSynthesis(input: string): SynthesisOutput {
+    const facts = between(input, 'chiffres_du_mois')
+      .split('\n')
+      .filter((l) => l.startsWith('- '))
+      .slice(0, 4);
+    return { markdown: `## En bref\n\n*Synthèse simulée (aucun appel IA).*\n\n${facts.join('\n')}\n\n## Points d'attention et recommandations\n\n- [À compléter]` };
   }
 
   private digest(input: string): Digest {

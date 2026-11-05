@@ -271,6 +271,8 @@ export const JOB_TYPES = [
   'filetype_adjust',
   'project_digest',
   'project_report',
+  'tma_classify',
+  'tma_synthesis',
 ] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
@@ -283,6 +285,8 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   filetype_adjust: 'Ajustement de la fiche de lecture',
   project_digest: 'Analyse du compte rendu',
   project_report: 'Rapport d’avancement',
+  tma_classify: 'Classement des tickets par thème',
+  tma_synthesis: 'Rédaction de la synthèse TMA',
 };
 
 export type JobStatus = 'en_attente' | 'en_cours' | 'termine' | 'erreur';
@@ -291,7 +295,7 @@ export interface JobInfo {
   id: string;
   type: JobType;
   status: JobStatus;
-  /** Élément concerné : identifiant du CDC, du type de fichier ou du projet. */
+  /** Élément concerné : identifiant du CDC, du type de fichier ou du projet, ou mois TMA (« desk » pour le classement des tickets). */
   targetId: string;
   step: string;
   error: string;

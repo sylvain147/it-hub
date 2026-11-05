@@ -64,6 +64,18 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | `FTYPE#<id>` | `VER#<seq>` | Version de la fiche ; contenu JSON dans S3 |
 | (S3) `ftypes/<id>/context.json` | | Extrait (anonymisé), documentation en texte |
 
+## Module « Suivi TMA »
+
+- **Lecture des fichiers dans le navigateur** (`packages/shared/src/tma/`) : export Desk (`desk.ts`, CSV avec retours à la ligne dans les champs), relevé TMA (`activity.ts`, via `readXlsx`), masquage des données personnelles (`mask.ts`). Seuls les champs utiles, masqués, partent au serveur.
+- **Rapports calculés par le code** (`report.ts`), partagés entre l'API et les tests : temps par ticket / intervenant / thème, tickets créés, comparaison avec le mois précédent, récurrences par thème.
+- **IA** (`apps/api/src/tma/jobs.ts`) : classement par thème (modèle rapide, lots de 40, seulement les tickets non classés ; les thèmes existants sont fournis pour rester cohérents) et synthèse mensuelle (modèle de rédaction, entrée = chiffres du mois en Markdown, quelques Ko).
+
+| pk | sk | Contenu |
+|---|---|---|
+| `TMA#DESK` | `META` | Dernier import Desk, job de classement actif |
+| `TMA#DESK` | `TKT#<n°>` | Ticket Desk (champs utiles, textes masqués, thème) |
+| `TMA#MONTH#<AAAA-MM>` | `META` | Relevé du mois (+ index `gsi1`), synthèse IA ; lignes dans S3 (`tma/months/<mois>.json`) |
+
 ## Module « Projets »
 
 - **Modèle** (`packages/shared/src/project.ts`) : la fiche (`projectFieldsSchema`) et huit types d'éléments rattachés (`PROJECT_ITEM_SCHEMAS` : tâches, jalons, prestations, intervenants, liens, documents, notes du journal, risques), chacun avec son schéma zod. Les indicateurs (`computeStats` : tâches ouvertes / en retard, prochain jalon, budget prévu / engagé, risques…) sont recalculés côté serveur après chaque modification et stockés sur la fiche pour la liste.

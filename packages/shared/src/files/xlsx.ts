@@ -21,6 +21,28 @@ const encodeXml = (s: string) =>
 
 /** Convertit chaque onglet en lignes « A | B | C » (lignes vides ignorées). */
 export function xlsxToText(bytes: Uint8Array, maxChars = 400_000): { sheets: { name: string; text: string }[] } {
+  const sheets: { name: string; text: string }[] = [];
+  let total = 0;
+  for (const sheet of readXlsx(bytes)) {
+    const lines: string[] = [];
+    for (const row of sheet.rows) {
+      // Colonnes vides intermédiaires conservées (alignement des tableaux de spécification).
+      const cells = row.map((v) => (v === null ? '' : String(v).replace(/\s*\n\s*/g, ' / ').trim()));
+      if (cells.some((x) => x)) lines.push(cells.join(' | '));
+    }
+    const text = lines.join('\n');
+    total += text.length;
+    sheets.push({ name: sheet.name, text });
+    if (total > maxChars) break;
+  }
+  return { sheets };
+}
+
+/**
+ * Lit les cellules de chaque onglet : texte, nombre (les dates Excel sont des nombres de jours) ou null.
+ * Chaque ligne est indexée par colonne (A = 0) ; les lignes entièrement vides sont ignorées.
+ */
+export function readXlsx(bytes: Uint8Array): { name: string; rows: CellValue[][] }[] {
   const files = unzipSync(bytes, { filter: (f) => f.name.startsWith('xl/') });
   const read = (n: string) => (files[n] ? strFromU8(files[n]!) : '');
   const shared = [...read('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) =>
@@ -28,39 +50,37 @@ export function xlsxToText(bytes: Uint8Array, maxChars = 400_000): { sheets: { n
   );
   const workbook = read('xl/workbook.xml');
   const rels = read('xl/_rels/workbook.xml.rels');
-  const sheets: { name: string; text: string }[] = [];
-  let total = 0;
+  const sheets: { name: string; rows: CellValue[][] }[] = [];
   for (const m of workbook.matchAll(/<sheet\b[^>]*?name="([^"]*)"[^>]*?r:id="([^"]*)"/g)) {
     const name = decodeXml(m[1]!);
     const target = new RegExp(`Id="${m[2]}"[^>]*Target="([^"]+)"|Target="([^"]+)"[^>]*Id="${m[2]}"`).exec(rels);
     const path = target ? 'xl/' + (target[1] ?? target[2])!.replace(/^\/?xl\//, '').replace(/^\.\//, '') : '';
     const xml = read(path);
-    const lines: string[] = [];
+    const rows: CellValue[][] = [];
     for (const row of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
-      const cells: string[] = [];
+      const cells: CellValue[] = [];
       for (const c of row[1]!.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
         const attrs = c[1]!;
         const inner = c[2] ?? '';
         const col = /r="([A-Z]+)\d+"/.exec(attrs)?.[1];
-        let v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1];
-        if (/t="s"/.test(attrs) && v !== undefined) v = shared[Number(v)];
-        else if (/t="inlineStr"/.test(attrs)) v = [...inner.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join('');
-        if (v === undefined) continue;
-        const text = decodeXml(v).replace(/\s*\n\s*/g, ' / ').trim();
-        if (!text) continue;
-        // Colonnes vides intermédiaires conservées (alignement des tableaux de spécification).
+        const type = /t="([^"]*)"/.exec(attrs)?.[1] ?? 'n';
+        const raw = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1];
+        let v: CellValue;
+        if (type === 's') v = raw === undefined ? null : (shared[Number(raw)] ?? null);
+        else if (type === 'inlineStr') v = decodeXml([...inner.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join(''));
+        else if (raw === undefined) v = null;
+        else if (type === 'n') v = Number(raw);
+        else v = decodeXml(raw);
+        if (v === null || v === '' || (typeof v === 'number' && !Number.isFinite(v))) continue;
         const idx = col ? colIndex(col) : cells.length;
-        while (cells.length < idx) cells.push('');
-        cells[idx] = text;
+        while (cells.length < idx) cells.push(null);
+        cells[idx] = v;
       }
-      if (cells.some((x) => x)) lines.push(cells.join(' | '));
+      if (cells.length) rows.push(cells);
     }
-    const text = lines.join('\n');
-    total += text.length;
-    sheets.push({ name, text });
-    if (total > maxChars) break;
+    sheets.push({ name, rows });
   }
-  return { sheets };
+  return sheets;
 }
 
 function colIndex(col: string): number {

@@ -10,6 +10,8 @@ import * as repo from '../db/repo.js';
 import { keys } from '../db/schema.js';
 import { fileTypeKeys } from '../filetypes/repo.js';
 import { runFileTypeJob } from '../filetypes/jobs.js';
+import { tmaKeys } from '../tma/repo.js';
+import { runTmaJob } from '../tma/jobs.js';
 import { projectKeys } from '../projects/repo.js';
 import { runProjectJob } from '../projects/jobs.js';
 import { blobs } from '../storage/blobs.js';
@@ -18,6 +20,8 @@ import * as ai from '../ai/pipeline.js';
 
 /** Élément verrouillé pendant le job. */
 function targetKey(type: JobType, targetId: string) {
+  if (type === 'tma_classify') return tmaKeys.desk();
+  if (type === 'tma_synthesis') return tmaKeys.month(targetId);
   if (type.startsWith('filetype_')) return fileTypeKeys.meta(targetId);
   if (type.startsWith('project_')) return projectKeys.meta(targetId);
   return keys.cdc(targetId);
@@ -90,6 +94,10 @@ export async function runJob(jobId: string): Promise<void> {
       case 'filetype_create':
       case 'filetype_adjust':
         ({ seq: resultSeq, message: doneMessage } = await runFileTypeJob(job.type, job.targetId, p, ctx, step));
+        break;
+      case 'tma_classify':
+      case 'tma_synthesis':
+        doneMessage = await runTmaJob(job.type, job.targetId, p, ctx, step);
         break;
       case 'project_digest':
       case 'project_report':
