@@ -93,12 +93,18 @@ export interface DraftResult {
   questions: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>[];
 }
 
-export async function draftCdc(notes: string, known: CdcMeta, ctx: Ctx): Promise<DraftResult> {
+export async function draftCdc(notes: string, known: CdcMeta, ctx: Ctx, projectContext = ''): Promise<DraftResult> {
+  const blocks = [
+    `Date du jour : ${today()}`,
+    metaBlock(known),
+    projectContext.trim() && `<fiche_projet>\n${projectContext}\n</fiche_projet>`,
+    notes.trim() && `<notes_de_reunion>\n${notes}\n</notes_de_reunion>`,
+  ];
   const out = await callStructured({
     tier: 'smart',
     operation: 'redaction',
     system: DRAFT_SYSTEM,
-    input: `Date du jour : ${today()}\n\n${metaBlock(known)}\n\n<notes_de_reunion>\n${notes}\n</notes_de_reunion>`,
+    input: blocks.filter(Boolean).join('\n\n'),
     schema: draftSchema,
     maxTokens: 16000,
     effort: 'medium',

@@ -231,7 +231,7 @@ export class HubStack extends Stack {
       },
     });
 
-    // Envoi direct des images depuis le navigateur (URL pré-signées).
+    // Envoi direct des images et des pièces jointes depuis le navigateur (URL pré-signées).
     dataBucket.addCorsRule({
       allowedOrigins: [`https://${distribution.distributionDomainName}`],
       allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],

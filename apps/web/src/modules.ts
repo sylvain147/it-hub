@@ -12,11 +12,12 @@ export interface HubModule {
 
 export const MODULES: HubModule[] = [
   {
-    id: 'cdc',
-    title: 'Cahiers des charges',
-    description: 'Générer un cahier des charges à partir d’une transcription de réunion, le compléter, le versionner et l’exporter.',
-    path: '/cdc',
-    icon: '📄',
+    id: 'projets',
+    title: 'Projets',
+    description:
+      'Suivre chaque projet : intervenants, prestations et budget, tâches, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
+    path: '/projets',
+    icon: '📁',
   },
   {
     id: 'fichiers',

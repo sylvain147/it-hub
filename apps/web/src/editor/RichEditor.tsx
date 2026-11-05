@@ -12,13 +12,16 @@ interface Props {
   value: RichDoc;
   onChange: (doc: RichDoc) => void;
   editable: boolean;
-  cdcId: string;
+  /** CDC propriétaire des images collées ; sans CDC, l'insertion d'images est désactivée. */
+  cdcId?: string;
   /** Numéro de la section, pour numéroter les sous-sections (3.1, 3.2…). */
-  sectionNumber: number | null;
+  sectionNumber?: number | null;
   placeholder?: string;
+  /** Barre d'outils réduite (champs de fiche projet, notes). */
+  compact?: boolean;
 }
 
-export function RichEditor({ value, onChange, editable, cdcId, sectionNumber, placeholder }: Props) {
+export function RichEditor({ value, onChange, editable, cdcId, sectionNumber = null, placeholder, compact }: Props) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -34,21 +37,22 @@ export function RichEditor({ value, onChange, editable, cdcId, sectionNumber, pl
     ],
     content: value,
     editable,
-    onUpdate: ({ editor }) => onChangeRef.current(editor.getJSON() as RichDoc),
+    // `setEditable` émet aussi un événement « update » sans modification : on l'ignore pour ne pas marquer le document comme modifié.
+    onUpdate: ({ editor, transaction }) => transaction.docChanged && onChangeRef.current(editor.getJSON() as RichDoc),
     editorProps: {
-      handlePaste: (_view, event) => insertImages(editorRef.current, cdcId, [...(event.clipboardData?.files ?? [])]),
-      handleDrop: (_view, event) => insertImages(editorRef.current, cdcId, [...((event as DragEvent).dataTransfer?.files ?? [])]),
+      handlePaste: (_view, event) => !!cdcId && insertImages(editorRef.current, cdcId, [...(event.clipboardData?.files ?? [])]),
+      handleDrop: (_view, event) => !!cdcId && insertImages(editorRef.current, cdcId, [...((event as DragEvent).dataTransfer?.files ?? [])]),
     },
   });
   const editorRef = useRef<Editor | null>(null);
   editorRef.current = editor;
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   return (
-    <div className={`rich${editable ? '' : ' rich-readonly'}`} style={{ ['--sec' as string]: sectionNumber != null ? `"${sectionNumber}."` : '""' }}>
+    <div className={`rich${editable ? '' : ' rich-readonly'}${compact ? ' rich-compact' : ''}`} style={{ ['--sec' as string]: sectionNumber != null ? `"${sectionNumber}."` : '""' }}>
       {editable && editor && <Toolbar editor={editor} cdcId={cdcId} />}
       <EditorContent editor={editor} className={sectionNumber != null ? 'numbered' : ''} />
     </div>
@@ -71,7 +75,7 @@ function insertImages(editor: Editor | null, cdcId: string, files: File[]): bool
   return true;
 }
 
-function Toolbar({ editor, cdcId }: { editor: Editor; cdcId: string }) {
+function Toolbar({ editor, cdcId }: { editor: Editor; cdcId?: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const s = useEditorState({
     editor,
@@ -130,17 +134,21 @@ function Toolbar({ editor, cdcId }: { editor: Editor; cdcId: string }) {
           <B on={() => c().deleteTable().run()} title="Supprimer le tableau">✕ tableau</B>
         </>
       )}
-      <B on={() => fileRef.current?.click()} title="Insérer une image (ou collez-la directement)">🖼 Image</B>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/png,image/jpeg"
-        hidden
-        onChange={(e) => {
-          insertImages(editor, cdcId, [...(e.target.files ?? [])]);
-          e.target.value = '';
-        }}
-      />
+      {cdcId && (
+        <>
+          <B on={() => fileRef.current?.click()} title="Insérer une image (ou collez-la directement)">🖼 Image</B>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            hidden
+            onChange={(e) => {
+              insertImages(editor, cdcId, [...(e.target.files ?? [])]);
+              e.target.value = '';
+            }}
+          />
+        </>
+      )}
       <span className="tb-flex" />
       <B on={() => c().undo().run()} title="Annuler (Ctrl+Z)" disabled={!s.canUndo}>↶</B>
       <B on={() => c().redo().run()} title="Rétablir (Ctrl+Maj+Z)" disabled={!s.canRedo}>↷</B>

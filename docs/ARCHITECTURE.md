@@ -6,7 +6,7 @@ Navigateur ──HTTPS──> CloudFront ─┬─ /*      → S3 (front React)
                                                                                               │  invocation asynchrone
                                                                                               ▼
                                                                                          Lambda « worker » ──> Bedrock (Claude)
-             DynamoDB (fiches, versions, questions, jobs, conso) · S3 (contenus des versions, transcriptions, images, exports)
+             DynamoDB (projets, fiches, versions, questions, jobs, conso) · S3 (contenus des versions, transcriptions, images, pièces jointes, exports)
 ```
 
 - **100 % serverless** : rien ne tourne (ni ne coûte) quand personne n'utilise l'application.
@@ -18,7 +18,7 @@ Navigateur ──HTTPS──> CloudFront ─┬─ /*      → S3 (front React)
 
 | pk | sk | Contenu |
 |---|---|---|
-| `CDC#<id>` | `META` | Fiche : métadonnées, version courante, job actif (index `gsi1` pour la liste) |
+| `CDC#<id>` | `META` | Fiche : métadonnées, projet de rattachement, version courante, job actif (index `gsi1` pour la liste) |
 | `CDC#<id>` | `VER#<seq>` | Version : numéro (0.3, 1.0…), origine (manuel / IA / restauration), auteur, commentaire ; contenu JSON dans S3 |
 | `CDC#<id>` | `Q#<id>` | Question de l'assistant : priorité, section, statut (ouverte / répondue / intégrée / ignorée), réponse |
 | `CDC#<id>` | `SRC#<id>` | Transcription : notes extraites ; texte brut dans S3 |
@@ -63,6 +63,22 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | `FTYPE#<id>` | `META` | Type de fichier : nom, version courante, remarques de l'IA (index `gsi1`) |
 | `FTYPE#<id>` | `VER#<seq>` | Version de la fiche ; contenu JSON dans S3 |
 | (S3) `ftypes/<id>/context.json` | | Extrait (anonymisé), documentation en texte |
+
+## Module « Projets »
+
+- **Modèle** (`packages/shared/src/project.ts`) : la fiche (`projectFieldsSchema`) et huit types d'éléments rattachés (`PROJECT_ITEM_SCHEMAS` : tâches, jalons, prestations, intervenants, liens, documents, notes du journal, risques), chacun avec son schéma zod. Les indicateurs (`computeStats` : tâches ouvertes / en retard, prochain jalon, budget prévu / engagé, risques…) sont recalculés côté serveur après chaque modification et stockés sur la fiche pour la liste.
+- **API** (`apps/api/src/projects/`) : routes génériques `POST/PATCH/DELETE /api/projects/:id/items/:kind[/:itemId]` (PATCH partiel, revalidé entièrement), fiche avec verrouillage optimiste (`rev`), pièces jointes par URL pré-signée (création → envoi direct depuis le navigateur → confirmation), vues transverses `/api/tasks/open` et `/api/activity`. Chaque modification alimente l'historique.
+- **Cahiers des charges** : un CDC porte un `projectId` (attribut de la fiche, hors document versionné). `POST /api/projects/:id/cdcs` crée le CDC pré-rempli (projet, prestataire et charge de la prestation, jalons non atteints, phase déduite du statut) et, si demandé, lance la génération avec un **contexte projet** en Markdown compact (`projectContextMarkdown`), éventuellement complété d'une transcription triée par le modèle rapide.
+- **IA** (`projects/ai.ts`, `projects/jobs.ts`) : jobs `project_digest` (modèle rapide : compte rendu + propositions de tâches, jalons et risques stockées sur la note, validées une à une par l'utilisateur) et `project_report` (modèle de rédaction, effort faible : rapport à partir des seules données du projet, 30 derniers jours). Le job réserve le projet (une tâche IA à la fois) mais n'empêche pas l'édition : il ne fait qu'ajouter une note.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `PROJ#<id>` | `META` | Fiche + indicateurs + révision (index `gsi1` « PROJ » pour la liste) |
+| `PROJ#<id>` | `TASK#<id>` | Tâche (index `gsi1` « TASK_OPEN » tant qu'elle n'est pas faite : « mes tâches » sur l'accueil) |
+| `PROJ#<id>` | `JALON#`, `PRESTA#`, `CONTACT#`, `LINK#`, `FILE#`, `NOTE#`, `RISK#` | Éléments rattachés |
+| `PROJ#<id>` | `ACT#<date>#<aléa>` | Historique (index `gsi1` « ACT » : activité récente ; expire après 1 an) |
+| (S3) `projects/<id>/files/<fileId>` | | Pièce jointe |
+| (S3) `projects/<id>/notes/<noteId>.txt` | | Transcription d'origine d'un compte rendu analysé |
 
 ## Ajouter un module au hub
 

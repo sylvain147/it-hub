@@ -13,7 +13,7 @@ import {
   type Section,
 } from '@samm/shared';
 import { api, ApiError, download } from '../api';
-import { useJobPolling } from '../hooks';
+import { useJobPolling, useLoad } from '../hooks';
 import { ErrorBox, Modal, Spinner, StatusBadge, formatDateTime, shortUser, toast } from '../components/ui';
 import { MetaForm } from './MetaForm';
 import { SectionsEditor } from './SectionsEditor';
@@ -36,6 +36,8 @@ export function CdcEditorPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [saveOpen, setSaveOpen] = useState(false);
   const [rework, setRework] = useState<Section | null>(null);
+  const projectId = detail?.projectId ?? null;
+  const { data: project } = useLoad(() => (projectId ? api.getProject(projectId) : Promise.resolve(null)), [projectId]);
 
   const applyDetail = useCallback((d: CdcDetail) => {
     setDetail(d);
@@ -126,7 +128,7 @@ export function CdcEditorPage() {
     return (
       <div className="page">
         <ErrorBox error={loadError} />
-        <Link to="/cdc">← Retour à la liste</Link>
+        <Link to="/projets">← Retour aux projets</Link>
       </div>
     );
   }
@@ -138,7 +140,11 @@ export function CdcEditorPage() {
     <div className="editor-page">
       <header className="editor-bar">
         <div className="editor-bar-left">
-          <Link to="/cdc" className="muted small">← Cahiers des charges</Link>
+          {projectId ? (
+            <Link to={`/projets/${projectId}?onglet=cdc`} className="muted small">← Projet {project?.name ?? ''}</Link>
+          ) : (
+            <Link to="/cdc" className="muted small">← Cahiers des charges</Link>
+          )}
           <div className="editor-title">
             <span className="strong">{detail.title}</span>
             <span className="badge">v{detail.currentVersion.label}</span>

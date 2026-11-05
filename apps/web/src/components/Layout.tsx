@@ -1,13 +1,34 @@
-import { NavLink, Outlet } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { ADMIN_LINKS, MODULES } from '../modules';
 import { signOutEverywhere, useAuth } from '../auth';
 import { ToastHost } from './ui';
 
 export function Layout() {
   const { email, signOut } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const contentRef = useRef<HTMLElement>(null);
+
+  // Le menu mobile se referme à chaque navigation.
+  useEffect(() => setMenuOpen(false), [location.pathname, location.search]);
+  useResponsiveTables(contentRef);
+
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <header className="mobile-bar">
+        <button className="burger" aria-label="Ouvrir le menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
+          <span />
+          <span />
+          <span />
+        </button>
+        <NavLink to="/" className="brand brand-mobile">
+          <span className="brand-logo">IT</span>
+          <span>Hub IT</span>
+        </NavLink>
+      </header>
+      {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
+      <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
         <NavLink to="/" className="brand">
           <span className="brand-logo">IT</span>
           <span>Hub IT</span>
@@ -39,10 +60,43 @@ export function Layout() {
           </button>
         </div>
       </aside>
-      <main className="content">
+      <main className="content" ref={contentRef}>
         <Outlet />
       </main>
       <ToastHost />
     </div>
   );
+}
+
+/**
+ * Sur petit écran, les tableaux s'affichent en cartes (voir styles.css) : chaque cellule reçoit
+ * le libellé de sa colonne (`data-label`). Un observateur suffit à couvrir tous les écrans du hub.
+ */
+function useResponsiveTables(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    let frame = 0;
+    const label = () => {
+      frame = 0;
+      root.querySelectorAll<HTMLTableElement>('.table-wrap table').forEach((table) => {
+        const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+          [...tr.children].forEach((td, i) => {
+            const l = heads[i] ?? '';
+            if (td.getAttribute('data-label') !== l) td.setAttribute('data-label', l);
+          });
+        });
+      });
+    };
+    const observer = new MutationObserver(() => {
+      frame ||= requestAnimationFrame(label);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    label();
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [ref]);
 }

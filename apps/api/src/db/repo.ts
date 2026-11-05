@@ -38,6 +38,7 @@ interface CdcItem {
   gsi1pk: string;
   gsi1sk: string;
   id: string;
+  projectId?: string | null;
   title: string;
   prestataire: string;
   projet: string;
@@ -73,6 +74,7 @@ export function pickNextJalon(jalons: Jalon[], today = new Date().toISOString().
 function toSummary(it: CdcItem): CdcSummary {
   return {
     id: it.id,
+    projectId: it.projectId ?? null,
     title: it.title,
     prestataire: it.prestataire,
     projet: it.projet,
@@ -124,7 +126,7 @@ export async function getCdcDetail(id: string): Promise<CdcDetail> {
   return { ...toSummary(it), document, activeJobId: activeJob(it) };
 }
 
-export async function createCdc(document: CdcDocument, user: string): Promise<{ id: string; version: VersionInfo }> {
+export async function createCdc(document: CdcDocument, user: string, projectId: string | null = null): Promise<{ id: string; version: VersionInfo }> {
   const id = newId();
   const now = nowIso();
   const { major, minor } = nextVersionNumber(null, document.meta.status);
@@ -148,6 +150,7 @@ export async function createCdc(document: CdcDocument, user: string): Promise<{ 
     gsi1pk: CDC_LIST_PK,
     gsi1sk: now,
     id,
+    projectId,
     ...metaFields(document),
     currentSeq: 1,
     currentMajor: major,
@@ -164,6 +167,24 @@ export async function createCdc(document: CdcDocument, user: string): Promise<{ 
   await ddb().send(new PutCommand({ TableName: T(), Item: version }));
   await ddb().send(new PutCommand({ TableName: T(), Item: item, ConditionExpression: 'attribute_not_exists(pk)' }));
   return { id, version: stripVersion(version) };
+}
+
+/** Rattache un CDC à un projet (ou le détache). Ne crée pas de version : le rattachement ne fait pas partie du document. */
+export async function setCdcProject(id: string, projectId: string | null): Promise<void> {
+  try {
+    await ddb().send(
+      new UpdateCommand({
+        TableName: T(),
+        Key: keys.cdc(id),
+        ConditionExpression: 'attribute_exists(pk)',
+        UpdateExpression: 'SET projectId = :p',
+        ExpressionAttributeValues: { ':p': projectId },
+      }),
+    );
+  } catch (e) {
+    if (isConditionFailed(e)) throw notFound('Cahier des charges');
+    throw e;
+  }
 }
 
 function metaFields(doc: CdcDocument) {

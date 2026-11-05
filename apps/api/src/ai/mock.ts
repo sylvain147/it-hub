@@ -5,6 +5,7 @@
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
 import type { SpecPatch } from '../filetypes/ai-schemas.js';
+import type { Digest, Report } from '../projects/ai.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
 
@@ -40,6 +41,10 @@ export class MockProvider implements LlmProvider {
         return this.draft(call.input);
       case 'traduction':
         return this.translate(call.input);
+      case 'projet_compte_rendu':
+        return this.digest(call.input);
+      case 'projet_rapport':
+        return this.report(call.input);
       case 'fichier_brouillon':
         return { settings: guessSettings(excerptOf(call.input)), recordTypes: guessRecordTypes(excerptOf(call.input)), checks: [], remarks: ['Fiche simulée (aucun appel IA).'] };
       case 'fichier_mise_au_point':
@@ -72,7 +77,7 @@ export class MockProvider implements LlmProvider {
   }
 
   private draft(input: string): Draft {
-    const notes = between(input, 'notes_de_reunion');
+    const notes = `${between(input, 'notes_de_reunion')}\n${between(input, 'fiche_projet')}`;
     const part = (title: string) => {
       const m = new RegExp(`## ${title}\\n([\\s\\S]*?)(\\n## |$)`).exec(notes);
       return m?.[1]?.trim() || '- [À préciser]';
@@ -141,6 +146,35 @@ export class MockProvider implements LlmProvider {
       checks: null,
       summary: operation === 'fichier_ajustement' ? `Simulation : ajustement demandé (« ${demande.slice(0, 60)} »)${first ? ` ; premier type ${first[1]}` : ''}` : 'Simulation : fiche vérifiée',
       remarks: [],
+    };
+  }
+
+  private digest(input: string): Digest {
+    const lines = between(input, 'transcription')
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 10);
+    const speaker = (l: string) => /^([^:]{1,30}):/.exec(l)?.[1] ?? '';
+    const actions = lines.filter((l) => /\b(doit|faut|va|envoyer|faire)\b/i.test(l)).slice(0, 3);
+    const dates = lines.filter((l) => /\b(prod|recette|livraison|testing)\b/i.test(l)).slice(0, 1);
+    return {
+      title: 'Réunion (simulation)',
+      summary: `*Compte rendu simulé (aucun appel IA).*\n\n## Points abordés\n${lines.slice(0, 6).map((l) => `- ${l.replace(/^[^:]{1,30}:\s*/, '')}`).join('\n')}`,
+      decisions: lines.filter((l) => /\b(on part sur|décid|valid)/i.test(l)).map((l) => l.replace(/^[^:]{1,30}:\s*/, '')),
+      tasks: actions.map((l) => ({ title: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 120), assignee: speaker(l), dueDate: '', priority: 'normale' as const })),
+      jalons: dates.map((l) => ({ label: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 80), date: '' })),
+      risks: lines.some((l) => /retard|risque/i.test(l)) ? [{ title: 'Risque de retard évoqué en réunion', probability: 'moyen' as const, impact: 'moyen' as const, mitigation: '' }] : [],
+    };
+  }
+
+  private report(input: string): Report {
+    const data = between(input, 'donnees_projet');
+    const late = /EN RETARD/.test(data);
+    const section = (t: string) => new RegExp(`## ${t}\\n([\\s\\S]*?)(\\n## |$)`).exec(data)?.[1]?.trim() ?? '(aucun)';
+    return {
+      title: `Rapport d’avancement du ${/Date du jour : (\S+)/.exec(data)?.[1] ?? ''}`,
+      markdown: `*Rapport simulé (aucun appel IA).*\n\n## Synthèse\n${late ? 'Des retards sont à signaler.' : 'Le projet avance comme prévu.'}\n\n## Réalisé\n${section('Tâches terminées depuis 30 jours')}\n\n## En cours et à venir\n${section('Tâches ouvertes')}\n\n## Points d'attention\n${section('Risques ouverts')}`,
+      suggestedHealth: late ? 'orange' : 'vert',
     };
   }
 

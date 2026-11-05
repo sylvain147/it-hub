@@ -171,7 +171,7 @@ function RecordTypeEditor({ spec, type, editable, onChange, onDelete }: { spec: 
         </div>
       </div>
       {type.description && <p className="muted small">{type.description}</p>}
-      <div className="table-wrap">
+      <div className="table-wrap table-scroll">
         <table className="table table-compact fields-table">
           <thead>
             <tr>
