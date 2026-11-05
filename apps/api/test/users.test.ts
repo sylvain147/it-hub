@@ -57,19 +57,19 @@ describe('utilisateurs, rôles et tâches', () => {
     expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${mine.json.id}`, { assigneeId: '', assignee: '' }, ADMIN)).status).toBe(400);
     const moved = await env.call('PATCH', `/projects/${projectId}/items/tasks/${mine.json.id}`, { assigneeId: RESP }, ADMIN);
     expect(moved.json).toMatchObject({ assigneeId: RESP, assignee: 'Bruno Petit' });
-    // Un changement de statut seul ne touche pas au responsable.
-    const done = await env.call('PATCH', `/projects/${projectId}/items/tasks/${moved.json.id}`, { status: 'en_cours' }, RESP);
-    expect(done.json.assigneeId).toBe(RESP);
+    // Cocher la tâche ne touche pas au responsable.
+    const done = await env.call('PATCH', `/projects/${projectId}/items/tasks/${moved.json.id}`, { done: true }, RESP);
+    expect(done.json).toMatchObject({ assigneeId: RESP, done: true });
   });
 
   it('gère les tâches personnelles selon le rôle', async () => {
     const own = await env.call('POST', '/todos', { title: 'Mettre à jour mon planning', dueDate: '2026-11-10' }, MEMBRE);
     expect(own.status).toBe(201);
-    expect(own.json).toMatchObject({ assigneeId: MEMBRE, createdBy: MEMBRE, status: 'a_faire' });
+    expect(own.json).toMatchObject({ assigneeId: MEMBRE, createdBy: MEMBRE, done: false });
     // Un chargé de projet ne peut pas attribuer de tâche à quelqu'un d'autre…
     expect((await env.call('POST', '/todos', { title: 'Pour Bruno', assigneeId: RESP }, MEMBRE)).status).toBe(403);
     // … un responsable si.
-    const given = await env.call('POST', '/todos', { title: 'Préparer l’entretien annuel', assigneeId: MEMBRE, priority: 'haute' }, RESP);
+    const given = await env.call('POST', '/todos', { title: 'Préparer l’entretien annuel', assigneeId: MEMBRE, details: 'Relire **les objectifs** de l’an dernier' }, RESP);
     expect(given.json).toMatchObject({ assigneeId: MEMBRE, createdBy: RESP });
     await env.call('POST', '/todos', { title: 'Note de cadrage budget' }, RESP);
 
@@ -82,7 +82,7 @@ describe('utilisateurs, rôles et tâches', () => {
     expect((await env.call('GET', '/todos?user=all', undefined, MEMBRE)).status).toBe(403);
     const team = await env.call('GET', '/todos?user=all', undefined, RESP);
     expect(team.json.personal).toHaveLength(3);
-    expect(team.json.project.length).toBeGreaterThanOrEqual(4);
+    expect(team.json.project.length).toBeGreaterThanOrEqual(3);
     const ofChloe = await env.call('GET', `/todos?user=${MEMBRE}`, undefined, ADMIN);
     expect(ofChloe.json.personal).toHaveLength(2);
     // L'accueil (« mes tâches ») suit la même règle.
@@ -91,7 +91,7 @@ describe('utilisateurs, rôles et tâches', () => {
     expect((await env.call('GET', '/tasks/open', undefined, RESP)).json.length).toBeGreaterThan(open.json.length);
 
     // Modification : la personne concernée, l'auteur ou un rôle qui voit tout.
-    const doneTodo = await env.call('PATCH', `/todos/${own.json.id}`, { status: 'fait' }, MEMBRE);
+    const doneTodo = await env.call('PATCH', `/todos/${own.json.id}`, { done: true }, MEMBRE);
     expect(doneTodo.json.doneAt).not.toBe('');
     const bruno = (await env.call('GET', '/todos', undefined, RESP)).json.personal.find((t: any) => t.title === 'Note de cadrage budget');
     expect((await env.call('PATCH', `/todos/${bruno.id}`, { title: 'X' }, MEMBRE)).status).toBe(403);
@@ -99,6 +99,23 @@ describe('utilisateurs, rôles et tâches', () => {
     expect((await env.call('PATCH', `/todos/${own.json.id}`, { assigneeId: RESP }, MEMBRE)).status).toBe(403);
     expect((await env.call('PATCH', `/todos/${bruno.id}`, { assigneeId: MEMBRE }, ADMIN)).json.assigneeId).toBe(MEMBRE);
     expect((await env.call('DELETE', `/todos/${own.json.id}`, undefined, MEMBRE)).status).toBe(204);
+  });
+
+  it('rattache une tâche personnelle à un projet, puis la rend personnelle', async () => {
+    const todo = (await env.call('POST', '/todos', { title: 'Appeler le métier', details: 'Avant **jeudi**', dueDate: '2026-11-12' }, MEMBRE)).json;
+    expect((await env.call('POST', '/todos/move', { id: todo.id }, MEMBRE)).status).toBe(400); // déjà personnelle
+    const toProject = await env.call('POST', '/todos/move', { id: todo.id, toProjectId: projectId }, MEMBRE);
+    expect(toProject.status).toBe(200);
+    expect(toProject.json.task).toMatchObject({ id: todo.id, title: 'Appeler le métier', details: 'Avant **jeudi**', assigneeId: MEMBRE, assignee: 'Chloé Durand', done: false });
+    expect((await env.call('GET', '/todos', undefined, MEMBRE)).json.personal.some((t: any) => t.id === todo.id)).toBe(false);
+    expect((await env.call('GET', `/projects/${projectId}`, undefined, MEMBRE)).json.items.tasks.some((t: any) => t.id === todo.id)).toBe(true);
+
+    // Une tâche de projet confiée à une personne extérieure revient à celui qui la rend personnelle.
+    const ext = (await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Livrer la V2', assignee: 'Prestataire ACME' }, ADMIN)).json;
+    const back = await env.call('POST', '/todos/move', { id: ext.id, fromProjectId: projectId }, MEMBRE);
+    expect(back.json.task).toMatchObject({ id: ext.id, title: 'Livrer la V2', assigneeId: MEMBRE });
+    expect((await env.call('POST', '/todos/move', { id: todo.id, fromProjectId: projectId }, MEMBRE)).json.task.assigneeId).toBe(MEMBRE);
+    expect((await env.call('GET', `/projects/${projectId}`, undefined, MEMBRE)).json.items.tasks.some((t: any) => t.id === todo.id || t.id === ext.id)).toBe(false);
   });
 
   it('modifie et désactive les utilisateurs en gardant un administrateur', async () => {

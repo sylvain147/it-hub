@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import {
   can,
+  moveTaskBody,
   nameKey,
+  PROJECT_ITEM_SCHEMAS,
   todoInputSchema,
   userInputSchema,
   userUpdateSchema,
@@ -170,7 +172,7 @@ export function todoRoutes() {
     const assigneeId = b.assigneeId || current;
     await assertAssignable(assigneeId, current, c.get('user').role);
     const now = nowIso();
-    const t: PersonalTask = { ...b, assigneeId, id: newId(), createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: b.status === 'fait' ? now : '' };
+    const t: PersonalTask = { ...b, assigneeId, id: newId(), createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: b.done ? now : '' };
     return c.json(await users.putTodo(t), 201);
   });
 
@@ -193,8 +195,39 @@ export function todoRoutes() {
     }
     const merged = parseBody(todoInputSchema, { ...before, ...fields });
     const now = nowIso();
-    const doneAt = merged.status === 'fait' ? before.doneAt || now : '';
+    const doneAt = merged.done ? before.doneAt || now : '';
     return c.json(await users.putTodo({ ...before, ...merged, updatedAt: now, updatedBy: current, doneAt }));
+  });
+
+  /** Rattache une tâche à un projet, la rend personnelle ou la change de projet (même identifiant). */
+  r.post('/move', async (c) => {
+    const current = userName(c);
+    const role = c.get('user').role;
+    const b = await body(c, moveTaskBody);
+    if (b.fromProjectId === b.toProjectId) throw new HttpError(400, 'La tâche est déjà à cet endroit.');
+    let src: { title: string; details: string; done: boolean; dueDate: string; assigneeId: string; assignee?: string; doneAt: string };
+    if (b.fromProjectId) {
+      src = await pr.getItem(b.fromProjectId, 'tasks', b.id);
+    } else {
+      const todo = await users.getTodo(b.id);
+      if (!canEdit(todo, current, role)) throw new HttpError(403, 'Cette tâche ne vous concerne pas.');
+      src = todo;
+    }
+    const fields = { title: src.title, details: src.details, done: src.done, dueDate: src.dueDate };
+    let task: unknown;
+    if (b.toProjectId) {
+      const who = await resolveTaskAssignee({ assigneeId: src.assigneeId, assignee: src.assigneeId ? '' : (src.assignee ?? '') }, null, current);
+      task = await pr.createItem(b.toProjectId, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { ...fields, ...who }), current, { itemId: b.id });
+    } else {
+      // Une tâche personnelle revient toujours à un utilisateur du hub.
+      const assigneeId = src.assigneeId || current;
+      await assertAssignable(assigneeId, current, role);
+      const now = nowIso();
+      task = await users.putTodo({ ...fields, assigneeId, id: b.id, createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: src.done ? src.doneAt || now : '' });
+    }
+    if (b.fromProjectId) await pr.deleteItem(b.fromProjectId, 'tasks', b.id, current);
+    else await users.deleteTodo(b.id);
+    return c.json({ projectId: b.toProjectId, task });
   });
 
   r.delete('/:id', async (c) => {

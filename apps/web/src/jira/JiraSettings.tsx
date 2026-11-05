@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { JIRA_DEMO_SITE, type JiraConfigInfo, type JiraTestResult } from '@samm/shared';
 import { api } from '../api';
 import { ErrorBox, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
@@ -111,10 +112,10 @@ export function JiraSettings() {
             Connecté avec ce compte, créez un jeton sur{' '}
             <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">id.atlassian.com → Sécurité → Jetons d’API</a>, puis collez-le ici.
           </li>
-          <li>Dans un projet du hub, onglet <strong>Sprints</strong>, indiquez la clé du projet Jira (ex. « TC ») et choisissez le tableau.</li>
+          <li>Dans le module <Link to="/jira">Jira</Link>, choisissez les tableaux Scrum à suivre, puis importez les tickets et les sprints.</li>
         </ol>
         <p className="muted small">
-          Le hub ne fait que <strong>lire</strong> Jira : sprints, tickets (résumé, statut, personne assignée, story points, échéance) et leur historique. Le jeton
+          Le hub ne fait que <strong>lire</strong> Jira : sprints, tickets (résumé, statut, personne assignée, story points, échéance, parent) et leur historique. Le jeton
           est conservé côté serveur et n’est jamais renvoyé au navigateur. Les descriptions et commentaires des tickets ne sont pas lus.
         </p>
         {conf?.demoAvailable && (

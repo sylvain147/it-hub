@@ -7,7 +7,6 @@ import {
   NOTE_KINDS,
   NOTE_KIND_ICONS,
   NOTE_KIND_LABELS,
-  PRIORITY_LABELS,
   RISK_LEVEL_LABELS,
   type Note,
   type NoteKind,
@@ -218,7 +217,6 @@ function Suggestions({ note }: { note: Note }) {
                 {t.title}
                 {t.assignee && <span className="badge">{t.assignee}</span>}
                 {t.dueDate && <span className="muted small"> · {formatDate(t.dueDate)}</span>}
-                {t.priority !== 'normale' && <span className="muted small"> · {PRIORITY_LABELS[t.priority]}</span>}
               </Row>
             ))}
           </ul>

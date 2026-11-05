@@ -6,7 +6,8 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ### ✅ Tâches
 
-- **Mes tâches au même endroit** : les tâches des projets dont je suis responsable et mes **tâches personnelles** (hors projet), triées par échéance, avec les retards en évidence ; on coche, on change le statut, on ajoute une tâche personnelle en une ligne.
+- **Une liste de choses à faire** : les tâches des projets dont je suis responsable et mes **tâches personnelles** (hors projet), triées par échéance, avec les retards en évidence. On **coche** quand c'est fait (et on décoche si besoin), on déplie les **détails** (texte mis en forme), on ajoute une tâche en une ligne.
+- Une tâche se **rattache à un projet** ou reste personnelle ; changer le projet dans la fiche de la tâche la déplace.
 - **Selon le rôle**, on consulte les tâches d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche personnelle à quelqu'un (« confiée par … »).
 - L'accueil reprend « Mes tâches » (et « Toute l'équipe » pour les rôles qui le permettent).
 
@@ -16,7 +17,7 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 
 - **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
 - **Vue d'ensemble** : indicateurs (tâches, prochain jalon, budget engagé, risques), **points d'attention** calculés (tâches et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
-- **Tâches** : tableau (à faire / en cours / bloqué / fait, glisser-déposer) ou liste, ajout rapide, échéance, priorité ; filtre « mes tâches ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée la tâche) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
+- **Tâches** : liste à cocher (intitulé, détails, échéance, responsable), ajout rapide, filtre « seulement les miennes ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée la tâche) ; une personne extérieure (prestataire, métier) peut être saisie en texte. Les **tickets Jira reliés** au projet s'affichent en dessous, en lecture seule.
 - **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
@@ -29,18 +30,20 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
 - **Accueil** : mes tâches, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
 
-### 🏃 Sprints Jira (dans un projet)
+### 🧭 Jira
 
-Pour suivre les sprints d'un projet géré dans **Jira Cloud** et préparer la revue de sprint.
+Pour retrouver ses tickets et ses sprints **Jira Cloud** dans le hub, et préparer ou restituer un sprint.
 
 - **Connexion** (Paramétrage → Jira) : site, e-mail d'un compte (de service, idéalement) et jeton d'API. La connexion est testée avant l'enregistrement ; les champs « story points » et « Réf Ticket Desk » sont détectés automatiquement (choix manuel possible). Le jeton reste sur le serveur.
-- **Onglet Sprints** du projet : on indique la clé du projet Jira (« TC ») et on choisit le tableau Scrum ; la liste des sprints (à venir, en cours, clos) s'affiche.
-- **Revue de sprint**, calculée à partir de l'historique Jira de chaque ticket, sur les données récupérées à la demande (« Actualiser depuis Jira ») :
+- **Tableaux suivis** puis **Importer depuis Jira** : les sprints (en cours, à venir et les 6 derniers clos) avec l'historique de leurs tickets, et le backlog ouvert, sont importés. Les tickets sont en **lecture seule** (ils se modifient dans Jira) ; un nouvel import les remet à jour.
+- **Tickets** : filtres « mes tickets » (rapprochement par e-mail ou nom de la personne assignée), sprint, backlog, projet, recherche ; chaque ticket se **relie à un projet du hub** (un par un ou par sélection). Les tickets reliés apparaissent dans l'onglet Tâches du projet.
+- **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique Jira de chaque ticket :
   - chiffres clés : tickets actifs, clôturés (avec et sans la recette), story points livrés, ajouts en cours de sprint, échéances dépassées ;
-  - avancement par statut, charge par personne, story points par statut, périmètre et clôtures jour par jour, temps passé par statut (dont l'attente), délai médian de clôture ;
+  - graphiques : avancement, charge par personne, story points, périmètre et clôtures jour par jour, temps passé par statut ;
   - tableau des tickets avec leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) et le **ticket Desk** lié (sujet repris du suivi TMA) ;
-  - **points d'attention** (échéances dépassées, gros ticket, ajouts, absence de clôture, recette en fin de sprint, attentes externes, tickets sortis) et **qualité des données Jira** (story points manquants, dates de résolution incohérentes, reste à faire non soldé, temps non saisi, type unique).
-- **Compte rendu** rédigé par l'assistant sur clic (message clé, faits marquants, risques, pistes pour le prochain sprint), à partir des seuls chiffres ; modifiable, puis **ajouté au journal du projet** en un clic. Impression / PDF depuis le navigateur.
+  - **points d'attention** et **qualité des données Jira**.
+- **Préparation d'un sprint** (à venir ou en cours) : tickets prévus, story points comparés à la **vélocité** des derniers sprints, charge par personne, tickets sans estimation ou sans responsable, **reports probables** du sprint en cours, **backlog prioritaire**, points à clarifier.
+- **Documents rédigés par l'assistant** sur clic, à partir des seuls chiffres : **compte rendu** (message clé, faits marquants, risques, pistes) ou **préparation** (objectif proposé, périmètre et capacité, arbitrages, points à clarifier, ordre du jour de la planification). Modifiables, **téléchargeables en Word**, et ajoutés au **journal d'un projet** en un clic.
 - **Lecture seule** : le hub ne modifie jamais Jira et ne lit ni descriptions ni commentaires. En local, le site `demo` donne un projet Jira fictif pour essayer sans compte.
 
 ### 📄 Cahiers des charges (dans un projet)
@@ -101,7 +104,7 @@ Référentiels communs, modifiables par tous les utilisateurs :
 
 - **Prestataires** : fiche (nom, activité, site, notes) et **carnet de contacts**. Une prestation se rattache obligatoirement à un prestataire de la liste (bouton « + » pour en créer un sans quitter le formulaire) ; l'en-tête des cahiers des charges le propose aussi. Un renommage se répercute dans tous les projets. Les doublons se **fusionnent** ; un prestataire utilisé s'**archive** (il n'est plus proposé, l'historique est conservé). Les noms saisis avant le paramétrage se reprennent d'un clic.
 - **Intervenants liés au carnet** : dans un projet, un intervenant peut être choisi dans le carnet d'un prestataire ; nom, e-mail, téléphone et organisation restent alors à jour avec le carnet (le rôle et les notes restent propres au projet).
-- **Statuts** (projets, tâches, prestations, risques, cahiers des charges) : libellé, ordre et visibilité. Le fonctionnement ne change pas (projet clos, montant engagé, tâche faite…) ; les statuts qui le portent ne peuvent pas être masqués.
+- **Statuts** (projets, prestations, risques, cahiers des charges) : libellé, ordre et visibilité. Le fonctionnement ne change pas (projet clos, montant engagé, risque clos…) ; les statuts qui le portent ne peuvent pas être masqués.
 - **Libellés de jalons et rôles des intervenants** proposés à la saisie (texte libre toujours possible).
 
 ### 📊 Consommation IA

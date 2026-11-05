@@ -200,7 +200,7 @@ export function projectRoutes() {
       );
     const tasks = await decide(s.tasks, b.tasks, async (t) => {
       const who = await resolveTaskAssignee({ assignee: t.assignee }, null, user);
-      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, priority: t.priority, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
+      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
       created.push('tâche');
     });
     const jalons = await decide(s.jalons, b.jalons, async (j) => {

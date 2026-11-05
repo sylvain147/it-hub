@@ -1,6 +1,6 @@
 /**
  * Jira de démonstration (site « demo », local et tests uniquement) : imite les réponses de l'API Jira Cloud
- * pour un projet fictif « TC » (tableau Scrum, trois sprints). Données entièrement inventées.
+ * pour un projet fictif « TC » (tableau Scrum, trois sprints et un backlog). Données entièrement inventées.
  */
 
 const SPRINT_FIELD = 'customfield_10020';
@@ -26,7 +26,9 @@ const STATUSES: Record<string, 'new' | 'indeterminate' | 'done'> = {
 interface DemoIssue {
   key: string;
   summary: string;
+  /** Vide : non assigné. */
   assignee: string;
+  parent?: string;
   priority?: string;
   points?: number;
   due?: string;
@@ -46,6 +48,8 @@ interface DemoIssue {
 const A = 'Alice Martin';
 const B = 'Bruno Petit';
 const C = 'Chloé Durand';
+const EMAILS: Record<string, string> = { [A]: 'alice.martin@exemple.fr', [B]: 'bruno.petit@exemple.fr', [C]: 'chloe.durand@exemple.fr' };
+const PARENTS: Record<string, string> = { 'TC-300': 'Offre ESS', 'TC-301': 'Paiements' };
 const S3_TO_S4: [string, number[], number[]] = ['2026-10-14T06:30:00.000Z', [41], [41, 42]];
 
 const ISSUES: DemoIssue[] = [
@@ -97,7 +101,7 @@ const ISSUES: DemoIssue[] = [
   },
   // Lancés avec le sprint 4
   {
-    key: 'TC-367', summary: '[ESS] Développement', assignee: A, points: 5, due: '2026-10-30', created: '2026-10-13T09:00:00.000Z', initialSprints: [42],
+    key: 'TC-367', summary: '[ESS] Développement', assignee: A, parent: 'TC-300', points: 5, due: '2026-10-30', created: '2026-10-13T09:00:00.000Z', initialSprints: [42],
     sprints: [],
     statuses: [['2026-10-27T08:00:00.000Z', 'En cours']],
   },
@@ -127,6 +131,15 @@ const ISSUES: DemoIssue[] = [
     sprints: [['2026-11-04T08:00:00.000Z', [], [42]]],
     statuses: [['2026-11-04T08:30:00.000Z', 'En cours'], ['2026-11-04T16:00:00.000Z', 'En recette']],
   },
+  // Prévus dans le sprint 5 (à venir)
+  { key: 'TC-380', summary: '[ESS] Recette et mise en production', assignee: A, parent: 'TC-300', priority: 'High', points: 3, due: '2026-11-25', created: '2026-10-28T09:00:00.000Z', initialSprints: [43], sprints: [], statuses: [] },
+  { key: 'TC-381', summary: 'Relance automatique des paniers abandonnés', assignee: B, points: 5, created: '2026-10-29T09:00:00.000Z', initialSprints: [43], sprints: [], statuses: [] },
+  { key: 'TC-382', summary: 'Export des avoirs pour la comptabilité', assignee: C, parent: 'TC-301', created: '2026-10-30T09:00:00.000Z', initialSprints: [43], sprints: [], statuses: [] },
+  { key: 'TC-383', summary: 'Mise à jour de la page des mentions légales', assignee: '', points: 1, created: '2026-10-30T10:00:00.000Z', initialSprints: [43], sprints: [], statuses: [] },
+  // Backlog
+  { key: 'TC-390', summary: 'Paiement en trois fois sans frais', assignee: '', parent: 'TC-301', priority: 'High', points: 8, due: '2026-11-20', created: '2026-10-05T09:00:00.000Z', sprints: [], statuses: [] },
+  { key: 'TC-391', summary: 'Archivage des commandes de plus de cinq ans', assignee: B, priority: 'Low', created: '2026-10-06T09:00:00.000Z', sprints: [], statuses: [] },
+  { key: 'TC-392', summary: 'Correction du libellé des frais de port', assignee: C, points: 1, created: '2026-10-07T09:00:00.000Z', sprints: [], statuses: [] },
 ];
 
 /** Format de date Jira : « 2026-10-14T09:00:00.000+0200 » (ici toujours en UTC). */
@@ -162,10 +175,13 @@ function toJira(i: DemoIssue) {
       summary: i.summary,
       issuetype: { name: 'Feature' },
       priority: { name: i.priority ?? 'Medium' },
-      assignee: { displayName: i.assignee },
+      assignee: i.assignee ? { displayName: i.assignee, emailAddress: EMAILS[i.assignee] } : null,
       status: { name: status, statusCategory: { key: STATUSES[status] } },
       duedate: i.due ?? null,
       created: jd(i.created),
+      updated: jd([i.created, ...i.sprints.map((x) => x[0]), ...i.statuses.map((x) => x[0])].sort().at(-1)!),
+      project: { key: 'TC', name: 'Tunnel de commande' },
+      parent: i.parent ? { key: i.parent, fields: { summary: PARENTS[i.parent] } } : null,
       resolutiondate: i.resolved ? jd(i.resolved) : null,
       timespent: i.spentHours ? i.spentHours * 3600 : null,
       timeestimate: i.remainingHours ? i.remainingHours * 3600 : status === 'Clôturé' ? 0 : null,
@@ -210,9 +226,15 @@ export async function demoJiraFetch(url: string, init: { method: string; body?: 
   }
   if (p === '/rest/api/3/search/jql' && init.method === 'POST') {
     const jql = String((JSON.parse(init.body ?? '{}') as { jql?: string }).jql ?? '');
-    const sid = Number(/sprint = (\d+)/.exec(jql)?.[1]);
+    // Backlog : tickets ouverts hors sprint du projet.
+    if (/sprint is EMPTY/i.test(jql)) {
+      const project = /project = "([^"]+)"/.exec(jql)?.[1] ?? '';
+      const backlog = ISSUES.filter((i) => !currentSprints(i).length && STATUSES[i.statuses.at(-1)?.[1] ?? 'À faire'] !== 'done' && i.key.startsWith(`${project}-`));
+      return json({ issues: backlog.map(toJira).map(({ changelog: _c, ...x }) => x), isLast: true });
+    }
+    const sids = (/sprint in \(([^)]*)\)/.exec(jql)?.[1] ?? '').split(',').map((x) => Number(x.trim())).filter(Boolean);
     const keys = new Set([...(/key in \(([^)]*)\)/.exec(jql)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((x) => x[1]));
-    return json({ issues: ISSUES.filter((i) => currentSprints(i).includes(sid) || keys.has(i.key)).map(toJira), isLast: true });
+    return json({ issues: ISSUES.filter((i) => currentSprints(i).some((s) => sids.includes(s)) || keys.has(i.key)).map(toJira), isLast: true });
   }
   m = /^\/rest\/api\/3\/issue\/([^/]+)\/changelog$/.exec(p);
   if (m) {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PRIORITIES, TASK_STATUSES, type ItemBase, type OpenTask } from './project.js';
+import { taskInputSchema, type ItemBase, type OpenTask } from './project.js';
 
 /**
  * Utilisateurs du hub et rôles.
@@ -88,20 +88,24 @@ export function initials(name: string): string {
 // Tâches personnelles (hors projet)
 // ---------------------------------------------------------------------------
 
-const isoDate = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Date invalide (AAAA-MM-JJ)');
-
-export const todoInputSchema = z.object({
-  title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
-  details: z.string().max(5000).default(''),
-  status: z.enum(TASK_STATUSES).default('a_faire'),
-  priority: z.enum(PRIORITIES).default('normale'),
-  dueDate: isoDate.default(''),
+export const todoInputSchema = taskInputSchema.pick({ title: true, details: true, done: true, dueDate: true }).extend({
   /** Utilisateur responsable (e-mail) ; par défaut, celui qui crée la tâche. */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
 });
 export type TodoInput = z.input<typeof todoInputSchema>;
 
 export type PersonalTask = z.infer<typeof todoInputSchema> & ItemBase & { doneAt: string };
+
+/**
+ * Déplacement d'une tâche entre un projet et la liste personnelle (ou d'un projet à un autre).
+ * `fromProjectId` / `toProjectId` vides : tâche personnelle.
+ */
+export const moveTaskBody = z.object({
+  id: z.string().min(1).max(40),
+  fromProjectId: z.string().max(40).default(''),
+  toProjectId: z.string().max(40).default(''),
+});
+export type MoveTaskBody = z.input<typeof moveTaskBody>;
 
 /** Tâches d'une personne (ou de toute l'équipe) : personnelles et de projet. */
 export interface TodosResponse {

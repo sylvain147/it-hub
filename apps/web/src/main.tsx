@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router';
 import { loadConfig } from './config';
 import { AuthGate, configureAuth } from './auth';
 import { Layout } from './components/Layout';
@@ -9,6 +9,7 @@ import { CdcList } from './pages/CdcList';
 import { ProjectsList } from './projects/ProjectsList';
 import { ProjectPage } from './projects/ProjectPage';
 import { SprintPage } from './jira/SprintPage';
+import { JiraPage } from './jira/JiraPage';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
 import { FilesHome } from './files/FilesHome';
@@ -23,6 +24,11 @@ import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import './styles.css';
 
+function OldSprintRedirect() {
+  const { sprintId } = useParams();
+  return <Navigate to={`/jira/sprints/${sprintId}`} replace />;
+}
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -31,7 +37,8 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'projets', element: <ProjectsList /> },
       { path: 'projets/:id', element: <ProjectPage /> },
-      { path: 'projets/:id/sprints/:sprintId', element: <SprintPage /> },
+      // Ancienne adresse des revues de sprint (onglet « Sprints » des projets).
+      { path: 'projets/:id/sprints/:sprintId', element: <OldSprintRedirect /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
       { path: 'cdc/nouveau', element: <Navigate to="/projets" replace /> },
@@ -44,6 +51,8 @@ const router = createBrowserRouter([
       { path: 'tma/mois/:month', element: <TmaMonthPage /> },
       { path: 'tma/themes', element: <TmaThemesPage /> },
       { path: 'taches', element: <TasksPage /> },
+      { path: 'jira', element: <JiraPage /> },
+      { path: 'jira/sprints/:sprintId', element: <SprintPage /> },
       { path: 'utilisateurs', element: <UsersPage /> },
       { path: 'parametrage', element: <SettingsPage /> },
       { path: 'consommation', element: <Usage /> },

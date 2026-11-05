@@ -12,7 +12,7 @@ afterAll(async () => {
   await env.close();
 });
 
-describe('module Jira (revue de sprint)', () => {
+describe('module Jira (import, rattachement, documents de sprint)', () => {
   let projectId = '';
 
   it('n’est pas connecté au départ', async () => {
@@ -54,86 +54,137 @@ describe('module Jira (revue de sprint)', () => {
     await env.call('PUT', '/jira/config', { site: 'monentreprise', email: 'a@b.fr', deskRefField: 'customfield_10050' });
   });
 
-  it('liste les tableaux et les sprints du projet', async () => {
+  it('choisit les tableaux suivis puis importe sprints et tickets', async () => {
     const boards = await env.call('GET', '/jira/boards?project=tc');
     expect(boards.json).toEqual([{ id: 7, name: 'Tableau TC', type: 'scrum', projectKey: 'TC' }]);
-    const sprints = await env.call('GET', '/jira/boards/7/sprints');
-    expect(sprints.json.map((s: any) => [s.name, s.state, s.syncedAt])).toEqual([
-      ['TC Sprint 5', 'future', null],
-      ['TC Sprint 4', 'active', null],
-      ['TC Sprint 3', 'closed', null],
-    ]);
-    expect((await env.call('GET', '/jira/boards/99/sprints')).status).toBe(404);
-  });
+    expect((await env.call('POST', '/jira/import')).status).toBe(400); // aucun tableau choisi
+    expect((await env.call('PUT', '/jira/boards', { boardIds: [99] })).status).toBe(404);
+    const chosen = await env.call('PUT', '/jira/boards', { boardIds: [7] });
+    expect(chosen.json).toMatchObject({ configured: true, boards: [{ id: 7, name: 'Tableau TC' }], syncedAt: null, tasks: [] });
 
-  it('relie un projet du hub à un tableau Jira', async () => {
-    const created = await env.call('POST', '/projects', { name: 'Refonte du tunnel de commande' });
-    projectId = created.json.id;
-    expect(created.json).toMatchObject({ jiraProjectKey: '', jiraBoardId: null });
-    const res = await env.call('PUT', `/projects/${projectId}`, {
-      rev: created.json.rev,
-      fields: { ...pick(created.json), jiraProjectKey: 'tc', jiraBoardId: 7 },
-    });
-    expect(res.json).toMatchObject({ jiraProjectKey: 'TC', jiraBoardId: 7 });
-  });
-
-  it('synchronise un sprint et calcule la revue', async () => {
-    // Un ticket Desk du suivi TMA cité par un ticket Jira apparaît avec son sujet.
+    // Un ticket Desk du suivi TMA cité par un ticket Jira apparaît avec son sujet dans la revue.
     await env.call('POST', '/tma/desk/import', {
       tickets: [{ id: '11375', subject: 'Commandes marketplace non importées', createdAt: '2026-10-25T10:00', status: 'Ouvert' }],
     });
-    const sync = await env.call('POST', '/jira/sprints/42/sync', { boardId: 7, projectKey: 'TC' });
-    expect(sync.status).toBe(200);
-    const r = sync.json.report;
+    const imp = await env.call('POST', '/jira/import');
+    expect(imp.status).toBe(200);
+    expect(imp.json.syncedBy).toBe('alice@test');
+    expect(imp.json.sprints.map((s: any) => [s.name, s.state, s.boardName])).toEqual([
+      ['TC Sprint 4', 'active', 'Tableau TC'],
+      ['TC Sprint 5', 'future', 'Tableau TC'],
+      ['TC Sprint 3', 'closed', 'Tableau TC'],
+    ]);
+    const s5 = imp.json.sprints.find((s: any) => s.id === 43);
+    expect(s5).toMatchObject({ issueCount: 5, openCount: 5, points: 10, hasPreparation: false });
+    const tasks = imp.json.tasks;
+    // Sprints 3 à 5 + backlog (dont TC-361, sorti du sprint 4).
+    expect(tasks.map((t: any) => t.key).sort()).toEqual(expect.arrayContaining(['TC-320', 'TC-361', 'TC-380', 'TC-390', 'TC-391', 'TC-392']));
+    expect(tasks).toHaveLength(23); // tous les tickets du Jira de démonstration
+    expect(tasks.find((t: any) => t.key === 'TC-390')).toMatchObject({ sprintIds: [], statusCategory: 'new', parent: 'TC-301 Paiements', projectId: null, boardId: 7 });
+    expect(tasks.find((t: any) => t.key === 'TC-367')).toMatchObject({ assigneeEmail: 'alice.martin@exemple.fr', sprintIds: [42], storyPoints: 5 });
+    expect(JSON.stringify(imp.json)).not.toContain('changelog');
+  });
+
+  it('relie des tickets à un projet sans pouvoir les modifier', async () => {
+    projectId = (await env.call('POST', '/projects', { name: 'Refonte du tunnel de commande' })).json.id;
+    expect((await env.call('PUT', '/jira/links', { keys: ['TC-367'], projectId: 'inconnu' })).status).toBe(404);
+    expect((await env.call('PUT', '/jira/links', { keys: ['TC-367', 'TC-380', 'TC-390'], projectId })).json).toEqual({ updated: 3 });
+    const linked = await env.call('GET', `/jira/tasks?projectId=${projectId}`);
+    expect(linked.json.map((t: any) => [t.key, t.projectName])).toEqual([
+      ['TC-367', 'Refonte du tunnel de commande'],
+      ['TC-380', 'Refonte du tunnel de commande'],
+      ['TC-390', 'Refonte du tunnel de commande'],
+    ]);
+    await env.call('PUT', '/jira/links', { keys: ['TC-390'], projectId: null });
+    expect((await env.call('GET', `/jira/tasks?projectId=${projectId}`)).json).toHaveLength(2);
+    // Un nouvel import conserve les rattachements.
+    await env.call('POST', '/jira/import');
+    expect((await env.call('GET', '/jira/overview')).json.tasks.find((t: any) => t.key === 'TC-367').projectId).toBe(projectId);
+  });
+
+  it('calcule la revue d’un sprint en cours', async () => {
+    const res = await env.call('GET', '/jira/sprints/42');
+    expect(res.status).toBe(200);
+    const r = res.json.report;
     expect(r.sprint).toMatchObject({ name: 'TC Sprint 4', state: 'active' });
     expect(r.counts).toMatchObject({ total: 14, active: 12, removed: 2, atStart: 9, added: 4, addedDone: 0, done: 6, recette: 3, overdue: 3, withPoints: 5 });
     expect(r.points).toEqual({ active: 8.5, done: 2, removed: 2 });
     expect(r.team).toEqual(['Alice Martin', 'Bruno Petit']);
-    const tc355 = r.issues.find((i: any) => i.key === 'TC-355');
-    expect(tc355).toMatchObject({ active: false, movement: { kind: 'retire', at: '2026-10-20', to: 'TC Sprint 5' } });
+    expect(r.issues.find((i: any) => i.key === 'TC-355')).toMatchObject({ active: false, movement: { kind: 'retire', at: '2026-10-20', to: 'TC Sprint 5' } });
     expect(r.issues.find((i: any) => i.key === 'TC-361').movement).toMatchObject({ kind: 'retire', to: 'Backlog' });
     expect(r.issues.find((i: any) => i.key === 'TC-329').movement).toEqual({ kind: 'report', from: 'TC Sprint 3' });
     expect(r.attention.some((a: any) => a.title === 'Aucune clôture depuis le 28/10')).toBe(true);
     expect(r.dataQuality.map((a: any) => a.title)).toContain('Type unique « Feature »');
-    expect(sync.json.desk).toEqual({ '11375': { subject: 'Commandes marketplace non importées', status: 'Ouvert', theme: '' } });
-    expect(sync.json.site).toBe('https://monentreprise.atlassian.net');
+    expect(res.json.desk).toEqual({ '11375': { subject: 'Commandes marketplace non importées', status: 'Ouvert', theme: '' } });
+    expect(res.json.site).toBe('https://monentreprise.atlassian.net');
+    expect(res.json.projects).toEqual([{ id: projectId, name: 'Refonte du tunnel de commande', count: 1 }]);
+    expect(res.json.preparation.planned).toHaveLength(12);
 
-    const list = await env.call('GET', '/jira/boards/7/sprints');
-    expect(list.json.find((s: any) => s.id === 42)).toMatchObject({ issueCount: 14, hasCompteRendu: false });
-    expect((await env.call('GET', '/jira/sprints/42')).json.report.counts.active).toBe(12);
-    expect((await env.call('GET', '/jira/sprints/41')).status).toBe(404); // pas encore synchronisé
-
-    const closed = await env.call('POST', '/jira/sprints/41/sync', { boardId: 7 });
+    const closed = await env.call('GET', '/jira/sprints/41');
     expect(closed.json.report.counts).toMatchObject({ active: 10, done: 2, removed: 0 });
     expect(closed.json.report.asOfDay).toBe('2026-10-14');
+    expect(closed.json.preparation).toBeNull();
+    expect((await env.call('GET', '/jira/sprints/99')).status).toBe(404);
   });
 
-  it('rédige, corrige et publie le compte rendu dans le journal du projet', async () => {
-    expect((await env.call('POST', `/jira/sprints/42/journal`, { projectId })).status).toBe(400); // pas encore de compte rendu
-    const start = await env.call('POST', '/jira/sprints/42/compte-rendu');
+  it('calcule la préparation d’un sprint à venir', async () => {
+    const res = await env.call('GET', '/jira/sprints/43');
+    expect(res.json.report).toBeNull();
+    const p = res.json.preparation;
+    expect(p.planned.map((i: any) => i.key)).toEqual(['TC-380', 'TC-355', 'TC-381', 'TC-382', 'TC-383']) // priorité, puis échéance;
+    expect(p.totals).toMatchObject({ count: 5, open: 5, points: 10, unassigned: 1, unestimated: 1 });
+    expect(p.history).toEqual([{ name: 'TC Sprint 3', done: 2, points: 3, active: 10 }]);
+    expect(p.velocity).toEqual({ points: 3, done: 2 });
+    expect(p.carryOverFrom).toBe('TC Sprint 4');
+    expect(p.carryOver.map((i: any) => i.key)).toEqual(expect.arrayContaining(['TC-367', 'TC-375', 'TC-365']));
+    expect(p.backlog.map((i: any) => i.key)).toEqual(['TC-390', 'TC-361', 'TC-392', 'TC-391']);
+    expect(p.planned.find((i: any) => i.key === 'TC-380').project).toBe('Refonte du tunnel de commande');
+    const titles = p.alerts.map((a: any) => a.title);
+    expect(titles).toEqual(expect.arrayContaining(['Charge supérieure à la vélocité', 'Tickets à estimer', 'Tickets sans responsable', 'Urgences restées au backlog', 'Reports probables du TC Sprint 4']));
+  });
+
+  it('rédige, corrige, exporte et publie les documents de sprint', async () => {
+    expect((await env.call('POST', '/jira/sprints/42/documents/compte_rendu/journal', { projectId })).status).toBe(400); // pas encore rédigé
+    expect((await env.call('POST', '/jira/sprints/43/documents/compte_rendu')).status).toBe(400); // sprint à venir
+    expect((await env.call('POST', '/jira/sprints/41/documents/preparation')).status).toBe(400); // sprint clos
+    expect((await env.call('POST', '/jira/sprints/42/documents/bilan')).status).toBe(404);
+
+    const start = await env.call('POST', '/jira/sprints/42/documents/compte_rendu');
     expect(start.status).toBe(202);
-    const job = await env.waitJob(start.json.id);
-    expect(job).toMatchObject({ status: 'termine', step: 'Compte rendu rédigé' });
+    expect(await env.waitJob(start.json.id)).toMatchObject({ status: 'termine', step: 'Compte rendu rédigé' });
     const detail = (await env.call('GET', '/jira/sprints/42')).json;
-    expect(detail.compteRendu.markdown).toContain('## Message clé');
-    expect(detail.compteRendu.markdown).toContain('TC-367');
+    expect(detail.documents.compte_rendu.markdown).toContain('## Message clé');
+    expect(detail.documents.compte_rendu.markdown).toContain('TC-367');
+    expect(detail.documents.preparation).toBeNull();
     expect(detail.activeJobId).toBeNull();
 
-    const edited = await env.call('PUT', '/jira/sprints/42/compte-rendu', { markdown: '## Message clé\n\nSprint chargé, ESS en retard.' });
-    expect(edited.json.compteRendu).toMatchObject({ markdown: '## Message clé\n\nSprint chargé, ESS en retard.', editedBy: 'alice@test' });
+    const edited = await env.call('PUT', '/jira/sprints/42/documents/compte_rendu', { markdown: '## Message clé\n\nSprint chargé, ESS en retard.' });
+    expect(edited.json.documents.compte_rendu).toMatchObject({ markdown: '## Message clé\n\nSprint chargé, ESS en retard.', editedBy: 'alice@test' });
 
-    const note = await env.call('POST', '/jira/sprints/42/journal', { projectId });
+    const note = await env.call('POST', '/jira/sprints/42/documents/compte_rendu/journal', { projectId });
     expect(note.status).toBe(201);
     expect(note.json).toMatchObject({ kind: 'compte_rendu', title: 'Revue du TC Sprint 4', origin: 'manuel' });
     expect(note.json.content).toContain('**Story points** : 2 livrés sur 8.5');
     expect(note.json.content).toContain('ESS en retard');
-    const project = (await env.call('GET', `/projects/${projectId}`)).json;
-    expect(project.items.notes).toHaveLength(1);
 
-    // Une nouvelle synchronisation conserve le compte rendu.
-    await env.call('POST', '/jira/sprints/42/sync', { boardId: 7 });
-    expect((await env.call('GET', '/jira/sprints/42')).json.compteRendu.editedBy).toBe('alice@test');
-    expect((await env.call('GET', '/usage')).json.byOperation.map((o: any) => o.key)).toContain('jira_compte_rendu');
+    const prep = await env.call('POST', '/jira/sprints/43/documents/preparation');
+    expect(await env.waitJob(prep.json.id)).toMatchObject({ status: 'termine', step: 'Préparation rédigée' });
+    const p = (await env.call('GET', '/jira/sprints/43')).json.documents.preparation;
+    expect(p.markdown).toContain('## Points à clarifier avant le lancement');
+    expect(p.markdown).toContain('TC-380');
+    const word = await env.call('POST', '/jira/sprints/43/documents/preparation/word');
+    expect(word.json.fileName).toBe('Préparation du sprint — TC Sprint 5.docx');
+    const prepNote = await env.call('POST', '/jira/sprints/43/documents/preparation/journal', { projectId });
+    expect(prepNote.json).toMatchObject({ kind: 'info', title: 'Préparation du TC Sprint 5', origin: 'ia' });
+    expect((await env.call('GET', `/projects/${projectId}`)).json.items.notes).toHaveLength(2);
+
+    // Un nouvel import conserve les documents.
+    await env.call('POST', '/jira/import');
+    const overview = (await env.call('GET', '/jira/overview')).json;
+    expect(overview.sprints.find((s: any) => s.id === 42)).toMatchObject({ hasCompteRendu: true, hasPreparation: false });
+    expect(overview.sprints.find((s: any) => s.id === 43)).toMatchObject({ hasPreparation: true });
+    expect((await env.call('GET', '/jira/sprints/42')).json.documents.compte_rendu.editedBy).toBe('alice@test');
+    expect((await env.call('GET', '/usage')).json.byOperation.map((o: any) => o.key)).toEqual(expect.arrayContaining(['jira_compte_rendu', 'jira_preparation']));
   });
 
   it('traduit les erreurs de Jira en messages clairs', async () => {
@@ -148,9 +199,3 @@ describe('module Jira (revue de sprint)', () => {
     setJiraFetch(demoJiraFetch);
   });
 });
-
-/** Champs de la fiche projet (sans les attributs calculés). */
-function pick(p: Record<string, unknown>) {
-  const keys = ['name', 'code', 'status', 'priority', 'health', 'healthComment', 'chefDeProjet', 'demandeur', 'startDate', 'targetDate', 'description', 'objectifs', 'horsPerimetre', 'budgetPrevu', 'tags'];
-  return Object.fromEntries(keys.map((k) => [k, p[k]]));
-}

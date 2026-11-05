@@ -14,13 +14,11 @@ import { DocumentsTab } from './DocumentsTab';
 import { JournalTab } from './JournalTab';
 import { RisksTab } from './RisksTab';
 import { CdcTab } from './CdcTab';
-import { SprintsTab } from '../jira/SprintsTab';
 
 const TABS = [
   { id: 'apercu', label: 'Aperçu' },
   { id: 'taches', label: 'Tâches' },
   { id: 'planning', label: 'Planning' },
-  { id: 'sprints', label: 'Sprints' },
   { id: 'prestations', label: 'Prestations' },
   { id: 'cdc', label: 'Cahiers des charges' },
   { id: 'intervenants', label: 'Intervenants' },
@@ -145,7 +143,6 @@ export function ProjectPage() {
           {tab === 'apercu' && <OverviewTab />}
           {tab === 'taches' && <TasksTab />}
           {tab === 'planning' && <PlanningTab />}
-          {tab === 'sprints' && <SprintsTab />}
           {tab === 'prestations' && <PrestationsTab />}
           {tab === 'intervenants' && <ContactsTab />}
           {tab === 'documents' && <DocumentsTab />}

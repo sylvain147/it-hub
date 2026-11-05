@@ -8,7 +8,7 @@
  * L'équipe compte quelques personnes : une partition par entité suffit, lue en entier.
  */
 import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { HubUser, PersonalTask } from '@samm/shared';
+import { normalizeTaskRecord, type HubUser, type PersonalTask } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
 import { notFound, nowIso } from '../lib/util.js';
@@ -81,7 +81,8 @@ export async function touchLastSeen(u: HubUser): Promise<void> {
 // ---------------------------------------------------------------------------
 
 type TodoItem = PersonalTask & { pk: string; sk: string };
-const stripTodo = ({ pk: _pk, sk: _sk, ...t }: TodoItem): PersonalTask => t;
+/** Les tâches enregistrées avant la simplification portent un statut au lieu de `done`. */
+const stripTodo = ({ pk: _pk, sk: _sk, ...t }: TodoItem): PersonalTask => normalizeTaskRecord(t);
 
 export async function listTodos(): Promise<PersonalTask[]> {
   const items = await queryAll<TodoItem>({

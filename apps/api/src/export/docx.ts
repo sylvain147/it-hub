@@ -21,7 +21,7 @@ import {
   type IRunOptions,
   type ParagraphChild,
 } from 'docx';
-import { sectionNumbers, type CdcDocument, type Language, type RichNode } from '@samm/shared';
+import { markdownToDoc, sectionNumbers, type CdcDocument, type Language, type RichNode } from '@samm/shared';
 import { COLORS, deadlineLines, estimateLine, fitImage, LABELS, phaseLine, type ExportLabels, type LoadedImage } from './common.js';
 
 const FONT = 'Times New Roman';
@@ -63,9 +63,25 @@ export async function renderDocx(doc: CdcDocument, versionLabel: string, lang: L
     children.push(...blocks(section.content.content ?? [], ctx, 0));
   });
 
+  return pack(doc.meta.title, [`${doc.meta.title} – v${versionLabel} – ${labels.page} `, PageNumber.CURRENT, ` ${labels.of} `, PageNumber.TOTAL_PAGES], children);
+}
+
+/** Document Word simple à partir de Markdown (documents de sprint…), avec la même mise en forme que les CDC. */
+export async function renderMarkdownDocx(title: string, subtitle: string, markdown: string): Promise<Buffer> {
+  const labels = LABELS.fr;
+  const ctx: Ctx = { images: new Map(), labels, sectionNumber: null, sub: 0, listInstance: 0 };
+  const children: Block[] = [
+    new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: title, bold: true, color: COLORS.heading, size: 36, font: FONT })] }),
+    new Paragraph({ spacing: { after: 300 }, children: [new TextRun({ text: subtitle, italics: true, color: COLORS.subtitle, size: 24, font: FONT })] }),
+    ...blocks(markdownToDoc(markdown).content ?? [], ctx, 0),
+  ];
+  return pack(title, [`${title} – ${labels.page} `, PageNumber.CURRENT, ` ${labels.of} `, PageNumber.TOTAL_PAGES], children);
+}
+
+async function pack(title: string, footer: (string | (typeof PageNumber)[keyof typeof PageNumber])[], children: Block[]): Promise<Buffer> {
   const document = new Document({
     creator: 'Hub IT',
-    title: doc.meta.title,
+    title,
     styles: {
       default: {
         document: { run: { font: FONT, size: 22 }, paragraph: { spacing: { after: 100, line: 264 } } },
@@ -111,7 +127,7 @@ export async function renderDocx(doc: CdcDocument, versionLabel: string, lang: L
                   new TextRun({
                     size: 18,
                     color: '7F7F7F',
-                    children: [`${doc.meta.title} – v${versionLabel} – ${labels.page} `, PageNumber.CURRENT, ` ${labels.of} `, PageNumber.TOTAL_PAGES],
+                    children: footer,
                   }),
                 ],
               }),

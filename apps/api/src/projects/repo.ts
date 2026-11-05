@@ -3,7 +3,7 @@
  *
  *  pk              sk                       contenu
  *  PROJ#<id>       META                     fiche + indicateurs calculés (+ GSI1 « PROJ » pour la liste)
- *  PROJ#<id>       TASK#<id>                tâche (+ GSI1 « TASK_OPEN » tant qu'elle n'est pas faite : vue transverse)
+ *  PROJ#<id>       TASK#<id>                tâche à cocher (+ GSI1 « TASK_OPEN » tant qu'elle n'est pas faite : vue transverse)
  *  PROJ#<id>       JALON#<id>               jalon du planning
  *  PROJ#<id>       PRESTA#<id>              prestation (devis, commande…)
  *  PROJ#<id>       CONTACT#<id>             intervenant
@@ -20,6 +20,7 @@ import { BatchWriteCommand, DeleteCommand, GetCommand, PutCommand, QueryCommand,
 import {
   computeStats,
   emptyItems,
+  normalizeTaskRecord,
   PROJECT_ITEM_SCHEMAS,
   statusLabel,
   type ActivityEntry,
@@ -234,7 +235,7 @@ export async function getProjectDetail(id: string, cdcs: ProjectDetail['cdcs']):
 function partition(all: (Record<string, unknown> & { sk: string })[]): ProjectItems {
   const items = emptyItems();
   for (const [kind, prefix] of Object.entries(SK_PREFIX) as [ProjectItemKind, string][]) {
-    (items[kind] as unknown[]) = all.filter((it) => it.sk.startsWith(prefix)).map(stripItem);
+    (items[kind] as unknown[]) = all.filter((it) => it.sk.startsWith(prefix)).map((it) => stripItem(kind === 'tasks' ? normalizeTaskRecord(it) : it));
   }
   items.tasks.sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.createdAt.localeCompare(b.createdAt));
   items.jalons.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -274,7 +275,8 @@ type Stored = Record<string, unknown> & ItemBase;
 
 async function getStored(id: string, kind: ProjectItemKind, itemId: string): Promise<Stored | null> {
   const res = await ddb().send(new GetCommand({ TableName: T(), Key: projectKeys.item(id, kind, itemId) }));
-  return (res.Item as Stored | undefined) ?? null;
+  if (!res.Item) return null;
+  return (kind === 'tasks' ? normalizeTaskRecord(res.Item) : res.Item) as Stored;
 }
 
 export async function getItem<K extends ProjectItemKind>(id: string, kind: K, itemId: string): Promise<ProjectItem<K>> {
@@ -287,8 +289,8 @@ export async function getItem<K extends ProjectItemKind>(id: string, kind: K, it
 function derived(kind: ProjectItemKind, data: Record<string, unknown>, before: Stored | null): Record<string, unknown> {
   switch (kind) {
     case 'tasks': {
-      const done = data.status === 'fait';
-      const doneAt = done ? (before?.status === 'fait' ? (before.doneAt as string) : nowIso()) : '';
+      const done = data.done === true;
+      const doneAt = done ? (before?.done === true && before.doneAt ? (before.doneAt as string) : nowIso()) : '';
       // Index transverse des tâches ouvertes (accueil, « mes tâches »).
       return done ? { doneAt } : { doneAt, gsi1pk: OPEN_TASKS_PK, gsi1sk: `${(data.dueDate as string) || '9999-12-31'}#${data.id as string}` };
     }
@@ -354,9 +356,7 @@ export async function updateItem<K extends ProjectItemKind>(
 
 function activityForUpdate(kind: ProjectItemKind, before: Record<string, unknown>, after: Record<string, unknown>, lists: ListSettings): string {
   const title = `« ${itemTitle(kind, after)} »`;
-  if (kind === 'tasks' && before.status !== after.status) {
-    return after.status === 'fait' ? `a terminé la tâche ${title}` : `a passé la tâche ${title} à « ${statusLabel(lists, 'task', String(after.status))} »`;
-  }
+  if (kind === 'tasks' && before.done !== after.done) return after.done ? `a terminé la tâche ${title}` : `a rouvert la tâche ${title}`;
   if (kind === 'jalons' && !before.done && after.done) return `a marqué le jalon ${title} comme atteint`;
   if (kind === 'jalons' && before.date !== after.date) return `a déplacé le jalon ${title} au ${String(after.date) || '(date à définir)'}`;
   if (kind === 'risks' && before.status !== after.status && after.status === 'clos') return `a clos le risque ${title}`;
@@ -412,7 +412,8 @@ export async function listOpenTasks(): Promise<OpenTask[]> {
   const names = new Map(projects.map((p) => [p.id, p.name]));
   return tasks
     .filter((t) => names.has(String(t.projectId)))
-    .map((t) => ({ ...stripItem<Task>(t), projectId: String(t.projectId), projectName: names.get(String(t.projectId))! }));
+    .map((t) => ({ ...stripItem<Task>(normalizeTaskRecord(t)), projectId: String(t.projectId), projectName: names.get(String(t.projectId))! }))
+    .filter((t) => !t.done);
 }
 
 // ---------------------------------------------------------------------------

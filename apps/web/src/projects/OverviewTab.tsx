@@ -38,7 +38,7 @@ export function OverviewTab() {
   const hotRisks = p.items.risks.filter((r) => r.status !== 'clos' && riskScore(r) >= 6);
   const pending = p.items.notes.filter((n) => n.suggestions && hasPending(n.suggestions));
   const upcoming = [
-    ...p.items.tasks.filter((t) => t.status !== 'fait' && t.dueDate && t.dueDate >= today && t.dueDate <= in15).map((t) => ({ date: t.dueDate, label: t.title, kind: 'Tâche', who: t.assignee })),
+    ...p.items.tasks.filter((t) => !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= in15).map((t) => ({ date: t.dueDate, label: t.title, kind: 'Tâche', who: t.assignee })),
     ...p.items.jalons.filter((j) => !j.done && j.date && j.date >= today && j.date <= in15).map((j) => ({ date: j.date, label: j.label, kind: 'Jalon', who: '' })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const progress = s.openTasks + s.doneTasks ? Math.round((s.doneTasks / (s.openTasks + s.doneTasks)) * 100) : null;
@@ -144,7 +144,7 @@ export function OverviewTab() {
           {progress != null && (
             <>
               <div className="meter"><div style={{ width: `${progress}%` }} /></div>
-              <div className="muted small">{progress} % terminées · {s.overdueTasks > 0 ? <span className="due-late">{s.overdueTasks} en retard</span> : 'aucune en retard'}{s.blockedTasks > 0 && ` · ${s.blockedTasks} bloquée${s.blockedTasks > 1 ? 's' : ''}`}</div>
+              <div className="muted small">{progress} % terminées · {s.overdueTasks > 0 ? <span className="due-late">{s.overdueTasks} en retard</span> : 'aucune en retard'}</div>
             </>
           )}
         </section>

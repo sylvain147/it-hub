@@ -6,7 +6,7 @@ import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
 import type { SpecPatch } from '../filetypes/ai-schemas.js';
 import type { SynthesisOutput, ThemesOutput } from '../tma/ai-schemas.js';
-import type { SprintReviewOutput } from '../jira/ai-schemas.js';
+import type { SprintDocOutput } from '../jira/ai-schemas.js';
 import type { Digest, Report } from '../projects/ai.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
@@ -59,6 +59,8 @@ export class MockProvider implements LlmProvider {
         return this.tmaSynthesis(call.input);
       case 'jira_compte_rendu':
         return this.sprintReview(call.input);
+      case 'jira_preparation':
+        return this.sprintPreparation(call.input);
       default:
         return this.update(call.input, call.operation);
     }
@@ -173,7 +175,18 @@ export class MockProvider implements LlmProvider {
     };
   }
 
-  private sprintReview(input: string): SprintReviewOutput {
+  private sprintPreparation(input: string): SprintDocOutput {
+    const data = between(input, 'preparation_du_sprint');
+    const lines = data.split('\n');
+    const head = lines.filter((l) => l.startsWith('- ')).slice(0, 3);
+    const planned = lines.slice(lines.findIndex((l) => l.startsWith('## Tickets prévus')) + 1).filter((l) => /^- [A-Z][A-Z0-9_]*-\d+/.test(l)).slice(0, 6);
+    const alerts = lines.filter((l) => /^- \[(critique|attention|info)\]/.test(l)).map((l) => l.replace(/^- \[\w+\] /, '- '));
+    return {
+      markdown: `## Objectif proposé\n\n*Préparation simulée (aucun appel IA).*\n\n## Périmètre et capacité\n\n${head.join('\n')}\n\n## Reports et arbitrages\n\n${planned.join('\n') || '- Aucun ticket prévu'}\n\n## Points à clarifier avant le lancement\n\n${alerts.join('\n') || '- Aucun'}\n\n## Ordre du jour de la réunion de planification\n\n- [À compléter]`,
+    };
+  }
+
+  private sprintReview(input: string): SprintDocOutput {
     const data = between(input, 'chiffres_du_sprint');
     const facts = data.split('\n').filter((l) => l.startsWith('- ')).slice(0, 5);
     const alerts = data.split('\n').filter((l) => /^- \[(critique|attention)\]/.test(l)).slice(0, 4).map((l) => l.replace(/^- \[\w+\] /, '- '));

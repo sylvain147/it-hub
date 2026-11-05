@@ -1,13 +1,27 @@
 /**
- * Lecture des données Jira : comptes, champs, tableaux, sprints et tickets d'un sprint avec leur historique
- * (changements de sprint et de statut). Le résultat est un instantané compact, indépendant du format Jira.
+ * Lecture des données Jira : comptes, champs, tableaux, puis import des tableaux suivis — sprints récents et leurs
+ * tickets avec leur historique (changements de sprint et de statut), backlog ouvert. Le résultat est compact et
+ * indépendant du format Jira : liste des tickets (lecture seule dans le hub) et un instantané par sprint.
  */
-import type { JiraBoard, JiraFieldRef, JiraSprintInfo, JiraStatusCategory, JiraTestResult, SprintIssue, SprintSnapshot } from '@samm/shared';
+import {
+  buildSprintReport,
+  JIRA_CLOSED_SPRINTS_KEPT,
+  type JiraBoard,
+  type JiraFieldRef,
+  type JiraSprintInfo,
+  type JiraStatusCategory,
+  type JiraTask,
+  type JiraTestResult,
+  type SprintHistoryEntry,
+  type SprintIssue,
+  type SprintSnapshot,
+} from '@samm/shared';
 import { HttpError, nowIso } from '../lib/util.js';
 import { JiraClient } from './client.js';
 
-/** Garde-fou : un sprint de plus de 500 tickets n'est pas un cas d'usage du hub. */
-const MAX_ISSUES = 500;
+/** Garde-fous : au-delà, ce n'est plus un cas d'usage du hub (équipe de quelques personnes). */
+const MAX_SPRINT_ISSUES = 2000;
+const MAX_BACKLOG_ISSUES = 300;
 const SPRINT_FIELD_TYPE = 'com.pyxis.greenhopper.jira:gh-sprint';
 
 interface RawField {
@@ -137,12 +151,12 @@ export async function listSprints(jira: JiraClient, boardId: number): Promise<Ji
 }
 
 // ---------------------------------------------------------------------------
-// Instantané d'un sprint
+// Import des tableaux suivis
 // ---------------------------------------------------------------------------
 
 const ids = (s: string | null) => (s ?? '').split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0);
 
-/** Tickets retirés du sprint (rapport de sprint du tableau) : ils n'apparaissent plus dans la recherche « sprint = ». */
+/** Tickets retirés du sprint (rapport de sprint du tableau) : ils n'apparaissent plus dans la recherche « sprint in ». */
 async function removedKeys(jira: JiraClient, boardId: number, sprintId: number): Promise<string[] | null> {
   try {
     const r = await jira.get<{ contents?: { puntedIssues?: { key: string }[] } }>('/rest/greenhopper/1.0/rapid/charts/sprintreport', { rapidViewId: boardId, sprintId });
@@ -152,20 +166,20 @@ async function removedKeys(jira: JiraClient, boardId: number, sprintId: number):
   }
 }
 
-async function search(jira: JiraClient, jql: string, fields: string[]): Promise<RawIssue[]> {
+async function search(jira: JiraClient, jql: string, fields: string[], o: { changelog: boolean; max: number; what: string }): Promise<RawIssue[]> {
   const out: RawIssue[] = [];
   let nextPageToken: string | undefined;
   do {
     const page = await jira.post<{ issues: RawIssue[]; nextPageToken?: string; isLast?: boolean }>('/rest/api/3/search/jql', {
       jql,
       fields,
-      expand: 'changelog',
+      ...(o.changelog ? { expand: 'changelog' } : {}),
       maxResults: 100,
       ...(nextPageToken ? { nextPageToken } : {}),
     });
     out.push(...page.issues);
     nextPageToken = page.isLast === false ? page.nextPageToken : undefined;
-    if (out.length > MAX_ISSUES) throw new HttpError(422, `Plus de ${MAX_ISSUES} tickets concernés : le sprint est trop volumineux pour la revue de sprint.`);
+    if (out.length > o.max) throw new HttpError(422, `Plus de ${o.max} tickets ${o.what} : réduisez le nombre de tableaux suivis.`);
   } while (nextPageToken);
   return out;
 }
@@ -185,43 +199,94 @@ function text(v: unknown): string {
   return '';
 }
 
-export interface SyncOptions {
+export interface ImportOptions {
   site: string;
-  boardId: number;
-  sprintId: number;
-  projectKey: string;
+  boards: JiraBoard[];
   storyPointsField: string | null;
   deskRefField: string | null;
   sprintField: string | null;
 }
 
-export async function fetchSprintSnapshot(jira: JiraClient, o: SyncOptions): Promise<SprintSnapshot> {
-  const sprint = sprintInfo(await jira.get<RawSprint>(`/rest/agile/1.0/sprint/${o.sprintId}`), o.boardId);
+export interface ImportedSprint extends JiraSprintInfo {
+  boardName: string;
+  issueCount: number;
+  openCount: number;
+  points: number;
+}
+
+/** Résultat d'un import : liste des tickets et des sprints, plus un instantané (avec historique) par sprint. */
+export interface ImportResult {
+  site: string;
+  syncedAt: string;
+  boards: JiraBoard[];
+  sprints: ImportedSprint[];
+  statusCategories: Record<string, JiraStatusCategory>;
+  tasks: JiraTask[];
+  /** Bilan des derniers sprints clos, par tableau (du plus récent au plus ancien). */
+  history: Record<string, SprintHistoryEntry[]>;
+  snapshots: SprintSnapshot[];
+}
+
+const closedRank = (s: JiraSprintInfo) => s.completeDate ?? s.endDate ?? s.startDate ?? '';
+
+export async function importBoards(jira: JiraClient, o: ImportOptions): Promise<ImportResult> {
+  const syncedAt = nowIso();
   const statuses = await jira.get<{ name: string; statusCategory?: { key?: string } }[]>('/rest/api/3/status');
   const statusCategories: Record<string, JiraStatusCategory> = {};
-  for (const s of statuses) {
-    const k = s.statusCategory?.key;
-    statusCategories[s.name] = k === 'done' ? 'done' : k === 'new' ? 'new' : 'indeterminate';
-  }
+  const category = (k: string | undefined): JiraStatusCategory => (k === 'done' ? 'done' : k === 'new' ? 'new' : 'indeterminate');
+  for (const s of statuses) statusCategories[s.name] = category(s.statusCategory?.key);
   const sprintField = o.sprintField ?? 'customfield_10020';
 
-  const removed = sprint.startDate ? await removedKeys(jira, o.boardId, o.sprintId) : [];
-  const clauses = [`sprint = ${o.sprintId}`];
-  if (removed?.length) clauses.push(`key in (${removed.map((k) => `"${k}"`).join(', ')})`);
-  if (removed === null && o.projectKey && sprint.startDate) clauses.push(`(project = "${o.projectKey}" AND updated >= "${sprint.startDate.slice(0, 10)}")`);
-  const fields = ['summary', 'issuetype', 'priority', 'assignee', 'status', 'duedate', 'created', 'resolutiondate', 'timespent', 'timeestimate', sprintField];
+  // ---- Sprints : en cours, à venir et derniers clos de chaque tableau ----
+  const sprints = new Map<number, JiraSprintInfo & { boardName: string }>();
+  for (const b of o.boards) {
+    const all = await listSprints(jira, b.id);
+    const closed = all.filter((s) => s.state === 'closed').sort((a, z) => closedRank(z).localeCompare(closedRank(a))).slice(0, JIRA_CLOSED_SPRINTS_KEPT);
+    for (const s of [...all.filter((x) => x.state !== 'closed'), ...closed]) if (!sprints.has(s.id)) sprints.set(s.id, { ...s, boardId: b.id, boardName: b.name });
+  }
+  const sprintIds = [...sprints.keys()];
+
+  // ---- Tickets des sprints, avec leur historique ----
+  const removed: string[] = [];
+  const fallbackProjects = new Set<string>();
+  let fallbackSince = '';
+  for (const s of sprints.values()) {
+    if (!s.startDate) continue;
+    const keys = await removedKeys(jira, s.boardId, s.id);
+    if (keys) removed.push(...keys);
+    else {
+      const b = o.boards.find((x) => x.id === s.boardId);
+      if (b?.projectKey) fallbackProjects.add(b.projectKey);
+      if (!fallbackSince || s.startDate < fallbackSince) fallbackSince = s.startDate;
+    }
+  }
+  const fields = ['summary', 'issuetype', 'priority', 'assignee', 'status', 'duedate', 'created', 'updated', 'resolutiondate', 'timespent', 'timeestimate', 'parent', 'project', sprintField];
   if (o.storyPointsField) fields.push(o.storyPointsField);
   if (o.deskRefField) fields.push(o.deskRefField);
-  const raw = await search(jira, `${clauses.join(' OR ')} ORDER BY key`, fields);
+  const clauses: string[] = [];
+  if (sprintIds.length) clauses.push(`sprint in (${sprintIds.join(', ')})`);
+  const uniqueRemoved = [...new Set(removed)];
+  if (uniqueRemoved.length) clauses.push(`key in (${uniqueRemoved.map((k) => `"${k}"`).join(', ')})`);
+  if (fallbackProjects.size) clauses.push(`(project in (${[...fallbackProjects].map((k) => `"${k}"`).join(', ')}) AND updated >= "${fallbackSince.slice(0, 10)}")`);
+  const sprintRaw = clauses.length ? await search(jira, `${clauses.join(' OR ')} ORDER BY key`, fields, { changelog: true, max: MAX_SPRINT_ISSUES, what: 'dans les sprints suivis' }) : [];
 
-  const sprintNames: Record<string, string> = { [sprint.id]: sprint.name };
-  const issues: SprintIssue[] = [];
-  for (const it of raw) {
-    let histories = it.changelog?.histories ?? [];
-    if (it.changelog && (it.changelog.total ?? 0) > histories.length) histories = await fullChangelog(jira, it.key);
+  // ---- Backlog ouvert de chaque tableau (sans historique) ----
+  const backlogRaw: { raw: RawIssue; boardId: number }[] = [];
+  for (const b of o.boards) {
+    if (!b.projectKey) continue;
+    const jql = `project = "${b.projectKey}" AND sprint is EMPTY AND statusCategory != Done ORDER BY Rank ASC`;
+    for (const raw of await search(jira, jql, fields, { changelog: false, max: MAX_BACKLOG_ISSUES, what: `au backlog de ${b.name}` })) backlogRaw.push({ raw, boardId: b.id });
+  }
+
+  const sprintNames: Record<string, string> = Object.fromEntries([...sprints.values()].map((s) => [s.id, s.name]));
+  const boardOfProject = new Map(o.boards.filter((b) => b.projectKey).map((b) => [b.projectKey, b.id]));
+
+  const convert = async (it: RawIssue, withHistory: boolean): Promise<{ issue: SprintIssue; task: JiraTask }> => {
+    let histories = withHistory ? (it.changelog?.histories ?? []) : [];
+    if (withHistory && it.changelog && (it.changelog.total ?? 0) > histories.length) histories = await fullChangelog(jira, it.key);
     const f = it.fields;
-    const current = Array.isArray(f[sprintField]) ? (f[sprintField] as { id: number; name: string }[]) : [];
-    for (const s of current) sprintNames[s.id] = s.name;
+    const current = Array.isArray(f[sprintField]) ? (f[sprintField] as { id: number; name: string; boardId?: number }[]) : [];
+    for (const s of current) sprintNames[s.id] ??= s.name;
     const sprintChanges: SprintIssue['sprintChanges'] = [];
     const statusChanges: SprintIssue['statusChanges'] = [];
     for (const h of histories) {
@@ -242,10 +307,12 @@ export async function fetchSprintSnapshot(jira: JiraClient, o: SyncOptions): Pro
         }
       }
     }
-    const inSprint = current.some((s) => s.id === o.sprintId) || sprintChanges.some((c) => c.from.includes(o.sprintId) || c.to.includes(o.sprintId));
-    if (!inSprint) continue; // remonté par la recherche de repli, sans rapport avec ce sprint
     const sp = o.storyPointsField ? f[o.storyPointsField] : null;
-    issues.push({
+    const status = f.status as { name?: string; statusCategory?: { key?: string } } | undefined;
+    const assignee = f.assignee as { displayName?: string; emailAddress?: string } | null | undefined;
+    const parent = f.parent as { key?: string; fields?: { summary?: string } } | null | undefined;
+    const projectKey = text((f.project as { key?: string } | undefined)?.key) || it.key.replace(/-\d+$/, '');
+    const issue: SprintIssue = {
       key: it.key,
       summary: text(f.summary),
       type: text(f.issuetype),
@@ -254,7 +321,7 @@ export async function fetchSprintSnapshot(jira: JiraClient, o: SyncOptions): Pro
       status: text(f.status),
       storyPoints: typeof sp === 'number' ? sp : null,
       dueDate: typeof f.duedate === 'string' ? f.duedate.slice(0, 10) : '',
-      created: jiraDate(f.created) ?? nowIso(),
+      created: jiraDate(f.created) ?? syncedAt,
       resolutionDate: jiraDate(f.resolutiondate),
       timeSpentSeconds: typeof f.timespent === 'number' ? f.timespent : null,
       remainingSeconds: typeof f.timeestimate === 'number' ? f.timeestimate : null,
@@ -262,16 +329,77 @@ export async function fetchSprintSnapshot(jira: JiraClient, o: SyncOptions): Pro
       sprints: current.map((s) => s.id),
       sprintChanges,
       statusChanges,
-    });
+    };
+    const task: JiraTask = {
+      key: issue.key,
+      summary: issue.summary,
+      type: issue.type,
+      priority: issue.priority,
+      assignee: issue.assignee,
+      assigneeEmail: (assignee?.emailAddress ?? '').toLowerCase(),
+      status: issue.status,
+      statusCategory: status?.statusCategory?.key ? category(status.statusCategory.key) : (statusCategories[issue.status] ?? 'indeterminate'),
+      storyPoints: issue.storyPoints,
+      dueDate: issue.dueDate,
+      created: issue.created,
+      updated: jiraDate(f.updated) ?? issue.created,
+      resolutionDate: issue.resolutionDate,
+      projectKey,
+      boardId: 0,
+      sprintIds: issue.sprints,
+      parent: parent?.key ? `${parent.key}${parent.fields?.summary ? ` ${parent.fields.summary}` : ''}` : '',
+      deskRef: issue.deskRef,
+    };
+    return { issue, task };
+  };
+
+  const issues: SprintIssue[] = [];
+  const tasks = new Map<string, JiraTask>();
+  for (const raw of sprintRaw) {
+    const { issue, task } = await convert(raw, true);
+    const mine = issue.sprints.find((sid) => sprints.has(sid)) ?? issue.sprintChanges.flatMap((c) => [...c.from, ...c.to]).find((sid) => sprints.has(sid));
+    if (mine === undefined) continue; // remonté par la recherche de repli, sans rapport avec les sprints suivis
+    issues.push(issue);
+    tasks.set(task.key, { ...task, boardId: sprints.get(mine)!.boardId });
+  }
+  for (const { raw, boardId } of backlogRaw) {
+    if (tasks.has(raw.key)) continue;
+    const { task } = await convert(raw, false);
+    tasks.set(task.key, { ...task, boardId: boardOfProject.get(task.projectKey) ?? boardId });
   }
 
-  return {
-    site: o.site,
-    sprint,
-    syncedAt: nowIso(),
-    statusCategories,
-    sprintNames,
-    hasStoryPoints: !!o.storyPointsField,
-    issues,
-  };
+  // ---- Instantané et chiffres de chaque sprint ----
+  const snapshots: SprintSnapshot[] = [];
+  const imported: ImportedSprint[] = [];
+  const history: Record<string, SprintHistoryEntry[]> = {};
+  const taskList = [...tasks.values()];
+  for (const s of sprints.values()) {
+    const { boardName, ...sprint } = s;
+    const snap: SprintSnapshot = {
+      site: o.site,
+      sprint,
+      syncedAt,
+      statusCategories,
+      sprintNames,
+      hasStoryPoints: !!o.storyPointsField,
+      issues: issues.filter((i) => i.sprints.includes(s.id) || i.sprintChanges.some((c) => c.from.includes(s.id) || c.to.includes(s.id))),
+    };
+    snapshots.push(snap);
+    const members = taskList.filter((t) => t.sprintIds.includes(s.id));
+    imported.push({
+      ...s,
+      issueCount: members.length,
+      openCount: members.filter((t) => t.statusCategory !== 'done').length,
+      points: Math.round(members.reduce((n, t) => n + (t.storyPoints ?? 0), 0) * 10) / 10,
+    });
+    // Les sprints clos de chaque tableau sont parcourus du plus récent au plus ancien.
+    if (s.state === 'closed') {
+      const r = buildSprintReport(snap);
+      (history[s.boardId] ??= []).push({ name: s.name, done: r.counts.done, points: r.points.done, active: r.counts.active });
+    }
+  }
+  const rank = { active: 0, future: 1, closed: 2 } as const;
+  imported.sort((a, z) => rank[a.state] - rank[z.state] || (z.startDate ?? '9999').localeCompare(a.startDate ?? '9999') || z.id - a.id);
+
+  return { site: o.site, syncedAt, boards: o.boards, sprints: imported, statusCategories, tasks: taskList, history, snapshots };
 }
