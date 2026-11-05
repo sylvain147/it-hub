@@ -41,6 +41,7 @@ export async function overview(): Promise<JiraOverview> {
     boards: conf?.boards ?? [],
     syncedAt: imp?.syncedAt ?? null,
     syncedBy: imp?.syncedBy ?? null,
+    warnings: imp?.warnings ?? [],
     sprints: (imp?.sprints ?? []).map((s) => ({ ...s, hasCompteRendu: !!flags.get(s.id)?.compteRendu, hasPreparation: !!flags.get(s.id)?.preparation })),
     tasks: await taskViews(imp),
   };

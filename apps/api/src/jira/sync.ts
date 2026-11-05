@@ -139,13 +139,16 @@ export async function listBoards(jira: JiraClient, projectKey: string): Promise<
   return raw.map((b) => ({ id: b.id, name: b.name, type: b.type, projectKey: b.location?.projectKey ?? '' }));
 }
 
-export async function listSprints(jira: JiraClient, boardId: number): Promise<JiraSprintInfo[]> {
+/**
+ * Sprints d'un tableau, ou null si Jira refuse de les lister (tableau Kanban sans sprints). Le type du tableau ne suffit
+ * pas à le savoir : les projets « gérés par l'équipe » ont des tableaux de type `simple`, avec ou sans sprints.
+ */
+export async function listSprints(jira: JiraClient, boardId: number): Promise<JiraSprintInfo[] | null> {
   try {
     const raw = await paged<RawSprint>(jira, `/rest/agile/1.0/board/${boardId}/sprint`);
     return raw.map((s) => sprintInfo(s, boardId));
   } catch (e) {
-    // Les tableaux Kanban n'ont pas de sprints.
-    if (e instanceof HttpError && e.status === 400) throw new HttpError(400, 'Ce tableau Jira ne gère pas de sprints (tableau Kanban ?). Choisissez un tableau Scrum.');
+    if (e instanceof HttpError && e.status === 400) return null;
     throw e;
   }
 }
@@ -222,6 +225,8 @@ export interface ImportResult {
   sprints: ImportedSprint[];
   statusCategories: Record<string, JiraStatusCategory>;
   tasks: JiraTask[];
+  /** Remarques sur les tableaux (sans sprints…), affichées après l'import. */
+  warnings: string[];
   /** Bilan des derniers sprints clos, par tableau (du plus récent au plus ancien). */
   history: Record<string, SprintHistoryEntry[]>;
   snapshots: SprintSnapshot[];
@@ -239,8 +244,14 @@ export async function importBoards(jira: JiraClient, o: ImportOptions): Promise<
 
   // ---- Sprints : en cours, à venir et derniers clos de chaque tableau ----
   const sprints = new Map<number, JiraSprintInfo & { boardName: string }>();
+  const warnings: string[] = [];
   for (const b of o.boards) {
     const all = await listSprints(jira, b.id);
+    if (!all) {
+      warnings.push(`« ${b.name} » : Jira ne gère pas de sprints sur ce tableau (tableau Kanban ?) ; seuls ses tickets hors sprint sont importés.`);
+      continue;
+    }
+    if (!all.length) warnings.push(`« ${b.name} » : aucun sprint créé sur ce tableau ; seuls ses tickets hors sprint sont importés.`);
     const closed = all.filter((s) => s.state === 'closed').sort((a, z) => closedRank(z).localeCompare(closedRank(a))).slice(0, JIRA_CLOSED_SPRINTS_KEPT);
     for (const s of [...all.filter((x) => x.state !== 'closed'), ...closed]) if (!sprints.has(s.id)) sprints.set(s.id, { ...s, boardId: b.id, boardName: b.name });
   }
@@ -401,5 +412,5 @@ export async function importBoards(jira: JiraClient, o: ImportOptions): Promise<
   const rank = { active: 0, future: 1, closed: 2 } as const;
   imported.sort((a, z) => rank[a.state] - rank[z.state] || (z.startDate ?? '9999').localeCompare(a.startDate ?? '9999') || z.id - a.id);
 
-  return { site: o.site, syncedAt, boards: o.boards, sprints: imported, statusCategories, tasks: taskList, history, snapshots };
+  return { site: o.site, syncedAt, boards: o.boards, sprints: imported, statusCategories, tasks: taskList, warnings, history, snapshots };
 }

@@ -104,7 +104,7 @@ export function jiraRoutes() {
     return c.json(await listBoards(jira, (c.req.query('project') ?? '').trim().toUpperCase()));
   });
 
-  /** Choisit les tableaux Scrum dont les sprints et le backlog sont importés. */
+  /** Choisit les tableaux dont les sprints et le backlog sont importés (Scrum, ou projet géré par l'équipe). */
   r.put('/boards', async (c) => {
     const b = await body(c, jiraBoardsBody);
     const { jira } = await client();
@@ -112,7 +112,6 @@ export function jiraRoutes() {
     const boards = [...new Set(b.boardIds)].map((id) => {
       const board = all.find((x) => x.id === id);
       if (!board) throw new HttpError(404, `Tableau Jira ${id} introuvable (ou inaccessible au compte du hub).`);
-      if (board.type !== 'scrum') throw new HttpError(400, `Le tableau « ${board.name} » n’a pas de sprints (tableau Kanban) : choisissez un tableau Scrum.`);
       return board;
     });
     await repo.setBoards(boards);

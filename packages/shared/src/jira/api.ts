@@ -73,8 +73,16 @@ export interface JiraTestResult {
 export interface JiraBoard {
   id: number;
   name: string;
+  /** « scrum », « kanban », ou « simple » pour un projet géré par l'équipe (sprints possibles). */
   type: string;
   projectKey: string;
+}
+
+export function jiraBoardTypeLabel(type: string): string {
+  if (type === 'scrum') return 'Scrum';
+  if (type === 'simple') return 'Projet géré par l’équipe';
+  if (type === 'kanban') return 'Kanban — en général sans sprints';
+  return type;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +148,8 @@ export interface JiraOverview {
   /** Dernier import (null : jamais importé). */
   syncedAt: string | null;
   syncedBy: string | null;
+  /** Remarques du dernier import (tableau sans sprints…). */
+  warnings: string[];
   /** Sprints importés : à venir, en cours, puis clos du plus récent au plus ancien. */
   sprints: JiraSprintListItem[];
   tasks: JiraTaskView[];
