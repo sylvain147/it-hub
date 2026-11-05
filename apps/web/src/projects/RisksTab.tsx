@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth';
-import { RISK_LEVELS, RISK_LEVEL_LABELS, RISK_STATUSES, RISK_STATUS_LABELS, riskScore, type Risk, type RiskLevel, type RiskStatus } from '@samm/shared';
+import { RISK_LEVELS, RISK_LEVEL_LABELS, riskScore, type Risk, type RiskLevel, type RiskStatus } from '@samm/shared';
+import { StatusOptions } from '../settings/context';
 import { api } from '../api';
 import { EmptyState, toast } from '../components/ui';
 import { DataList, ItemModal, knownPeople, useItemActions, useProject } from './common';
@@ -66,7 +67,7 @@ export function RisksTab() {
                     <td>{r.owner || <span className="muted">—</span>}</td>
                     <td>
                       <select className="input input-sm" value={r.status} onChange={(e) => void setStatus(r, e.target.value as RiskStatus)}>
-                        {RISK_STATUSES.map((s) => <option key={s} value={s}>{RISK_STATUS_LABELS[s]}</option>)}
+                        <StatusOptions list="risk" current={r.status} />
                       </select>
                     </td>
                     <td className="num"><button className="btn-icon danger" title="Supprimer" onClick={() => actions.remove('risks', r.id, r.title)}>🗑</button></td>
@@ -168,7 +169,7 @@ function RiskDialog({ risk, onClose }: { risk: Risk | null; onClose: () => void 
       <label className="field">
         <span>Statut</span>
         <select className="input" value={f.status} onChange={(e) => set('status', e.target.value as RiskStatus)}>
-          {RISK_STATUSES.map((s) => <option key={s} value={s}>{RISK_STATUS_LABELS[s]}</option>)}
+          <StatusOptions list="risk" current={f.status} />
         </select>
       </label>
     </ItemModal>

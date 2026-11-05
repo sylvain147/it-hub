@@ -59,6 +59,15 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 - **Confidentialité** : les fichiers sont lus dans le navigateur ; seules les colonnes utiles sont envoyées, après **masquage des données personnelles** (e-mails, téléphones, numéros de client / commande / chèque, noms après une civilité, noms des demandeurs, signatures). Un nom cité sans civilité au milieu d'une phrase peut subsister.
 - **Coût** : classement des tickets par le modèle rapide, une seule fois par ticket (moins d'un euro pour un an de tickets) ; quelques centimes par synthèse. Les rapports eux-mêmes n'utilisent pas l'IA.
 
+### ⚙️ Paramétrage
+
+Référentiels communs, modifiables par tous les utilisateurs :
+
+- **Prestataires** : fiche (nom, activité, site, notes) et **carnet de contacts**. Une prestation se rattache obligatoirement à un prestataire de la liste (bouton « + » pour en créer un sans quitter le formulaire) ; l'en-tête des cahiers des charges le propose aussi. Un renommage se répercute dans tous les projets. Les doublons se **fusionnent** ; un prestataire utilisé s'**archive** (il n'est plus proposé, l'historique est conservé). Les noms saisis avant le paramétrage se reprennent d'un clic.
+- **Intervenants liés au carnet** : dans un projet, un intervenant peut être choisi dans le carnet d'un prestataire ; nom, e-mail, téléphone et organisation restent alors à jour avec le carnet (le rôle et les notes restent propres au projet).
+- **Statuts** (projets, tâches, prestations, risques, cahiers des charges) : libellé, ordre et visibilité. Le fonctionnement ne change pas (projet clos, montant engagé, tâche faite…) ; les statuts qui le portent ne peuvent pas être masqués.
+- **Libellés de jalons et rôles des intervenants** proposés à la saisie (texte libre toujours possible).
+
 ### 📊 Consommation IA
 
 Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).

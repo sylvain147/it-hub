@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { ENGAGED_PRESTA_STATUSES, PRESTA_STATUSES, PRESTA_STATUS_LABELS, type Prestation, type PrestaStatus } from '@samm/shared';
+import { ENGAGED_PRESTA_STATUSES, type Prestation, type PrestaStatus } from '@samm/shared';
+import { StatusOptions, useSettings } from '../settings/context';
+import { PrestatairePicker } from '../settings/PrestatairePicker';
 import { api } from '../api';
 import { EmptyState, toast } from '../components/ui';
-import { DataList, DueLabel, ItemModal, days, euros, useItemActions, useProject } from './common';
+import { DueLabel, ItemModal, days, euros, useItemActions, useProject } from './common';
 
 export function PrestationsTab() {
   const { project, reload, goTab } = useProject();
@@ -63,14 +65,17 @@ export function PrestationsTab() {
                 const cdc = project.cdcs.find((c) => c.id === p.cdcId);
                 return (
                   <tr key={p.id} className={p.status === 'annule' ? 'row-done' : ''}>
-                    <td className="strong">{p.prestataire}</td>
+                    <td className="strong">
+                      {p.prestataire}
+                      {!p.prestataireId && <div className="badge badge-warn small" title="Saisi avant le paramétrage : ouvrez la prestation pour choisir le prestataire">à rattacher</div>}
+                    </td>
                     <td>
                       <button className="btn-link strong-link" onClick={() => setEditing(p)}>{p.objet}</button>
                       {p.notes && <div className="muted small clamp">{p.notes}</div>}
                     </td>
                     <td>
                       <select className={`input input-sm presta-${ENGAGED_PRESTA_STATUSES.includes(p.status) ? 'engaged' : p.status}`} value={p.status} onChange={(e) => void setStatus(p, e.target.value as PrestaStatus)}>
-                        {PRESTA_STATUSES.map((st) => <option key={st} value={st}>{PRESTA_STATUS_LABELS[st]}</option>)}
+                        <StatusOptions list="prestation" current={p.status} />
                       </select>
                     </td>
                     <td className="num">{days(p.chargeJours)}</td>
@@ -103,9 +108,13 @@ export function PrestationsTab() {
 
 function PrestationDialog({ presta, onClose }: { presta: Prestation | null; onClose: () => void }) {
   const { project } = useProject();
+  const { active } = useSettings();
   const actions = useItemActions();
+  // Par défaut : le prestataire déjà présent sur le projet.
+  const usual = active.find((x) => project.items.prestations.some((p) => p.prestataireId === x.id));
   const [f, setF] = useState({
-    prestataire: presta?.prestataire ?? project.stats.prestataires[0] ?? '',
+    prestataireId: presta?.prestataireId ?? usual?.id ?? '',
+    prestataire: presta?.prestataire ?? usual?.name ?? '',
     objet: presta?.objet ?? '',
     status: presta?.status ?? ('a_chiffrer' as PrestaStatus),
     chargeJours: presta?.chargeJours ?? null,
@@ -119,16 +128,16 @@ function PrestationDialog({ presta, onClose }: { presta: Prestation | null; onCl
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const num = (v: string) => (v === '' ? null : Number(v.replace(',', '.')));
   return (
-    <ItemModal title={presta ? 'Prestation' : 'Nouvelle prestation'} onClose={onClose} canSave={!!f.prestataire.trim() && !!f.objet.trim()} onSave={() => actions.save('prestations', presta?.id ?? null, f)}>
-      <label className="field">
+    <ItemModal title={presta ? 'Prestation' : 'Nouvelle prestation'} onClose={onClose} canSave={!!f.prestataireId && !!f.objet.trim()} onSave={() => actions.save('prestations', presta?.id ?? null, f)}>
+      <div className="field">
         <span>Prestataire *</span>
-        <input className="input" autoFocus list="prestataires" value={f.prestataire} onChange={(e) => set('prestataire', e.target.value)} />
-        <DataList id="prestataires" values={[...project.stats.prestataires, ...project.items.contacts.map((c) => c.organisation)]} />
-      </label>
+        <PrestatairePicker value={f.prestataireId} autoFocus onChange={(p) => setF((x) => ({ ...x, prestataireId: p?.id ?? '', prestataire: p?.name ?? '' }))} />
+        {presta && !presta.prestataireId && <span className="muted small">Saisi avant le paramétrage (« {presta.prestataire} ») : choisissez le prestataire correspondant.</span>}
+      </div>
       <label className="field">
         <span>Statut</span>
         <select className="input" value={f.status} onChange={(e) => set('status', e.target.value as PrestaStatus)}>
-          {PRESTA_STATUSES.map((st) => <option key={st} value={st}>{PRESTA_STATUS_LABELS[st]}</option>)}
+          <StatusOptions list="prestation" current={f.status} />
         </select>
       </label>
       <label className="field span-2">

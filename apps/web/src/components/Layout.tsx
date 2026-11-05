@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import { ADMIN_LINKS, MODULES } from '../modules';
 import { signOutEverywhere, useAuth } from '../auth';
 import { ToastHost } from './ui';
+import { SettingsProvider } from '../settings/context';
 
 export function Layout() {
   const { email, signOut } = useAuth();
@@ -61,7 +62,9 @@ export function Layout() {
         </div>
       </aside>
       <main className="content" ref={contentRef}>
-        <Outlet />
+        <SettingsProvider>
+          <Outlet />
+        </SettingsProvider>
       </main>
       <ToastHost />
     </div>

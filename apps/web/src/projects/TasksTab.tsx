@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { PRIORITIES, PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS, isTaskOverdue, type Priority, type Task, type TaskStatus } from '@samm/shared';
+import { PRIORITIES, PRIORITY_LABELS, isTaskOverdue, type Priority, type Task, type TaskStatus } from '@samm/shared';
+import { StatusOptions, useSettings } from '../settings/context';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { EmptyState, formatDate, shortUser, toast } from '../components/ui';
@@ -8,6 +9,7 @@ import { DataList, DueLabel, ItemModal, PriorityTag, isMine, knownPeople, useIte
 type View = 'tableau' | 'liste';
 
 export function TasksTab() {
+  const { lists } = useSettings();
   const { project, reload } = useProject();
   const { email } = useAuth();
   const actions = useItemActions();
@@ -81,8 +83,10 @@ export function TasksTab() {
         <EmptyState>Aucune tâche. Ajoutez-en ci-dessus, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
       ) : view === 'tableau' ? (
         <div className="board">
-          {TASK_STATUSES.map((st) => {
+          {lists.statuses.task.map(({ key: st, label, hidden }) => {
             const col = tasks.filter((t) => t.status === st);
+            // Un statut masqué n'a plus de colonne, sauf s'il reste des tâches dans ce statut.
+            if (hidden && !col.length) return null;
             const visible = st === 'fait' && !showDone ? col.slice(-5).reverse() : col;
             return (
               <div
@@ -92,11 +96,11 @@ export function TasksTab() {
                 onDrop={() => {
                   const t = project.items.tasks.find((x) => x.id === dragId);
                   setDragId(null);
-                  if (t) void move(t, st);
+                  if (t) void move(t, st as TaskStatus);
                 }}
               >
                 <div className="board-col-head">
-                  {TASK_STATUS_LABELS[st]} <span className="pill pill-muted">{col.length}</span>
+                  {label} <span className="pill pill-muted">{col.length}</span>
                 </div>
                 {visible.map((t) => (
                   <div
@@ -151,7 +155,7 @@ export function TasksTab() {
                   <td><PriorityTag priority={t.priority} /></td>
                   <td>
                     <select className="input input-sm" value={t.status} onChange={(e) => void move(t, e.target.value as TaskStatus)}>
-                      {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
+                      <StatusOptions list="task" current={t.status} />
                     </select>
                   </td>
                   <td><button className="btn-icon danger" title="Supprimer" onClick={() => actions.remove('tasks', t.id, t.title)}>🗑</button></td>
@@ -210,7 +214,7 @@ function TaskDialog({ task, onClose }: { task: Task | null; onClose: () => void 
       <label className="field">
         <span>Statut</span>
         <select className="input" value={f.status} onChange={(e) => set('status', e.target.value as TaskStatus)}>
-          {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABELS[s]}</option>)}
+          <StatusOptions list="task" current={f.status} />
         </select>
       </label>
       <label className="field">

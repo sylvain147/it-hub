@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { CDC_STATUS_LABELS, QUESTION_PRIORITIES, type CdcStatus, type QuestionPriority } from '@samm/shared';
+import { QUESTION_PRIORITIES, type CdcStatus, type QuestionPriority } from '@samm/shared';
+import { useSettings } from '../settings/context';
 
 export function Spinner({ small }: { small?: boolean }) {
   return <span className={small ? 'spinner spinner-sm' : 'spinner'} aria-label="Chargement" />;
 }
 
 export function StatusBadge({ status }: { status: CdcStatus }) {
-  return <span className={`badge status-${status}`}>{CDC_STATUS_LABELS[status]}</span>;
+  const { label } = useSettings();
+  return <span className={`badge status-${status}`}>{label('cdc', status)}</span>;
 }
 
 const PRIORITY_LABEL: Record<QuestionPriority, string> = { bloquante: 'Bloquante', importante: 'Importante', optionnelle: 'Optionnelle' };

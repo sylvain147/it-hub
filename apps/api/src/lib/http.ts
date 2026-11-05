@@ -10,6 +10,11 @@ export async function body<S extends z.ZodType>(c: Context, schema: S): Promise<
   } catch {
     throw new HttpError(400, 'Corps de requête JSON invalide');
   }
+  return parseBody(schema, raw);
+}
+
+/** Valide un objet déjà lu (message d'erreur en français). */
+export function parseBody<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const first = parsed.error.issues[0];

@@ -64,6 +64,16 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | `FTYPE#<id>` | `VER#<seq>` | Version de la fiche ; contenu JSON dans S3 |
 | (S3) `ftypes/<id>/context.json` | | Extrait (anonymisé), documentation en texte |
 
+## Paramétrage
+
+- **Modèle** (`packages/shared/src/settings.ts`) : les statuts gardent leur code (qui porte le comportement) ; le paramétrage ne change que libellé, ordre et visibilité (`normalizeListSettings` complète et assainit, les statuts verrouillés restent visibles). Le front lit les libellés via `useSettings()` (`apps/web/src/settings/context.tsx`), l'API via `getLists()` (cache de 10 s) pour l'historique et les données envoyées à l'IA.
+- **Prestataires** : une prestation porte `prestataireId` et une copie du nom ; un intervenant lié porte `directoryContactId` et une copie des coordonnées. `resolveProjectRefs` (`apps/api/src/settings/routes.ts`) impose le référentiel et recopie les valeurs à chaque enregistrement ; renommage, modification d'un contact et fusion se répercutent dans tous les projets (`syncItems`). Les copies gardent les calculs, l'IA et les exports inchangés.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `REF#LISTS` | `LISTS` | Libellés, ordre et visibilité des statuts ; libellés de jalons et rôles proposés |
+| `REF#PRESTA` | `P#<id>` | Prestataire et son carnet de contacts |
+
 ## Module « Suivi TMA »
 
 - **Lecture des fichiers dans le navigateur** (`packages/shared/src/tma/`) : export Desk (`desk.ts`, CSV avec retours à la ligne dans les champs), relevé TMA (`activity.ts`, via `readXlsx`), masquage des données personnelles (`mask.ts`). Seuls les champs utiles, masqués, partent au serveur.

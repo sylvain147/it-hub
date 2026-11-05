@@ -3,6 +3,7 @@ import { isJalonLate, jalonDrift, type ProjectJalon } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, formatDate, toast } from '../components/ui';
 import { DueLabel, ItemModal, useItemActions, useProject } from './common';
+import { useSettings } from '../settings/context';
 
 export function PlanningTab() {
   const { project, reload } = useProject();
@@ -115,6 +116,7 @@ function Timeline() {
 
 function JalonDialog({ jalon, onClose }: { jalon: ProjectJalon | null; onClose: () => void }) {
   const actions = useItemActions();
+  const { lists } = useSettings();
   const [f, setF] = useState({ label: jalon?.label ?? '', date: jalon?.date ?? '', done: jalon?.done ?? false, notes: jalon?.notes ?? '' });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   return (
@@ -123,7 +125,7 @@ function JalonDialog({ jalon, onClose }: { jalon: ProjectJalon | null; onClose: 
         <span>Libellé *</span>
         <input className="input" autoFocus value={f.label} onChange={(e) => set('label', e.target.value)} placeholder="ex. Recette, Mise en production" list="jalon-suggestions" />
         <datalist id="jalon-suggestions">
-          {['Réception du devis', 'Commande', 'Lancement des développements', 'Livraison en recette', 'Recette', 'Mise en production', 'Fin de garantie'].map((s) => <option key={s} value={s} />)}
+          {lists.jalonLabels.map((s) => <option key={s} value={s} />)}
         </datalist>
       </label>
       <label className="field">

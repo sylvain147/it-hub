@@ -632,3 +632,22 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
   .table-wrap:not(.table-scroll) td:has(> input[type='checkbox']) { order: -1; }
   .table-wrap.table-scroll { -webkit-overflow-scrolling: touch; }
 }
+
+/* ---- Paramétrage ---- */
+.picker { display: flex; flex-direction: column; gap: 6px; }
+.picker-row { display: flex; gap: 6px; }
+.picker-row .input { flex: 1; min-width: 0; }
+.settings-list { display: flex; flex-direction: column; gap: 6px; }
+.settings-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 86px 16px; gap: 8px; align-items: center; }
+.settings-save { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; margin-top: 8px; }
+.settings-row .order { display: flex; gap: 2px; }
+.settings-row-hidden .input { color: var(--muted); text-decoration: line-through; }
+.code-key { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted); }
+.presta-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+.presta-item { display: flex; justify-content: space-between; gap: 8px; align-items: center; width: 100%; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 9px 12px; cursor: pointer; font: inherit; color: inherit; }
+.presta-item:hover { border-color: var(--blue); }
+.presta-item.on { border-color: var(--blue); background: var(--blue-50); }
+.presta-item.archived { opacity: 0.6; }
+@media (max-width: 900px) {
+  .presta-layout { grid-template-columns: 1fr; }
+}

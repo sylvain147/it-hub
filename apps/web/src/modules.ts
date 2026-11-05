@@ -35,4 +35,7 @@ export const MODULES: HubModule[] = [
   },
 ];
 
-export const ADMIN_LINKS = [{ title: 'Consommation IA', path: '/consommation', icon: '📊' }];
+export const ADMIN_LINKS = [
+  { title: 'Paramétrage', path: '/parametrage', icon: '⚙️' },
+  { title: 'Consommation IA', path: '/consommation', icon: '📊' },
+];

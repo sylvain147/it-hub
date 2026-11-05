@@ -102,20 +102,6 @@ export function riskScore(r: { probability: RiskLevel; impact: RiskLevel }): num
   return (RISK_LEVELS.indexOf(r.probability) + 1) * (RISK_LEVELS.indexOf(r.impact) + 1);
 }
 
-/** Rôles proposés pour les intervenants (saisie libre possible). */
-export const CONTACT_ROLE_SUGGESTIONS = [
-  'Chef de projet',
-  'Sponsor',
-  'Référent métier',
-  'Utilisateur clé',
-  'Chef de projet prestataire',
-  'Développeur',
-  'Architecte',
-  'Exploitation',
-  'Sécurité',
-  'Achats',
-];
-
 // ---------------------------------------------------------------------------
 // Fiche projet
 // ---------------------------------------------------------------------------
@@ -199,6 +185,9 @@ export const jalonInputSchema = z.object({
 });
 
 export const prestationInputSchema = z.object({
+  /** Prestataire du paramétrage (obligatoire à la saisie ; vide pour les prestations saisies avant le paramétrage). */
+  prestataireId: z.string().max(40).default(''),
+  /** Nom du prestataire, recopié du paramétrage par le serveur. */
   prestataire: z.string().trim().min(1, 'Le prestataire est obligatoire').max(200),
   objet: z.string().trim().min(1, 'L’objet est obligatoire').max(300),
   status: z.enum(PRESTA_STATUSES).default('a_chiffrer'),
@@ -213,6 +202,12 @@ export const prestationInputSchema = z.object({
 });
 
 export const contactInputSchema = z.object({
+  /**
+   * Contact du carnet d'un prestataire : nom, e-mail, téléphone et organisation sont alors repris du paramétrage
+   * (et mis à jour avec lui) ; le rôle et les notes restent propres au projet.
+   */
+  directoryContactId: z.string().max(40).default(''),
+  prestataireId: z.string().max(40).default(''),
   name: z.string().trim().min(1, 'Le nom est obligatoire').max(200),
   role: z.string().max(100).default(''),
   organisation: z.string().max(200).default(''),

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { MAX_PROJECT_TRANSCRIPT_CHARS, NOTE_KIND_ICONS, PRESTA_STATUS_LABELS, type CdcSummary } from '@samm/shared';
+import { MAX_PROJECT_TRANSCRIPT_CHARS, NOTE_KIND_ICONS, type CdcSummary } from '@samm/shared';
+import { useSettings } from '../settings/context';
 import { api } from '../api';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, StatusBadge, formatDate, shortUser, toast } from '../components/ui';
@@ -87,6 +88,7 @@ export function CdcTab() {
 }
 
 function GenerateDialog({ prestationId, onClose }: { prestationId: string | null; onClose: () => void }) {
+  const { label } = useSettings();
   const { project } = useProject();
   const navigate = useNavigate();
   const prestas = project.items.prestations.filter((p) => p.status !== 'annule');
@@ -134,7 +136,7 @@ function GenerateDialog({ prestationId, onClose }: { prestationId: string | null
           <select className="input" value={presta} onChange={(e) => setPresta(e.target.value)}>
             <option value="">— Tout le projet —</option>
             {prestas.map((x) => (
-              <option key={x.id} value={x.id}>{x.prestataire} — {x.objet} ({PRESTA_STATUS_LABELS[x.status]}){x.cdcId ? ' · a déjà un CDC' : ''}</option>
+              <option key={x.id} value={x.id}>{x.prestataire} — {x.objet} ({label('prestation', x.status)}){x.cdcId ? ' · a déjà un CDC' : ''}</option>
             ))}
           </select>
           <span className="muted small">{p ? `Prestataire « ${p.prestataire} »${p.chargeJours != null ? `, estimation ${days(p.chargeJours)}` : ''} repris dans l’en-tête du CDC.` : 'Le prestataire et l’estimation pourront être saisis dans le CDC.'}</span>

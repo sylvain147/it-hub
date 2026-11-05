@@ -24,6 +24,7 @@ import { authMiddleware, userName } from './auth.js';
 import { body, intParam } from './lib/http.js';
 import { fileTypeRoutes } from './filetypes/routes.js';
 import { tmaRoutes } from './tma/routes.js';
+import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
@@ -280,6 +281,7 @@ export function createApp() {
 
   api.route('/filetypes', fileTypeRoutes());
   api.route('/tma', tmaRoutes());
+  api.route('/settings', settingsRoutes());
   api.route('/projects', projectRoutes());
 
   // Vues transverses des projets (accueil).
