@@ -2,6 +2,12 @@ import type {
   AddSourceBody,
   AdjustFileTypeBody,
   CreateFileTypeBody,
+  DeskImportResult,
+  DeskTicket,
+  TmaEntry,
+  TmaMonthDetail,
+  TmaOverview,
+  TmaThemesResponse,
   FileSpec,
   FileTypeDetail,
   FileTypeSummary,
@@ -101,6 +107,15 @@ export const api = {
   restoreFileTypeVersion: (id: string, seq: number, baseSeq: number) =>
     request<{ version: FileTypeVersionInfo; detail: FileTypeDetail }>('POST', `/filetypes/${id}/versions/${seq}/restore`, { baseSeq }),
   usage: (month: string) => request<UsageReport>('GET', `/usage?month=${month}`),
+
+  tmaOverview: () => request<TmaOverview>('GET', '/tma'),
+  importDesk: (fileName: string, tickets: DeskTicket[]) => request<DeskImportResult>('POST', '/tma/desk/import', { fileName, tickets }),
+  classifyTickets: (all: boolean) => request<JobInfo>('POST', '/tma/desk/classify', { all }),
+  tmaThemes: () => request<TmaThemesResponse>('GET', '/tma/themes'),
+  tmaMonth: (month: string) => request<TmaMonthDetail>('GET', `/tma/months/${month}`),
+  putTmaMonth: (month: string, fileName: string, entries: TmaEntry[]) => request<TmaMonthDetail>('PUT', `/tma/months/${month}`, { fileName, entries }),
+  deleteTmaMonth: (month: string) => request<null>('DELETE', `/tma/months/${month}`),
+  writeTmaSynthesis: (month: string) => request<JobInfo>('POST', `/tma/months/${month}/synthesis`),
 };
 
 /** Attend la fin d'une tâche IA en interrogeant l'API. */

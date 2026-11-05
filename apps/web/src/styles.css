@@ -331,3 +331,18 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
   .form-grid-4 { grid-template-columns: 1fr 1fr; }
 }
 .field > span.muted, .field > span.small { font-weight: 400; color: var(--muted); }
+
+/* ---- Suivi TMA ---- */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stats-row .stat { padding: 12px 14px; gap: 2px; }
+.stats-row .stat-value { font-size: 22px; }
+.bar-cell { width: 40%; vertical-align: middle !important; }
+.hbar { height: 10px; }
+.hbar > div { height: 100%; background: var(--blue); border-radius: 0 4px 4px 0; min-width: 2px; }
+.heat { text-align: center; font-variant-numeric: tabular-nums; }
+.row-click { cursor: pointer; }
+.row-click:hover td { background: #fafbfc; }
+.preview-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0 14px; }
+.preview-kv dt { color: var(--muted); }
+.preview-kv dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.masked-sample { background: #fafbfc; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; white-space: pre-wrap; max-height: 180px; overflow: auto; }

@@ -11,6 +11,8 @@
  *  TRC#<hash>          TRC                      cache de traduction par bloc (TTL)
  *  USAGE#<AAAA-MM>     TOTAL | OP#… | MODEL#… | USER#…   compteurs mensuels
  *  USAGE#<AAAA-MM>     CALL#<id>                détail d'un appel IA
+ *
+ * Modules : FTYPE#… (voir filetypes/repo.ts), TMA#… (voir tma/repo.ts).
  */
 export const keys = {
   cdc: (id: string) => ({ pk: `CDC#${id}`, sk: 'META' }),

@@ -11,6 +11,8 @@ const OPERATION_LABELS: Record<string, string> = {
   integration_reponses: 'Intégration des réponses',
   retravail_section: 'Retravail de sections',
   traduction: 'Traductions',
+  tma_themes: 'Classement des tickets TMA',
+  tma_synthese: 'Synthèses TMA',
 };
 
 const usd = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 })} $`;

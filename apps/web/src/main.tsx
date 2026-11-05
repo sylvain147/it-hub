@@ -13,6 +13,9 @@ import { FilesHome } from './files/FilesHome';
 import { FileTypeNew } from './files/FileTypeNew';
 import { FileTypePage } from './files/FileTypePage';
 import { FileViewer } from './files/FileViewer';
+import { TmaHome } from './tma/TmaHome';
+import { TmaMonthPage } from './tma/TmaMonthPage';
+import { TmaThemesPage } from './tma/TmaThemesPage';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -28,6 +31,9 @@ const router = createBrowserRouter([
       { path: 'fichiers/types/nouveau', element: <FileTypeNew /> },
       { path: 'fichiers/types/:id', element: <FileTypePage /> },
       { path: 'fichiers/lecture', element: <FileViewer /> },
+      { path: 'tma', element: <TmaHome /> },
+      { path: 'tma/mois/:month', element: <TmaMonthPage /> },
+      { path: 'tma/themes', element: <TmaThemesPage /> },
       { path: 'consommation', element: <Usage /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],

@@ -22,6 +22,7 @@ import {
 import { authMiddleware, userName } from './auth.js';
 import { body, intParam } from './lib/http.js';
 import { fileTypeRoutes } from './filetypes/routes.js';
+import { tmaRoutes } from './tma/routes.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
 import * as repo from './db/repo.js';
@@ -258,6 +259,7 @@ export function createApp() {
   });
 
   api.route('/filetypes', fileTypeRoutes());
+  api.route('/tma', tmaRoutes());
 
   app.route('/api', api);
   app.notFound((c) => c.json({ error: 'Route inconnue' }, 404));

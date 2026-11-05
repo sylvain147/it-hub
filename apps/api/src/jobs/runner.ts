@@ -10,12 +10,16 @@ import * as repo from '../db/repo.js';
 import { keys } from '../db/schema.js';
 import { fileTypeKeys } from '../filetypes/repo.js';
 import { runFileTypeJob } from '../filetypes/jobs.js';
+import { tmaKeys } from '../tma/repo.js';
+import { runTmaJob } from '../tma/jobs.js';
 import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
 import * as ai from '../ai/pipeline.js';
 
 /** Élément verrouillé pendant le job. */
 function targetKey(type: JobType, targetId: string) {
+  if (type === 'tma_classify') return tmaKeys.desk();
+  if (type === 'tma_synthesis') return tmaKeys.month(targetId);
   return type.startsWith('filetype_') ? fileTypeKeys.meta(targetId) : keys.cdc(targetId);
 }
 
@@ -79,6 +83,10 @@ export async function runJob(jobId: string): Promise<void> {
       case 'filetype_create':
       case 'filetype_adjust':
         ({ seq: resultSeq, message: doneMessage } = await runFileTypeJob(job.type, job.targetId, p, ctx, step));
+        break;
+      case 'tma_classify':
+      case 'tma_synthesis':
+        doneMessage = await runTmaJob(job.type, job.targetId, p, ctx, step);
         break;
     }
     // Libère le CDC avant d'annoncer la fin, pour que le navigateur puisse éditer dès qu'il voit « terminé ».
