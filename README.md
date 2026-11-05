@@ -4,9 +4,28 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ## Modules
 
-### 📄 Générateur de cahiers des charges
+### 📁 Projets
 
-- **Génération depuis une transcription brute** : on colle la transcription d'une réunion, l'assistant fait le tri et rédige le CDC selon le modèle de l'équipe (Contexte obligatoire → sections adaptées au sujet → Annexes).
+Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
+
+- **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
+- **Vue d'ensemble** : indicateurs (tâches, prochain jalon, budget engagé, risques), **points d'attention** calculés (tâches et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
+- **Tâches** : tableau (à faire / en cours / bloqué / fait, glisser-déposer) ou liste, ajout rapide, responsable, échéance, priorité ; filtre « mes tâches ».
+- **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement.
+- **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
+- **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
+- **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (Jira, SharePoint, Git, environnements…).
+- **Journal** : comptes rendus, décisions, informations, points d'attention, rapports ; notes épinglables.
+- **Risques** : probabilité × impact, parade, responsable, matrice.
+- **Assistant** (toujours sur clic) :
+  - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tâches, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
+  - **Rapport d'avancement** : rédigé à partir des seules données du projet, avec une météo proposée.
+- **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
+- **Accueil** : mes tâches, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
+
+### 📄 Cahiers des charges (dans un projet)
+
+- **Génération** à partir du projet et/ou d'une transcription brute : l'assistant fait le tri et rédige le CDC selon le modèle de l'équipe (Contexte obligatoire → sections adaptées au sujet → Annexes).
 - **Champs** : titre et statut (obligatoires), phase du projet, prestataire, projet, estimation en jours/homme, échéances (plusieurs jalons datés). Échéances et estimation deviennent obligatoires pour passer en « Validé » ou « Envoyé ».
 - **Questions de l'assistant** : liste priorisée (bloquante / importante / optionnelle) des points à préciser. On répond dans l'interface, puis on intègre les réponses : seules les sections concernées sont réécrites.
 - **Nouvelles réunions** : une transcription supplémentaire est intégrée au CDC existant, et met à jour les questions.
@@ -15,6 +34,7 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 - **Versionning** : chaque enregistrement crée une version (0.1, 0.2… puis 1.0 à la validation). On peut comparer deux versions, restaurer une version et exporter n'importe laquelle.
 - **Exports Word et PDF** fidèles au modèle (bandeau Version / Échéance cible / Statut / Estimation).
 - **Traduction** anglais / allemand, avec cache paragraphe par paragraphe.
+- La liste de tous les CDC reste accessible (bouton « Tous les cahiers des charges ») ; un CDC créé avant le module Projets peut être **rattaché** à un projet.
 
 ### 🗂️ Lecteur de fichiers
 
@@ -55,7 +75,7 @@ Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond 
 | Aucun appel IA automatique | L'IA ne tourne que sur clic ; l'édition manuelle est gratuite |
 | Suivi par appel + budget mensuel | Pas de mauvaise surprise |
 
-Ordre de grandeur (tarifs publics Anthropic, à confirmer sur la facture Bedrock) : **~0,10 $ pour générer un CDC** à partir d'une réunion d'une heure, quelques centimes pour une intégration de réponses ou une traduction.
+Ordre de grandeur (tarifs publics Anthropic, à confirmer sur la facture Bedrock) : **~0,10 $ pour générer un CDC** à partir d'une réunion d'une heure, quelques centimes pour une intégration de réponses, une traduction, l'analyse d'une réunion (modèle économique) ou un rapport d'avancement (seules les données du projet sont envoyées, pas de document brut).
 
 ## Démarrage en local
 

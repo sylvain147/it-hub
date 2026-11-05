@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import {
   addSourceBody,
+  attachCdcBody,
   assetRef,
   cdcDocumentSchema,
   cdcMetaSchema,
@@ -23,6 +24,8 @@ import { authMiddleware, userName } from './auth.js';
 import { body, intParam } from './lib/http.js';
 import { fileTypeRoutes } from './filetypes/routes.js';
 import { tmaRoutes } from './tma/routes.js';
+import { projectRoutes } from './projects/routes.js';
+import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
 import * as repo from './db/repo.js';
@@ -95,6 +98,23 @@ export function createApp() {
     if (errors.length) throw new HttpError(422, `Impossible de passer à ce statut : ${errors.join(' ')}`, errors);
     const version = await repo.saveVersion(id, b.baseSeq, b.document, { user: userName(c), origin: 'manuel', comment: b.comment });
     return c.json({ version, detail: await repo.getCdcDetail(id) });
+  });
+
+  api.patch('/cdcs/:id/project', async (c) => {
+    const id = c.req.param('id');
+    const b = await body(c, attachCdcBody);
+    const cdc = await repo.requireCdc(id);
+    const user = userName(c);
+    if (b.projectId) {
+      const project = await pr.requireProject(b.projectId);
+      await pr.logActivity(project.id, project.name, user, `a rattaché le cahier des charges « ${cdc.title} »`);
+    }
+    if (cdc.projectId && cdc.projectId !== b.projectId) {
+      const previous = await pr.requireProject(cdc.projectId).catch(() => null);
+      if (previous) await pr.logActivity(previous.id, previous.name, user, `a détaché le cahier des charges « ${cdc.title} »`);
+    }
+    await repo.setCdcProject(id, b.projectId);
+    return c.json(await repo.getCdcDetail(id));
   });
 
   // ---- Versions ------------------------------------------------------------
@@ -260,6 +280,11 @@ export function createApp() {
 
   api.route('/filetypes', fileTypeRoutes());
   api.route('/tma', tmaRoutes());
+  api.route('/projects', projectRoutes());
+
+  // Vues transverses des projets (accueil).
+  api.get('/tasks/open', async (c) => c.json(await pr.listOpenTasks()));
+  api.get('/activity', async (c) => c.json(await pr.recentActivity(Math.min(Number(c.req.query('limit') ?? 30) || 30, 100))));
 
   app.route('/api', api);
   app.notFound((c) => c.json({ error: 'Route inconnue' }, 404));

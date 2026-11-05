@@ -1,5 +1,17 @@
 import type {
+  ActivityEntry,
   AddSourceBody,
+  ApplySuggestionsBody,
+  CreateProjectBody,
+  CreateProjectCdcBody,
+  DigestMeetingBody,
+  OpenTask,
+  ProjectDetail,
+  ProjectFields,
+  ProjectFile,
+  ProjectItem,
+  ProjectItemKind,
+  ProjectSummary,
   AdjustFileTypeBody,
   CreateFileTypeBody,
   DeskImportResult,
@@ -15,7 +27,6 @@ import type {
   CdcDetail,
   CdcDocument,
   CdcSummary,
-  CreateCdcBody,
   ExportBody,
   JobInfo,
   Question,
@@ -62,7 +73,6 @@ export const api = {
   me: () => request<{ email: string; llm: string }>('GET', '/me'),
 
   listCdcs: () => request<CdcSummary[]>('GET', '/cdcs'),
-  createCdc: (b: CreateCdcBody) => request<{ id: string; job: JobInfo | null }>('POST', '/cdcs', b),
   getCdc: (id: string) => request<CdcDetail>('GET', `/cdcs/${id}`),
   saveCdc: (id: string, baseSeq: number, document: CdcDocument, comment: string) =>
     request<{ version: VersionInfo; detail: CdcDetail }>('PUT', `/cdcs/${id}`, { baseSeq, document, comment }),
@@ -116,6 +126,28 @@ export const api = {
   putTmaMonth: (month: string, fileName: string, entries: TmaEntry[]) => request<TmaMonthDetail>('PUT', `/tma/months/${month}`, { fileName, entries }),
   deleteTmaMonth: (month: string) => request<null>('DELETE', `/tma/months/${month}`),
   writeTmaSynthesis: (month: string) => request<JobInfo>('POST', `/tma/months/${month}/synthesis`),
+  listProjects: () => request<ProjectSummary[]>('GET', '/projects'),
+  getProject: (id: string) => request<ProjectDetail>('GET', `/projects/${id}`),
+  createProject: (b: CreateProjectBody) => request<ProjectDetail>('POST', '/projects', b),
+  updateProject: (id: string, rev: number, fields: ProjectFields) => request<ProjectDetail>('PUT', `/projects/${id}`, { rev, fields }),
+  deleteProject: (id: string) => request<null>('DELETE', `/projects/${id}`),
+  createItem: <K extends ProjectItemKind>(id: string, kind: K, data: Record<string, unknown>) =>
+    request<ProjectItem<K>>('POST', `/projects/${id}/items/${kind}`, data),
+  updateItem: <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) =>
+    request<ProjectItem<K>>('PATCH', `/projects/${id}/items/${kind}/${itemId}`, patch),
+  deleteItem: (id: string, kind: ProjectItemKind, itemId: string) => request<null>('DELETE', `/projects/${id}/items/${kind}/${itemId}`),
+  createProjectFile: (id: string, b: { name: string; category: string; contentType: string; size: number }) =>
+    request<{ file: ProjectFile; upload: { url: string; headers: Record<string, string> } }>('POST', `/projects/${id}/files`, b),
+  confirmProjectFile: (id: string, fileId: string) => request<ProjectFile>('POST', `/projects/${id}/files/${fileId}/confirm`),
+  downloadProjectFile: (id: string, fileId: string) => request<{ url: string; fileName: string }>('GET', `/projects/${id}/files/${fileId}/download`),
+  noteSource: (id: string, noteId: string) => request<{ text: string }>('GET', `/projects/${id}/notes/${noteId}/source`),
+  applySuggestions: (id: string, noteId: string, b: ApplySuggestionsBody) => request<ProjectDetail>('POST', `/projects/${id}/notes/${noteId}/suggestions`, b),
+  digestMeeting: (id: string, b: DigestMeetingBody) => request<JobInfo>('POST', `/projects/${id}/digest`, b),
+  progressReport: (id: string) => request<JobInfo>('POST', `/projects/${id}/report`),
+  createProjectCdc: (id: string, b: CreateProjectCdcBody) => request<{ id: string; job: JobInfo | null }>('POST', `/projects/${id}/cdcs`, b),
+  attachCdc: (cdcId: string, projectId: string | null) => request<CdcDetail>('PATCH', `/cdcs/${cdcId}/project`, { projectId }),
+  openTasks: () => request<OpenTask[]>('GET', '/tasks/open'),
+  activity: () => request<ActivityEntry[]>('GET', '/activity'),
 };
 
 /** Attend la fin d'une tâche IA en interrogeant l'API. */

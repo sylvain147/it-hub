@@ -1,12 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { loadConfig } from './config';
 import { AuthGate, configureAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { CdcList } from './pages/CdcList';
-import { CdcNew } from './pages/CdcNew';
+import { ProjectsList } from './projects/ProjectsList';
+import { ProjectPage } from './projects/ProjectPage';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
 import { FilesHome } from './files/FilesHome';
@@ -24,8 +25,11 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <Home /> },
+      { path: 'projets', element: <ProjectsList /> },
+      { path: 'projets/:id', element: <ProjectPage /> },
       { path: 'cdc', element: <CdcList /> },
-      { path: 'cdc/nouveau', element: <CdcNew /> },
+      // Les cahiers des charges se créent désormais depuis un projet.
+      { path: 'cdc/nouveau', element: <Navigate to="/projets" replace /> },
       { path: 'cdc/:id', element: <CdcEditorPage /> },
       { path: 'fichiers', element: <FilesHome /> },
       { path: 'fichiers/types/nouveau', element: <FileTypeNew /> },

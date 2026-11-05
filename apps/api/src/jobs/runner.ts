@@ -12,6 +12,8 @@ import { fileTypeKeys } from '../filetypes/repo.js';
 import { runFileTypeJob } from '../filetypes/jobs.js';
 import { tmaKeys } from '../tma/repo.js';
 import { runTmaJob } from '../tma/jobs.js';
+import { projectKeys } from '../projects/repo.js';
+import { runProjectJob } from '../projects/jobs.js';
 import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
 import * as ai from '../ai/pipeline.js';
@@ -20,7 +22,9 @@ import * as ai from '../ai/pipeline.js';
 function targetKey(type: JobType, targetId: string) {
   if (type === 'tma_classify') return tmaKeys.desk();
   if (type === 'tma_synthesis') return tmaKeys.month(targetId);
-  return type.startsWith('filetype_') ? fileTypeKeys.meta(targetId) : keys.cdc(targetId);
+  if (type.startsWith('filetype_')) return fileTypeKeys.meta(targetId);
+  if (type.startsWith('project_')) return projectKeys.meta(targetId);
+  return keys.cdc(targetId);
 }
 
 export async function startJob(type: JobType, targetId: string, user: string, payload: Record<string, unknown>): Promise<JobInfo> {
@@ -66,7 +70,14 @@ export async function runJob(jobId: string): Promise<void> {
     let doneMessage = 'Terminé';
     switch (job.type) {
       case 'create_from_transcript':
-        resultSeq = await createFromTranscript(job.targetId, await pendingText(p), String(p.title ?? ''), ctx, step);
+        resultSeq = await createFromTranscript(
+          job.targetId,
+          p.textKey ? await pendingText(p) : '',
+          String(p.title ?? ''),
+          ctx,
+          step,
+          p.contextKey ? await pendingText({ textKey: p.contextKey }) : '',
+        );
         break;
       case 'add_transcript':
         resultSeq = await addTranscript(job.targetId, Number(p.baseSeq), await pendingText(p), String(p.title ?? ''), ctx, step);
@@ -87,6 +98,10 @@ export async function runJob(jobId: string): Promise<void> {
       case 'tma_classify':
       case 'tma_synthesis':
         doneMessage = await runTmaJob(job.type, job.targetId, p, ctx, step);
+        break;
+      case 'project_digest':
+      case 'project_report':
+        doneMessage = await runProjectJob(job.type, job.targetId, p, ctx, step);
         break;
     }
     // Libère le CDC avant d'annoncer la fin, pour que le navigateur puisse éditer dès qu'il voit « terminé ».
@@ -124,32 +139,45 @@ function toQuestions(qs: ai.DraftResult['questions']): Question[] {
   return qs.map((q) => ({ ...q, id: newId(), createdAt: now, updatedAt: now }));
 }
 
-async function createFromTranscript(cdcId: string, text: string, title: string, ctx: Ctx, step: Step) {
+/**
+ * Génération initiale. Sources possibles : une transcription (triée d'abord par le modèle rapide)
+ * et/ou les informations du projet de rattachement (déjà compactes : envoyées telles quelles).
+ */
+async function createFromTranscript(cdcId: string, text: string, title: string, ctx: Ctx, step: Step, projectContext = '') {
   const { doc, seq } = await currentDoc(cdcId);
-  await step('Tri de la transcription');
-  const extraction = await ai.extractTranscript(text, title || doc.meta.title, ctx);
-  await repo.addSource(cdcId, { title: title || extraction.titre, text, notes: extraction.notes, user: ctx.user });
+  let extraction: Awaited<ReturnType<typeof ai.extractTranscript>> | null = null;
+  if (text.trim()) {
+    await step('Tri de la transcription');
+    extraction = await ai.extractTranscript(text, title || doc.meta.title, ctx);
+    await repo.addSource(cdcId, { title: title || extraction.titre, text, notes: extraction.notes, user: ctx.user });
+  }
+  if (!extraction && !projectContext.trim()) throw new HttpError(400, 'Aucune information à partir de laquelle rédiger.');
 
   await step('Rédaction du cahier des charges');
   const known = { ...doc.meta, title: title || doc.meta.title };
   // Les champs que l'utilisateur n'a pas renseignés peuvent être déduits de la transcription.
-  const meta = {
-    ...known,
-    prestataire: known.prestataire || extraction.prestataire,
-    phase: known.phase ?? extraction.phase,
-    estimationJours: known.estimationJours ?? extraction.estimationJours,
-    jalons: known.jalons.length ? known.jalons : extraction.jalons.map((j) => ({ id: ai.sectionId(), label: j.label, date: /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : '' })),
-  };
-  const draft = await ai.draftCdc(extraction.notes, meta, ctx);
+  const meta = extraction
+    ? {
+        ...known,
+        prestataire: known.prestataire || extraction.prestataire,
+        phase: known.phase ?? extraction.phase,
+        estimationJours: known.estimationJours ?? extraction.estimationJours,
+        jalons: known.jalons.length
+          ? known.jalons
+          : extraction.jalons.map((j) => ({ id: ai.sectionId(), label: j.label, date: /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : '' })),
+      }
+    : known;
+  const draft = await ai.draftCdc(extraction?.notes ?? '', meta, ctx, projectContext);
   // Conserve les annexes déjà présentes (images collées pendant la génération, par exemple).
   const existingAnnexes = doc.sections.find((s) => s.kind === 'annexes' && (s.content.content?.length ?? 0) > 1);
   if (existingAnnexes && !draft.document.sections.some((s) => s.kind === 'annexes')) draft.document.sections.push(existingAnnexes);
 
   await step('Enregistrement');
+  const from = [extraction && `la transcription${title ? ` « ${title} »` : ''}`, projectContext && 'la fiche projet'].filter(Boolean).join(' et de ');
   const version = await repo.saveVersion(cdcId, seq, draft.document, {
     user: ctx.user,
     origin: 'ia',
-    comment: `Génération à partir de la transcription${title ? ` « ${title} »` : ''}`,
+    comment: `Génération à partir de ${from}`,
   });
   await repo.putQuestions(cdcId, toQuestions(draft.questions));
   return version.seq;
