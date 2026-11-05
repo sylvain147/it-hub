@@ -86,7 +86,7 @@ pnpm install
 pnpm dev          # API sur :3001 (IA simulée, aucune donnée envoyée), front sur http://localhost:5173
 ```
 
-En local, la base DynamoDB est émulée **en mémoire** (données perdues au redémarrage) et l'IA est **simulée** (réponses factices, coût nul). Pour tester avec le vrai Bedrock : `LLM_PROVIDER=bedrock pnpm --filter @samm/api dev` avec des identifiants AWS valides.
+En local, la base DynamoDB est émulée et **enregistrée sur disque** dans `apps/api/.data/dynamodb` (avec les fichiers, dans `apps/api/.data`) : les données sont conservées d'un démarrage à l'autre. Supprimer `apps/api/.data` repart de zéro ; `LOCAL_DB=memoire pnpm dev` utilise une base vide à chaque démarrage. L'IA est **simulée** (réponses factices, coût nul). Pour tester avec le vrai Bedrock : `LLM_PROVIDER=bedrock pnpm --filter @samm/api dev` avec des identifiants AWS valides.
 
 ```bash
 pnpm test         # tests (conversion Markdown, parcours complet de l'API, exports)
