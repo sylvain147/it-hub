@@ -84,7 +84,7 @@ function ficheLines(p: ProjectSummary, lists: ListSettings): string[] {
 
 /** Résumé court du projet donné avec un compte rendu à analyser (pour éviter les doublons). */
 function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings): string {
-  const open = items.tasks.filter((t) => t.status !== 'fait');
+  const open = items.tasks.filter((t) => !t.done);
   return [
     ...ficheLines(p, lists),
     `Intervenants : ${items.contacts.map((c) => `${c.name}${c.role ? ` (${c.role}${c.organisation ? `, ${c.organisation}` : ''})` : ''}`).join(' ; ') || '(aucun)'}`,
@@ -98,8 +98,8 @@ function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings
 export function reportInput(p: ProjectDetail, lists: ListSettings, today = todayIso()): string {
   const { items } = p;
   const since = new Date(Date.parse(today) - 30 * 86400000).toISOString().slice(0, 10);
-  const recentDone = items.tasks.filter((t) => t.status === 'fait' && t.doneAt.slice(0, 10) >= since);
-  const open = items.tasks.filter((t) => t.status !== 'fait');
+  const recentDone = items.tasks.filter((t) => t.done && t.doneAt.slice(0, 10) >= since);
+  const open = items.tasks.filter((t) => !t.done);
   const notes = items.notes.filter((n) => (n.date || n.createdAt.slice(0, 10)) >= since && n.kind !== 'rapport').slice(0, 10);
   const section = (title: string, lines: string[]) => `## ${title}\n${lines.length ? lines.join('\n') : '(aucun)'}`;
   return [
@@ -116,7 +116,7 @@ export function reportInput(p: ProjectDetail, lists: ListSettings, today = today
     section('Tâches terminées depuis 30 jours', recentDone.map((t) => `- ${t.title}${t.assignee ? ` (${t.assignee})` : ''}`)),
     section(
       'Tâches ouvertes',
-      open.map((t) => `- [${statusLabel(lists, 'task', t.status)}] ${t.title}${t.assignee ? ` — ${t.assignee}` : ''}${t.dueDate ? ` — échéance ${t.dueDate}${isTaskOverdue(t, today) ? ' (EN RETARD)' : ''}` : ''}`),
+      open.map((t) => `- ${t.title}${t.assignee ? ` — ${t.assignee}` : ''}${t.dueDate ? ` — échéance ${t.dueDate}${isTaskOverdue(t, today) ? ' (EN RETARD)' : ''}` : ''}`),
     ),
     section(
       'Prestations',

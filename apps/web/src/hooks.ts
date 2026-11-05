@@ -9,13 +9,17 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [loading, setLoading] = useState(true);
   const fnRef = useRef(fn);
   fnRef.current = fn;
-  const reload = useCallback(async () => {
+  /** Recharge ; renvoie les nouvelles données (null en cas d'erreur). */
+  const reload = useCallback(async (): Promise<T | null> => {
     setLoading(true);
     try {
-      setData(await fnRef.current());
+      const d = await fnRef.current();
+      setData(d);
       setError(null);
+      return d;
     } catch (e) {
       setError(e);
+      return null;
     } finally {
       setLoading(false);
     }

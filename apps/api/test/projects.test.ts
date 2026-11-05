@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { setupTestEnv } from './helpers.js';
+import { ddb } from '../src/db/client.js';
+import { config } from '../src/config.js';
+import { projectKeys } from '../src/projects/repo.js';
 
 const MEETING = `Julien: point hebdo sur la migration Coliéco avec Coqliqo
 Marie: le prestataire doit envoyer le devis révisé avant vendredi
@@ -41,7 +45,7 @@ describe('module Projets', () => {
   it('gère tâches, jalons, prestations, intervenants, liens et risques', async () => {
     const task = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Relancer le prestataire', assignee: 'alice', dueDate: yesterday() });
     expect(task.status).toBe(201);
-    await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Préparer la recette', status: 'bloque' });
+    await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Préparer la recette', details: '- vérifier les **tables** de référence' });
     const jalon = await env.call('POST', `/projects/${id}/items/jalons`, { label: 'Mise en production', date: '2027-01-10' });
     expect(jalon.json.initialDate).toBe('2027-01-10');
     // Le prestataire doit exister dans le paramétrage.
@@ -66,7 +70,6 @@ describe('module Projets', () => {
     expect(p.stats).toMatchObject({
       openTasks: 2,
       overdueTasks: 1,
-      blockedTasks: 1,
       nextJalon: { label: 'Mise en production', date: '2027-01-10' },
       prestataires: ['Coqliqo'],
       chargeJours: 8,
@@ -79,16 +82,39 @@ describe('module Projets', () => {
     });
 
     // Modification partielle : seuls les champs fournis changent.
-    const done = await env.call('PATCH', `/projects/${id}/items/tasks/${task.json.id}`, { status: 'fait' });
+    const done = await env.call('PATCH', `/projects/${id}/items/tasks/${task.json.id}`, { done: true });
     expect(done.status).toBe(200);
-    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'Alice', assigneeId: 'alice@test', status: 'fait' });
+    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'Alice', assigneeId: 'alice@test', done: true });
     expect(done.json.doneAt).not.toBe('');
+    expect(done.json).not.toHaveProperty('status');
     const moved = await env.call('PATCH', `/projects/${id}/items/jalons/${jalon.json.id}`, { date: '2027-01-24' });
     expect(moved.json).toMatchObject({ date: '2027-01-24', initialDate: '2027-01-10' });
 
     const { json: p2 } = await env.call('GET', `/projects/${id}`);
     expect(p2.stats).toMatchObject({ openTasks: 1, overdueTasks: 0, doneTasks: 1 });
     expect(p2.activity.map((a: any) => a.text)).toEqual(expect.arrayContaining(['a terminé la tâche « Relancer le prestataire »', 'a déplacé le jalon « Mise en production » au 2027-01-24']));
+  });
+
+  it('décoche une tâche et lit les tâches enregistrées avant la simplification', async () => {
+    const t = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Tâche cochée par erreur', done: true });
+    const reopened = await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { done: false });
+    expect(reopened.json).toMatchObject({ done: false, doneAt: '' });
+    expect((await env.call('GET', `/projects/${id}`)).json.activity[0].text).toBe('a rouvert la tâche « Tâche cochée par erreur »');
+    await env.call('DELETE', `/projects/${id}/items/tasks/${t.json.id}`);
+
+    // Ancien format : statut « fait » et priorité.
+    await ddb().send(
+      new PutCommand({
+        TableName: config.tableName,
+        Item: { ...projectKeys.item(id, 'tasks', 'ancienne'), projectId: id, id: 'ancienne', title: 'Ancienne tâche', details: '', status: 'fait', priority: 'haute', assigneeId: '', assignee: 'Paul', dueDate: '', doneAt: '2026-01-02T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', createdBy: 'x', updatedAt: '2026-01-01T00:00:00.000Z', updatedBy: 'x' },
+      }),
+    );
+    const legacy = (await env.call('GET', `/projects/${id}`)).json.items.tasks.find((x: any) => x.id === 'ancienne');
+    expect(legacy).toMatchObject({ done: true, doneAt: '2026-01-02T00:00:00.000Z' });
+    expect(legacy).not.toHaveProperty('status');
+    const renamed = await env.call('PATCH', `/projects/${id}/items/tasks/ancienne`, { title: 'Ancienne tâche (renommée)' });
+    expect(renamed.json).toMatchObject({ done: true, doneAt: '2026-01-02T00:00:00.000Z' });
+    await env.call('DELETE', `/projects/${id}/items/tasks/ancienne`);
   });
 
   it('liste les tâches ouvertes de tous les projets et l’activité récente', async () => {

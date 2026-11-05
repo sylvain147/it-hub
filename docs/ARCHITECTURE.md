@@ -96,26 +96,28 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | pk | sk | Contenu |
 |---|---|---|
 | `PROJ#<id>` | `META` | Fiche + indicateurs + révision (index `gsi1` « PROJ » pour la liste) |
-| `PROJ#<id>` | `TASK#<id>` | Tâche (index `gsi1` « TASK_OPEN » tant qu'elle n'est pas faite : « mes tâches » sur l'accueil) |
+| `PROJ#<id>` | `TASK#<id>` | Tâche à cocher : `done`, détails en Markdown (index `gsi1` « TASK_OPEN » tant qu'elle n'est pas faite : « mes tâches » sur l'accueil) |
 | `PROJ#<id>` | `JALON#`, `PRESTA#`, `CONTACT#`, `LINK#`, `FILE#`, `NOTE#`, `RISK#` | Éléments rattachés |
 | `PROJ#<id>` | `ACT#<date>#<aléa>` | Historique (index `gsi1` « ACT » : activité récente ; expire après 1 an) |
 | (S3) `projects/<id>/files/<fileId>` | | Pièce jointe |
 | (S3) `projects/<id>/notes/<noteId>.txt` | | Transcription d'origine d'un compte rendu analysé |
 
-## Sprints Jira
+## Jira
 
 - **Connexion** (`apps/api/src/jira/client.ts`) : Jira Cloud uniquement (`https://<site>.atlassian.net`, `normalizeJiraSite`), e-mail + jeton d'API en authentification Basic, appels depuis l'API (le jeton ne quitte pas le serveur). Lecture seule. Le site `demo` (`jira/demo.ts`) imite l'API Jira pour le développement local et les tests ; il est refusé sur AWS.
-- **Récupération d'un sprint** (`jira/sync.ts`) : sprint (API Agile), catégories des statuts, tickets du sprint **et tickets retirés** (rapport de sprint du tableau, sinon recherche des tickets du projet modifiés depuis le lancement) avec leur historique (`expand=changelog`, complété ticket par ticket si Jira l'a tronqué). Seuls les champs utiles sont gardés : résumé, type, priorité, assigné, statut, story points, échéance, dates, temps, référence Desk, changements de sprint et de statut. Le résultat (`SprintSnapshot`) est conservé dans le bucket.
-- **Calculs** (`packages/shared/src/jira/sprint.ts`, `buildSprintReport`) : l'historique est rejoué pour connaître, à tout instant, les sprints et le statut de chaque ticket. Les statuts sont regroupés (terminé selon la catégorie Jira ; recette et attente reconnues au nom ; à faire ; en cours). Données arrêtées à la clôture du sprint, sinon à la récupération. Jours calculés à l'heure de Paris.
-- **IA** (`jira/jobs.ts`) : job `jira_sprint_review`, modèle de rédaction, entrée = chiffres du sprint en Markdown (`sprintReportToMarkdown`, quelques Ko).
+- **Import** (`jira/sync.ts`, `importBoards`) : pour chaque tableau Scrum suivi, sprints en cours, à venir et les `JIRA_CLOSED_SPRINTS_KEPT` derniers clos ; une recherche JQL ramène leurs tickets **et les tickets retirés** (rapport de sprint du tableau, sinon tickets du projet modifiés depuis le lancement) avec leur historique (`expand=changelog`, complété ticket par ticket si tronqué) ; une seconde recherche, sans historique, ramène le backlog ouvert (`sprint is EMPTY`). Seuls les champs utiles sont gardés (pas de description ni de commentaire). Résultat : la liste des tickets (`JiraTask`, lecture seule), les sprints et leur bilan, la vélocité par tableau, et un instantané par sprint (`SprintSnapshot`).
+- **Rattachement** : un ticket se relie à un projet du hub (`JIRA#LINK`), indépendamment de l'import ; un rattachement vers un projet supprimé est ignoré.
+- **Calculs** (`packages/shared/src/jira/`) : `buildSprintReport` rejoue l'historique pour connaître, à tout instant, les sprints et le statut de chaque ticket (statuts regroupés : terminé selon la catégorie Jira ; recette et attente reconnues au nom ; à faire ; en cours ; jours à l'heure de Paris). `buildSprintPreparation` calcule la préparation d'un sprint à venir ou en cours (tickets prévus, charge, vélocité, reports probables, backlog prioritaire, points à clarifier).
+- **IA** (`jira/jobs.ts`) : jobs `jira_sprint_review` (entrée `sprintReportToMarkdown`) et `jira_sprint_preparation` (entrée `sprintPreparationToMarkdown`), modèle de rédaction, quelques Ko. Export Word par `renderMarkdownDocx`.
 
 | pk | sk | Contenu |
 |---|---|---|
-| `JIRA#CONF` | `CONF` | Connexion (site, compte, jeton), champs retenus (story points, réf. Desk, sprint) |
-| `JIRA#SPRINT#<id>` | `META` | Sprint récupéré, compte rendu, job actif (index `gsi1` « JIRA_BOARD#<tableau> ») |
+| `JIRA#CONF` | `CONF` | Connexion (site, compte, jeton), champs retenus (story points, réf. Desk, sprint), tableaux suivis |
+| `JIRA#IMPORT` | `META` | Dernier import (date, auteur, nombre de tickets) |
+| `JIRA#SPRINT#<id>` | `META` | Sprint importé, documents (`compteRendu`, `preparation`), job actif |
+| `JIRA#LINK` | `L#<clé>` | Ticket relié à un projet |
+| (S3) `jira/import.json` | | Dernier import : tickets, sprints, vélocité |
 | (S3) `jira/sprints/<id>.json` | | Instantané du sprint (tickets et historique) |
-
-Le projet porte `jiraProjectKey` et `jiraBoardId` dans sa fiche.
 
 ## Utilisateurs, rôles et tâches personnelles
 
@@ -124,7 +126,8 @@ Le projet porte `jiraProjectKey` et `jiraBoardId` dans sa fiche.
 - **Comptes de connexion** (`users/identity.ts`) : création (invitation), renvoi, désactivation (+ fermeture des sessions), nom — via l'API d'administration Cognito ; sans effet en local.
 - **Connexion** (`apps/web/src/auth/LoginPage.tsx`) : écran propre au hub sur l'API `aws-amplify/auth` (`signIn` / `confirmSignIn`) : mot de passe temporaire, configuration TOTP (QR code généré dans le navigateur), code TOTP, mot de passe oublié.
 - **Tâches de projet** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, la tâche revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
-- **Tâches personnelles** : hors projet, une partition `TODO`. `GET /api/todos?user=` réunit tâches personnelles et tâches de projet ouvertes d'une personne (ou `all`) selon les droits.
+- **Tâches personnelles** : hors projet, une partition `TODO`. `GET /api/todos?user=` réunit tâches personnelles et tâches de projet ouvertes d'une personne (ou `all`) selon les droits. `POST /api/todos/move` rattache une tâche à un projet, la rend personnelle ou la change de projet (même identifiant).
+- **Tâches simplifiées** : plus de statut ni de priorité, seulement `done`. Les tâches enregistrées avant portent encore `status` : `normalizeTaskRecord` les convertit à la lecture (`status === 'fait'`), et elles sont réécrites au format actuel à la modification suivante.
 
 | pk | sk | Contenu |
 |---|---|---|

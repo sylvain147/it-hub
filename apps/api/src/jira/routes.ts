@@ -1,29 +1,34 @@
 import { Hono, type Context } from 'hono';
 import {
-  buildSprintReport,
+  jiraBoardsBody,
   jiraConfigBody,
   JIRA_DEMO_SITE,
+  linkJiraTasksBody,
   normalizeJiraSite,
-  publishCompteRenduBody,
-  saveCompteRenduBody,
+  publishSprintDocBody,
+  saveSprintDocBody,
   shortDay,
-  syncSprintBody,
+  sprintDocKinds,
+  SPRINT_DOC_KINDS,
+  SPRINT_DOC_LABELS,
   SPRINT_GROUP_LABELS,
-  type DeskLink,
-  type JiraSprintListItem,
-  type SprintDetail,
+  type SprintDocKind,
   type SprintReport,
 } from '@samm/shared';
 import { userName } from '../auth.js';
 import { config } from '../config.js';
 import { body } from '../lib/http.js';
-import { HttpError, nowIso } from '../lib/util.js';
+import { HttpError, newId, nowIso } from '../lib/util.js';
 import { startJob } from '../jobs/runner.js';
-import * as tma from '../tma/repo.js';
+import { blobKeys } from '../db/schema.js';
+import { blobs } from '../storage/blobs.js';
+import { renderMarkdownDocx } from '../export/docx.js';
 import * as pr from '../projects/repo.js';
 import { JiraClient } from './client.js';
 import * as repo from './repo.js';
-import { fetchSprintSnapshot, listBoards, listSprints, testConnection } from './sync.js';
+import { JOB_OF_DOC } from './jobs.js';
+import { importBoards, listBoards, testConnection } from './sync.js';
+import { overview, sprintDetail, taskViews } from './views.js';
 
 function idParam(c: Context, name: string): number {
   const n = Number(c.req.param(name));
@@ -31,24 +36,19 @@ function idParam(c: Context, name: string): number {
   return n;
 }
 
+function kindParam(c: Context): SprintDocKind {
+  const k = c.req.param('kind') as SprintDocKind;
+  if (!SPRINT_DOC_KINDS.includes(k)) throw new HttpError(404, 'Type de document inconnu');
+  return k;
+}
+
 async function client(): Promise<{ jira: JiraClient; conf: repo.JiraConf }> {
   const conf = await repo.requireConf();
   return { jira: new JiraClient(conf), conf };
 }
 
-async function sprintDetail(id: number): Promise<SprintDetail> {
-  const { item, snapshot, activeJobId } = await repo.getSprint(id);
-  const report = buildSprintReport(snapshot);
-  const refs = new Set(report.issues.map((i) => i.deskRef).filter(Boolean));
-  const desk: Record<string, DeskLink> = {};
-  if (refs.size) {
-    for (const t of await tma.listTickets()) if (refs.has(t.id)) desk[t.id] = { subject: t.subject, status: t.status, theme: t.theme };
-  }
-  return { site: snapshot.site, syncedAt: item.syncedAt, syncedBy: item.syncedBy, report, compteRendu: item.compteRendu, activeJobId, desk };
-}
-
-/** Note du journal : chiffres clés + compte rendu. */
-function journalContent(r: SprintReport, markdown: string): string {
+/** Note du journal pour un compte rendu : chiffres clés + compte rendu. */
+function reviewContent(r: SprintReport, markdown: string): string {
   const c = r.counts;
   const figures = [
     `- **Tickets** : ${c.done} clôturés sur ${c.active} (${c.recette} en recette) ; ${c.added} ajoutés en cours de sprint, ${c.removed} retirés`,
@@ -97,86 +97,127 @@ export function jiraRoutes() {
     return c.json(test);
   });
 
-  // ---- Tableaux et sprints -------------------------------------------------------
+  // ---- Tableaux suivis et import ---------------------------------------------------
 
   r.get('/boards', async (c) => {
     const { jira } = await client();
     return c.json(await listBoards(jira, (c.req.query('project') ?? '').trim().toUpperCase()));
   });
 
-  r.get('/boards/:boardId/sprints', async (c) => {
-    const boardId = idParam(c, 'boardId');
+  /** Choisit les tableaux Scrum dont les sprints et le backlog sont importés. */
+  r.put('/boards', async (c) => {
+    const b = await body(c, jiraBoardsBody);
     const { jira } = await client();
-    const [live, stored] = await Promise.all([listSprints(jira, boardId), repo.listBoardSprints(boardId)]);
-    const byId = new Map(stored.map((s) => [s.sprint.id, s]));
-    const list: JiraSprintListItem[] = live.map((s) => {
-      const st = byId.get(s.id);
-      return { ...s, syncedAt: st?.syncedAt ?? null, issueCount: st?.issueCount ?? null, hasCompteRendu: !!st?.compteRendu };
+    const all = await listBoards(jira, '');
+    const boards = [...new Set(b.boardIds)].map((id) => {
+      const board = all.find((x) => x.id === id);
+      if (!board) throw new HttpError(404, `Tableau Jira ${id} introuvable (ou inaccessible au compte du hub).`);
+      if (board.type !== 'scrum') throw new HttpError(400, `Le tableau « ${board.name} » n’a pas de sprints (tableau Kanban) : choisissez un tableau Scrum.`);
+      return board;
     });
-    // Le plus récent d'abord : sprints à venir, en cours, puis clos.
-    const rank = { future: 0, active: 1, closed: 2 } as const;
-    list.sort((a, b) => rank[a.state] - rank[b.state] || (b.startDate ?? '').localeCompare(a.startDate ?? '') || b.id - a.id);
-    return c.json(list);
+    await repo.setBoards(boards);
+    return c.json(await overview());
   });
 
-  r.post('/sprints/:sprintId/sync', async (c) => {
-    const sprintId = idParam(c, 'sprintId');
-    const b = await body(c, syncSprintBody);
+  r.get('/overview', async (c) => c.json(await overview()));
+
+  /** Importe les sprints récents (avec l'historique de leurs tickets) et le backlog ouvert des tableaux suivis. */
+  r.post('/import', async (c) => {
     const { jira, conf } = await client();
-    const snap = await fetchSprintSnapshot(jira, {
+    if (!conf.boards?.length) throw new HttpError(400, 'Choisissez d’abord les tableaux Jira à importer.');
+    const res = await importBoards(jira, {
       site: conf.site,
-      boardId: b.boardId,
-      sprintId,
-      projectKey: b.projectKey.toUpperCase(),
+      boards: conf.boards,
       storyPointsField: conf.storyPoints?.id ?? null,
       deskRefField: conf.deskRef?.id ?? null,
       sprintField: conf.sprintField,
     });
-    await repo.saveSnapshot(b.boardId, snap, userName(c));
-    return c.json(await sprintDetail(sprintId));
+    await repo.saveImport(res, userName(c));
+    return c.json(await overview());
   });
+
+  // ---- Tickets : rattachement aux projets du hub ----------------------------------------
+
+  r.get('/tasks', async (c) => {
+    const projectId = c.req.query('projectId') || undefined;
+    return c.json(await taskViews(await repo.getImport(), { projectId }));
+  });
+
+  /** Relie des tickets à un projet (ou les détache). Les tickets eux-mêmes ne se modifient que dans Jira. */
+  r.put('/links', async (c) => {
+    const b = await body(c, linkJiraTasksBody);
+    if (b.projectId) await pr.requireProject(b.projectId);
+    await repo.setLinks([...new Set(b.keys)], b.projectId, userName(c));
+    return c.json({ updated: b.keys.length });
+  });
+
+  // ---- Sprints et documents ---------------------------------------------------------------
 
   r.get('/sprints/:sprintId', async (c) => c.json(await sprintDetail(idParam(c, 'sprintId'))));
 
-  // ---- Compte rendu -----------------------------------------------------------------
-
-  r.post('/sprints/:sprintId/compte-rendu', async (c) => {
+  r.post('/sprints/:sprintId/documents/:kind', async (c) => {
     const sprintId = idParam(c, 'sprintId');
-    await repo.getSprint(sprintId);
-    return c.json(await startJob('jira_sprint_review', String(sprintId), userName(c), {}), 202);
+    const kind = kindParam(c);
+    const { snapshot } = await repo.getSprint(sprintId);
+    if (!sprintDocKinds(snapshot.sprint.state).includes(kind)) {
+      throw new HttpError(400, kind === 'compte_rendu' ? 'Ce sprint n’a pas encore démarré : préparez-le plutôt.' : 'Ce sprint est clos : rédigez plutôt son compte rendu.');
+    }
+    return c.json(await startJob(JOB_OF_DOC[kind], String(sprintId), userName(c), {}), 202);
   });
 
-  r.put('/sprints/:sprintId/compte-rendu', async (c) => {
+  r.put('/sprints/:sprintId/documents/:kind', async (c) => {
     const sprintId = idParam(c, 'sprintId');
-    const b = await body(c, saveCompteRenduBody);
+    const kind = kindParam(c);
+    const b = await body(c, saveSprintDocBody);
     const { item, activeJobId } = await repo.getSprint(sprintId);
-    if (activeJobId) throw new HttpError(409, 'Le compte rendu est en cours de rédaction. Attendez la fin du traitement.');
+    if (activeJobId) throw new HttpError(409, 'Un document de ce sprint est en cours de rédaction. Attendez la fin du traitement.');
     const user = userName(c);
-    const cr = item.compteRendu ? { ...item.compteRendu, markdown: b.markdown, editedAt: nowIso(), editedBy: user } : repo.newCompteRendu(b.markdown, user);
-    await repo.setCompteRendu(sprintId, cr);
+    const before = repo.sprintDocs(item)[kind];
+    await repo.setDocument(sprintId, kind, before ? { ...before, markdown: b.markdown, editedAt: nowIso(), editedBy: user } : repo.newDocument(b.markdown, user));
     return c.json(await sprintDetail(sprintId));
   });
 
-  /** Ajoute le compte rendu au journal d'un projet. */
-  r.post('/sprints/:sprintId/journal', async (c) => {
+  /** Ajoute le document au journal d'un projet. */
+  r.post('/sprints/:sprintId/documents/:kind/journal', async (c) => {
     const sprintId = idParam(c, 'sprintId');
-    const b = await body(c, publishCompteRenduBody);
+    const kind = kindParam(c);
+    const b = await body(c, publishSprintDocBody);
     const detail = await sprintDetail(sprintId);
-    if (!detail.compteRendu?.markdown.trim()) throw new HttpError(400, 'Rédigez d’abord le compte rendu du sprint.');
+    const doc = detail.documents[kind];
+    if (!doc?.markdown.trim()) throw new HttpError(400, 'Rédigez d’abord le document.');
     await pr.requireProject(b.projectId);
+    const { snapshot } = await repo.getSprint(sprintId);
+    const name = snapshot.sprint.name;
+    const review = kind === 'compte_rendu' && detail.report;
     const note = await pr.createItem(
       b.projectId,
       'notes',
       {
-        kind: 'compte_rendu',
-        title: `Revue du ${detail.report.sprint.name}`,
-        date: detail.report.asOfDay,
-        content: journalContent(detail.report, detail.compteRendu.markdown).slice(0, 60_000),
+        kind: review ? 'compte_rendu' : 'info',
+        title: review ? `Revue du ${name}` : `Préparation du ${name}`,
+        date: review ? detail.report!.asOfDay : detail.syncedAt.slice(0, 10),
+        content: (review ? reviewContent(detail.report!, doc.markdown) : `*Préparation du ${name} — données Jira du ${shortDay(detail.syncedAt.slice(0, 10))}.*\n\n${doc.markdown}`).slice(0, 60_000),
       },
       userName(c),
-      { extra: { origin: detail.compteRendu.editedAt ? 'manuel' : 'ia' } },
+      { extra: { origin: doc.editedAt ? 'manuel' : 'ia' } },
     );
     return c.json(note, 201);
+  });
+
+  /** Document au format Word. */
+  r.post('/sprints/:sprintId/documents/:kind/word', async (c) => {
+    const sprintId = idParam(c, 'sprintId');
+    const kind = kindParam(c);
+    const { item } = await repo.getSprint(sprintId);
+    const doc = repo.sprintDocs(item)[kind];
+    if (!doc?.markdown.trim()) throw new HttpError(400, 'Rédigez d’abord le document.');
+    const title = `${SPRINT_DOC_LABELS[kind]} — ${item.sprint.name}`;
+    const subtitle = `Données Jira du ${shortDay(item.syncedAt.slice(0, 10))}/${item.syncedAt.slice(0, 4)}`;
+    const buffer = await renderMarkdownDocx(title, subtitle, doc.markdown);
+    const fileName = `${title.replace(/[\\/:*?"<>|]+/g, '-')}.docx`;
+    const key = blobKeys.export(`jira-${sprintId}`, `${newId()}.docx`);
+    await blobs().put(key, buffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', fileName);
+    return c.json({ url: await blobs().downloadUrl(key, { fileName, expiresIn: 300 }), fileName });
   });
 
   return r;

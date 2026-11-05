@@ -24,7 +24,7 @@ export function Home() {
   // Tâches de projet et tâches personnelles ouvertes, par échéance.
   const myTasks = [
     ...(todos?.project ?? []).map((t) => ({ ...t, where: t.projectName, to: `/projets/${t.projectId}?onglet=taches`, who: t.assignee })),
-    ...(todos?.personal ?? []).filter((t) => t.status !== 'fait').map((t) => ({ ...t, where: 'Personnelle', to: '/taches', who: name(t.assigneeId) })),
+    ...(todos?.personal ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: 'Personnelle', to: '/taches', who: name(t.assigneeId) })),
   ]
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
     .slice(0, 12);
@@ -70,7 +70,7 @@ export function Home() {
                   <DueLabel date={t.dueDate} />
                   <span>
                     <Link to={t.to}>{t.title}</Link>
-                    <div className="muted small">{t.where}{allTasks && t.who && ` · ${t.who}`}{t.status === 'bloque' && ' · bloquée'}</div>
+                    <div className="muted small">{t.where}{allTasks && t.who && ` · ${t.who}`}</div>
                   </span>
                 </li>
               ))}

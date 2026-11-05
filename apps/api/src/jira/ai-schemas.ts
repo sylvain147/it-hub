@@ -1,7 +1,7 @@
-/** Format de sortie demandé au modèle pour le compte rendu de sprint. */
+/** Format de sortie demandé au modèle pour les documents de sprint (compte rendu, préparation). */
 import { z } from 'zod';
 
-export const sprintReviewSchema = z.object({
-  markdown: z.string().describe('Compte rendu en Markdown, en français, avec les sections demandées'),
+export const sprintDocSchema = z.object({
+  markdown: z.string().describe('Document en Markdown, en français, avec les sections demandées'),
 });
-export type SprintReviewOutput = z.infer<typeof sprintReviewSchema>;
+export type SprintDocOutput = z.infer<typeof sprintDocSchema>;

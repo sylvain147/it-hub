@@ -26,7 +26,7 @@ function targetKey(type: JobType, targetId: string) {
   if (type === 'tma_synthesis') return tmaKeys.month(targetId);
   if (type.startsWith('filetype_')) return fileTypeKeys.meta(targetId);
   if (type.startsWith('project_')) return projectKeys.meta(targetId);
-  if (type === 'jira_sprint_review') return jiraKeys.sprint(targetId);
+  if (type.startsWith('jira_sprint_')) return jiraKeys.sprint(targetId);
   return keys.cdc(targetId);
 }
 
@@ -107,7 +107,8 @@ export async function runJob(jobId: string): Promise<void> {
         doneMessage = await runProjectJob(job.type, job.targetId, p, ctx, step);
         break;
       case 'jira_sprint_review':
-        doneMessage = await runJiraJob(job.targetId, ctx, step);
+      case 'jira_sprint_preparation':
+        doneMessage = await runJiraJob(job.type, job.targetId, ctx, step);
         break;
     }
     // Libère le CDC avant d'annoncer la fin, pour que le navigateur puisse éditer dès qu'il voit « terminé ».

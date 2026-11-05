@@ -18,7 +18,8 @@ describe('paramétrage : statuts, jalons et rôles', () => {
   it('fournit les valeurs par défaut', async () => {
     const { json } = await env.call('GET', '/settings');
     expect(json.prestataires).toEqual([]);
-    expect(json.lists.statuses.task.map((s: any) => s.key)).toEqual(['a_faire', 'en_cours', 'bloque', 'fait']);
+    expect(json.lists.statuses.risk.map((s: any) => s.key)).toEqual(['ouvert', 'surveille', 'clos']);
+    expect(json.lists.statuses.task).toBeUndefined(); // les tâches se cochent : pas de statut
     expect(json.lists.statuses.project[0]).toEqual({ key: 'idee', label: 'Idée', hidden: false });
     expect(json.lists.jalonLabels).toContain('Mise en production');
     expect(json.lists.contactRoles).toContain('Chef de projet prestataire');
@@ -26,29 +27,31 @@ describe('paramétrage : statuts, jalons et rôles', () => {
 
   it('renomme, réordonne et masque les statuts ; les statuts verrouillés restent visibles', async () => {
     const { json: s } = await env.call('GET', '/settings');
-    const task = [
-      { key: 'fait', label: 'Terminé', hidden: true },
-      { key: 'en_cours', label: 'En développement', hidden: false },
-      { key: 'bloque', label: '', hidden: true },
+    const risk = [
+      { key: 'clos', label: 'Fermé', hidden: true },
+      { key: 'surveille', label: '', hidden: true },
       { key: 'inconnu', label: 'X', hidden: false },
     ];
-    const res = await env.call('PUT', '/settings/lists', { ...s.lists, statuses: { ...s.lists.statuses, task }, jalonLabels: ['Kick-off', ' MEP ', 'Kick-off'] });
+    const prestation = s.lists.statuses.prestation.map((x: any) => (x.key === 'commande' ? { ...x, label: 'Commandé (BC)' } : x));
+    const res = await env.call('PUT', '/settings/lists', { ...s.lists, statuses: { ...s.lists.statuses, risk, prestation }, jalonLabels: ['Kick-off', ' MEP ', 'Kick-off'] });
     expect(res.status).toBe(200);
-    expect(res.json.statuses.task).toEqual([
-      { key: 'fait', label: 'Terminé', hidden: false }, // verrouillé : toujours visible
-      { key: 'en_cours', label: 'En développement', hidden: false },
-      { key: 'bloque', label: 'Bloqué', hidden: true }, // libellé vide : libellé d'origine
-      { key: 'a_faire', label: 'À faire', hidden: false }, // manquant : ajouté à la fin
+    expect(res.json.statuses.risk).toEqual([
+      { key: 'clos', label: 'Fermé', hidden: false }, // verrouillé : toujours visible
+      { key: 'surveille', label: 'Sous surveillance', hidden: true }, // libellé vide : libellé d'origine
+      { key: 'ouvert', label: 'Ouvert', hidden: false }, // manquant : ajouté à la fin
     ]);
     expect(res.json.jalonLabels).toEqual(['Kick-off', 'MEP']);
-    expect(statusOptions(res.json, 'task').map((o) => o.key)).toEqual(['fait', 'en_cours', 'a_faire']);
-    expect(statusOptions(res.json, 'task', 'bloque').map((o) => o.key)).toContain('bloque');
+    expect(statusOptions(res.json, 'risk').map((o) => o.key)).toEqual(['clos', 'ouvert']);
+    expect(statusOptions(res.json, 'risk', 'surveille').map((o) => o.key)).toContain('surveille');
   });
 
   it('utilise les libellés paramétrés dans l’historique du projet', async () => {
-    const t = await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Brancher PayPal' });
-    await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { status: 'en_cours' });
-    expect((await project()).activity[0].text).toBe('a passé la tâche « Brancher PayPal » à « En développement »');
+    const acme = (await env.call('POST', '/settings/prestataires', { name: 'ACME' })).json;
+    const p = await env.call('POST', `/projects/${projectId}/items/prestations`, { prestataireId: acme.id, objet: 'Brancher PayPal' });
+    await env.call('PATCH', `/projects/${projectId}/items/prestations/${p.json.id}`, { status: 'commande' });
+    expect((await project()).activity[0].text).toBe('a passé la prestation « ACME — Brancher PayPal » au statut « Commandé (BC) »');
+    await env.call('DELETE', `/projects/${projectId}/items/prestations/${p.json.id}`);
+    expect((await env.call('DELETE', `/settings/prestataires/${acme.id}`)).status).toBe(204);
   });
 
   it('assainit un paramétrage incomplet', () => {

@@ -1,242 +1,123 @@
-import { useMemo, useState } from 'react';
-import { PRIORITIES, PRIORITY_LABELS, isTaskOverdue, type Priority, type Task, type TaskStatus } from '@samm/shared';
-import { StatusOptions, useSettings } from '../settings/context';
+import { useState } from 'react';
+import { Link } from 'react-router';
+import { jiraIssueUrl, type JiraTaskView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { EmptyState, formatDate, shortUser, toast } from '../components/ui';
-import { DueLabel, ItemModal, PriorityTag, useItemActions, useProject } from './common';
-import { UserSelect, useUsers } from '../users/context';
+import { useLoad } from '../hooks';
+import { EmptyState, toast } from '../components/ui';
+import { useProject } from './common';
+import { byDue, projectRow, QuickAdd, TaskChecklist, TaskModal, type TaskRow } from '../tasks/tasks';
+import { JiraStatus } from '../jira/JiraPage';
 
-type View = 'tableau' | 'liste';
-
+/** Onglet « Tâches » d'un projet : liste à cocher, et tickets Jira reliés au projet (lecture seule). */
 export function TasksTab() {
-  const { lists } = useSettings();
   const { project, reload } = useProject();
   const { email } = useAuth();
-  const actions = useItemActions();
-  const [view, setView] = useState<View>('tableau');
-  const [who, setWho] = useState('');
-  const [q, setQ] = useState('');
-  const [quick, setQuick] = useState('');
-  const [editing, setEditing] = useState<Task | 'new' | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<TaskRow | 'new' | null>(null);
+  const [mine, setMine] = useState(false);
   const [showDone, setShowDone] = useState(false);
 
-  const { name } = useUsers();
-  const people = [...new Set(project.items.tasks.map((t) => t.assigneeId).filter((x) => x && x !== email))].sort((a, b) => name(a).localeCompare(name(b), 'fr'));
-  const tasks = useMemo(
-    () =>
-      project.items.tasks.filter((t) => {
-        if (who === '__me' && t.assigneeId !== email) return false;
-        if (who === '__ext' && t.assigneeId) return false;
-        if (who && !who.startsWith('__') && t.assigneeId !== who) return false;
-        return !q.trim() || `${t.title} ${t.details}`.toLowerCase().includes(q.trim().toLowerCase());
-      }),
-    [project.items.tasks, who, q, email],
-  );
-
-  async function quickAdd() {
-    if (!quick.trim()) return;
-    try {
-      // Sans responsable choisi dans le filtre, la tâche revient à celui qui la crée.
-      await api.createItem(project.id, 'tasks', { title: quick.trim(), ...(who && !who.startsWith('__') ? { assigneeId: who } : {}) });
-      setQuick('');
-      await reload();
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    }
-  }
-
-  async function move(t: Task, status: TaskStatus) {
-    if (t.status === status) return;
-    try {
-      await api.updateItem(project.id, 'tasks', t.id, { status });
-      await reload();
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    }
-  }
+  const rows = project.items.tasks.map((t) => projectRow(t, project.id, project.name)).filter((t) => !mine || t.assigneeId === email);
+  const open = rows.filter((t) => !t.done).sort(byDue);
+  const done = rows.filter((t) => t.done).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
 
   return (
     <div>
-      <div className="toolbar-row">
-        <input
-          className="input quick-add"
-          placeholder="+ Nouvelle tâche : tapez l’intitulé puis Entrée"
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void quickAdd()}
+      <section className="card">
+        <div className="toolbar-row">
+          <QuickAdd placeholder="+ Nouvelle tâche : tapez l’intitulé puis Entrée" onAdd={async (title) => { await api.createItem(project.id, 'tasks', { title }); await reload(); }} />
+          <button className="btn btn-ghost" onClick={() => setEditing('new')}>Avec des détails…</button>
+          <span className="tb-flex" />
+          <label className="check">
+            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Seulement les miennes
+          </label>
+        </div>
+        {!project.items.tasks.length ? (
+          <EmptyState>Aucune tâche. Ajoutez-en ci-dessus, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
+        ) : (
+          <>
+            {open.length ? <TaskChecklist rows={open} onChanged={reload} onEdit={setEditing} /> : <p className="muted">Tout est fait. 🎉</p>}
+            {done.length > 0 && (
+              <>
+                <button className="btn-link small mt" onClick={() => setShowDone(!showDone)}>
+                  {showDone ? 'Masquer' : 'Afficher'} les {done.length} tâche{done.length > 1 ? 's' : ''} faite{done.length > 1 ? 's' : ''}
+                </button>
+                {showDone && <TaskChecklist rows={done} onChanged={reload} onEdit={setEditing} />}
+              </>
+            )}
+          </>
+        )}
+      </section>
+      <JiraTasksCard />
+      {editing && (
+        <TaskModal
+          task={editing === 'new' ? null : editing}
+          defaults={{ projectId: project.id, assigneeId: email }}
+          onClose={() => setEditing(null)}
+          onSaved={reload}
         />
-        <button className="btn" onClick={() => setEditing('new')}>Tâche détaillée…</button>
-        <span className="tb-flex" />
-        <input className="input input-auto" placeholder="Filtrer…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input input-auto" value={who} onChange={(e) => setWho(e.target.value)}>
-          <option value="">Tous les responsables</option>
-          <option value="__me">Mes tâches</option>
-          {people.map((p) => <option key={p} value={p}>{name(p)}</option>)}
-          {project.items.tasks.some((t) => !t.assigneeId) && <option value="__ext">Personnes extérieures</option>}
-        </select>
-        <div className="seg">
-          <button className={view === 'tableau' ? 'on' : ''} onClick={() => setView('tableau')}>Tableau</button>
-          <button className={view === 'liste' ? 'on' : ''} onClick={() => setView('liste')}>Liste</button>
-        </div>
-      </div>
-
-      {project.items.tasks.length === 0 ? (
-        <EmptyState>Aucune tâche. Ajoutez-en ci-dessus, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
-      ) : view === 'tableau' ? (
-        <div className="board">
-          {lists.statuses.task.map(({ key: st, label, hidden }) => {
-            const col = tasks.filter((t) => t.status === st);
-            // Un statut masqué n'a plus de colonne, sauf s'il reste des tâches dans ce statut.
-            if (hidden && !col.length) return null;
-            const visible = st === 'fait' && !showDone ? col.slice(-5).reverse() : col;
-            return (
-              <div
-                key={st}
-                className={`board-col col-${st}`}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  const t = project.items.tasks.find((x) => x.id === dragId);
-                  setDragId(null);
-                  if (t) void move(t, st as TaskStatus);
-                }}
-              >
-                <div className="board-col-head">
-                  {label} <span className="pill pill-muted">{col.length}</span>
-                </div>
-                {visible.map((t) => (
-                  <div
-                    key={t.id}
-                    className={`task-card${isTaskOverdue(t) ? ' task-late' : ''}${dragId === t.id ? ' dragging' : ''}`}
-                    draggable
-                    onDragStart={() => setDragId(t.id)}
-                    onDragEnd={() => setDragId(null)}
-                    onClick={() => setEditing(t)}
-                  >
-                    <div className="task-title">{t.title}</div>
-                    <div className="task-meta">
-                      {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId ? t.assigneeId : 'Personne extérieure au hub'}>{t.assignee}</span>}
-                      {t.dueDate && <DueLabel date={t.dueDate} done={t.status === 'fait'} />}
-                      <PriorityTag priority={t.priority} hideNormal />
-                    </div>
-                  </div>
-                ))}
-                {st === 'fait' && col.length > 5 && (
-                  <button className="btn-link small" onClick={() => setShowDone(!showDone)}>{showDone ? 'Réduire' : `Voir les ${col.length} tâches terminées`}</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="table-wrap">
-          <table className="table table-compact">
-            <thead>
-              <tr>
-                <th style={{ width: 30 }} />
-                <th>Tâche</th>
-                <th>Responsable</th>
-                <th>Échéance</th>
-                <th>Priorité</th>
-                <th>Statut</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => (
-                <tr key={t.id} className={t.status === 'fait' ? 'row-done' : ''}>
-                  <td>
-                    <input type="checkbox" checked={t.status === 'fait'} title="Terminée" onChange={(e) => void move(t, e.target.checked ? 'fait' : 'a_faire')} />
-                  </td>
-                  <td>
-                    <button className="btn-link strong-link" onClick={() => setEditing(t)}>{t.title}</button>
-                    {t.details && <div className="muted small clamp">{t.details}</div>}
-                  </td>
-                  <td>{t.assignee ? <span className={t.assigneeId ? '' : 'muted'} title={t.assigneeId ? '' : 'Personne extérieure au hub'}>{t.assignee}</span> : <span className="muted">—</span>}</td>
-                  <td><DueLabel date={t.dueDate} done={t.status === 'fait'} /></td>
-                  <td><PriorityTag priority={t.priority} /></td>
-                  <td>
-                    <select className="input input-sm" value={t.status} onChange={(e) => void move(t, e.target.value as TaskStatus)}>
-                      <StatusOptions list="task" current={t.status} />
-                    </select>
-                  </td>
-                  <td><button className="btn-icon danger" title="Supprimer" onClick={() => actions.remove('tasks', t.id, t.title)}>🗑</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
-      {editing && <TaskDialog task={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
 
-function TaskDialog({ task, onClose }: { task: Task | null; onClose: () => void }) {
-  const { email } = useAuth();
-  const actions = useItemActions();
-  const [external, setExternal] = useState(!!task && !task.assigneeId);
-  const [f, setF] = useState({
-    title: task?.title ?? '',
-    details: task?.details ?? '',
-    status: task?.status ?? ('a_faire' as TaskStatus),
-    priority: task?.priority ?? ('normale' as Priority),
-    assigneeId: task ? task.assigneeId : email,
-    assignee: task?.assignee ?? '',
-    dueDate: task?.dueDate ?? '',
-  });
-  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+/** Tickets Jira reliés au projet : lecture seule, ils se modifient dans Jira. */
+function JiraTasksCard() {
+  const { project } = useProject();
+  const conf = useLoad(() => api.jiraConfig(), []);
+  const tasks = useLoad(() => api.jiraTasks(project.id), [project.id]);
+  const [showDone, setShowDone] = useState(false);
+  if (!conf.data?.configured) return null;
+  const list = tasks.data ?? [];
+  const open = list.filter((t) => t.statusCategory !== 'done');
+  const shown = showDone ? list : open;
+
+  async function unlink(t: JiraTaskView) {
+    try {
+      await api.linkJiraTasks([t.key], null);
+      toast(`${t.key} n’est plus relié au projet.`);
+      await tasks.reload();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }
+
   return (
-    <ItemModal
-      title={task ? 'Tâche' : 'Nouvelle tâche'}
-      onClose={onClose}
-      canSave={!!f.title.trim() && (external ? !!f.assignee.trim() : !!f.assigneeId)}
-      onSave={() => actions.save('tasks', task?.id ?? null, external ? { ...f, assigneeId: '' } : { ...f, assignee: '' })}
-      extraFooter={
-        task && (
-          <>
-            <button className="btn btn-danger-ghost" onClick={() => void actions.remove('tasks', task.id, task.title).then((ok) => ok && onClose())}>Supprimer</button>
-            <span className="muted small">Créée le {formatDate(task.createdAt.slice(0, 10))} par {shortUser(task.createdBy)}{task.doneAt && ` · terminée le ${formatDate(task.doneAt.slice(0, 10))}`}</span>
-          </>
-        )
-      }
-    >
-      <label className="field span-2">
-        <span>Intitulé *</span>
-        <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} />
-      </label>
-      <label className="field">
-        <span>Responsable</span>
-        {external ? (
-          <input className="input" value={f.assignee} onChange={(e) => set('assignee', e.target.value)} placeholder="Nom ou société (prestataire, métier…)" />
-        ) : (
-          <UserSelect value={f.assigneeId} onChange={(v) => set('assigneeId', v)} />
-        )}
-        <button type="button" className="btn-link small" onClick={() => setExternal(!external)}>
-          {external ? 'Choisir un utilisateur du hub' : 'Personne extérieure au hub…'}
-        </button>
-      </label>
-      <label className="field">
-        <span>Échéance</span>
-        <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
-      </label>
-      <label className="field">
-        <span>Statut</span>
-        <select className="input" value={f.status} onChange={(e) => set('status', e.target.value as TaskStatus)}>
-          <StatusOptions list="task" current={f.status} />
-        </select>
-      </label>
-      <label className="field">
-        <span>Priorité</span>
-        <select className="input" value={f.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
-          {PRIORITIES.map((s) => <option key={s} value={s}>{PRIORITY_LABELS[s]}</option>)}
-        </select>
-      </label>
-      <label className="field span-2">
-        <span>Détails</span>
-        <textarea className="input" rows={4} value={f.details} onChange={(e) => set('details', e.target.value)} />
-      </label>
-    </ItemModal>
+    <section className="card">
+      <div className="card-head">
+        <h2>Tickets Jira <span className="muted small">({open.length} ouvert{open.length > 1 ? 's' : ''} sur {list.length})</span></h2>
+        <Link to={`/jira?projet=${project.id}`} className="small">Relier des tickets →</Link>
+      </div>
+      {!list.length ? (
+        <p className="muted small">Aucun ticket Jira relié à ce projet. Depuis l’onglet Jira, importez vos tickets puis reliez-les au projet.</p>
+      ) : (
+        <>
+          <ul className="checklist">
+            {shown.map((t) => {
+              const url = jiraIssueUrl(conf.data!.site, t.key);
+              return (
+                <li key={t.key} className={t.statusCategory === 'done' ? 'check-item done' : 'check-item'}>
+                  <span className="jira-key">{url ? <a href={url} target="_blank" rel="noreferrer">{t.key}</a> : t.key}</span>
+                  <div className="check-body">
+                    <div className="check-line">
+                      <span className="check-title-ro">{t.summary}</span>
+                      <span className="check-meta">
+                        <JiraStatus t={t} />
+                        {t.assignee && <span className="badge">{t.assignee}</span>}
+                        <button className="btn-icon" title="Délier du projet" onClick={() => void unlink(t)}>✕</button>
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {list.length > open.length && (
+            <button className="btn-link small" onClick={() => setShowDone(!showDone)}>{showDone ? 'Masquer les tickets terminés' : `Afficher les ${list.length - open.length} tickets terminés`}</button>
+          )}
+          <p className="muted small">Les tickets Jira se modifient dans Jira ; leurs données sont celles du dernier import.</p>
+        </>
+      )}
+    </section>
   );
 }

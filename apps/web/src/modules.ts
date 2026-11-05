@@ -16,7 +16,7 @@ export const MODULES: HubModule[] = [
   {
     id: 'taches',
     title: 'Tâches',
-    description: 'Mes tâches de tous les projets et mes tâches personnelles, au même endroit. Selon le rôle, celles de toute l’équipe.',
+    description: 'Ma liste de choses à faire : tâches de tous les projets et tâches personnelles, à cocher. Selon le rôle, celles de toute l’équipe.',
     path: '/taches',
     icon: '✅',
   },
@@ -27,6 +27,13 @@ export const MODULES: HubModule[] = [
       'Suivre chaque projet : intervenants, prestations et budget, tâches, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
     path: '/projets',
     icon: '📁',
+  },
+  {
+    id: 'jira',
+    title: 'Jira',
+    description: 'Importer mes tickets et mes sprints Jira, les relier aux projets, et faire rédiger par l’IA le compte rendu ou la préparation d’un sprint.',
+    path: '/jira',
+    icon: '🧭',
   },
   {
     id: 'fichiers',

@@ -7,8 +7,6 @@ import {
   PROJECT_STATUS_LABELS,
   RISK_STATUSES,
   RISK_STATUS_LABELS,
-  TASK_STATUSES,
-  TASK_STATUS_LABELS,
 } from './project.js';
 
 /**
@@ -16,7 +14,7 @@ import {
  * libellés de jalons et rôles proposés à la saisie. Modifiable par tous les utilisateurs.
  *
  * Les statuts gardent leur code (qui porte le comportement de l'application : projet clos, prestation engagée,
- * tâche faite…) ; seuls leur libellé, leur ordre et leur visibilité dans les listes se paramètrent.
+ * risque clos…) ; seuls leur libellé, leur ordre et leur visibilité dans les listes se paramètrent.
  */
 
 // ---------------------------------------------------------------------------
@@ -25,7 +23,6 @@ import {
 
 export const STATUS_LISTS = {
   project: { title: 'Projets', keys: PROJECT_STATUSES, labels: PROJECT_STATUS_LABELS as Record<string, string>, locked: ['cadrage'] },
-  task: { title: 'Tâches', keys: TASK_STATUSES, labels: TASK_STATUS_LABELS as Record<string, string>, locked: ['a_faire', 'fait'] },
   prestation: { title: 'Prestations', keys: PRESTA_STATUSES, labels: PRESTA_STATUS_LABELS as Record<string, string>, locked: ['a_chiffrer'] },
   risk: { title: 'Risques', keys: RISK_STATUSES, labels: RISK_STATUS_LABELS as Record<string, string>, locked: ['ouvert', 'clos'] },
   cdc: { title: 'Cahiers des charges', keys: CDC_STATUSES, labels: CDC_STATUS_LABELS as Record<string, string>, locked: ['brouillon'] },

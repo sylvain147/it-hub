@@ -37,10 +37,6 @@ export type Health = (typeof HEALTHS)[number];
 export const HEALTH_LABELS: Record<Health, string> = { vert: 'Au vert', orange: 'Vigilance', rouge: 'En difficulté' };
 export const HEALTH_ICONS: Record<Health, string> = { vert: '🟢', orange: '🟠', rouge: '🔴' };
 
-export const TASK_STATUSES = ['a_faire', 'en_cours', 'bloque', 'fait'] as const;
-export type TaskStatus = (typeof TASK_STATUSES)[number];
-export const TASK_STATUS_LABELS: Record<TaskStatus, string> = { a_faire: 'À faire', en_cours: 'En cours', bloque: 'Bloqué', fait: 'Fait' };
-
 export const PRESTA_STATUSES = ['a_chiffrer', 'devis_recu', 'commande', 'en_cours', 'livre', 'facture', 'annule'] as const;
 export type PrestaStatus = (typeof PRESTA_STATUSES)[number];
 export const PRESTA_STATUS_LABELS: Record<PrestaStatus, string> = {
@@ -126,21 +122,12 @@ export const projectFieldsSchema = z.object({
   /** Budget prévisionnel (€ HT), indépendant des prestations saisies. */
   budgetPrevu: z.number().min(0).max(1e9).nullable().default(null),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
-  /** Projet Jira (clé, ex. « TC ») et tableau dont on suit les sprints. */
-  jiraProjectKey: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^([A-Z][A-Z0-9_]{0,19})?$/, 'Clé de projet Jira invalide (ex. TC)')
-    .default(''),
-  jiraBoardId: z.number().int().positive().nullable().default(null),
 });
 export type ProjectFields = z.infer<typeof projectFieldsSchema>;
 
 export interface ProjectStats {
   openTasks: number;
   overdueTasks: number;
-  blockedTasks: number;
   doneTasks: number;
   /** Prochaine échéance : jalon non atteint le plus proche. */
   nextJalon: { label: string; date: string } | null;
@@ -176,11 +163,14 @@ export interface ProjectSummary extends ProjectFields {
 // Éléments rattachés
 // ---------------------------------------------------------------------------
 
+/**
+ * Tâche : une ligne de liste de choses à faire, que l'on coche quand elle est faite. Les détails sont en Markdown.
+ * Rattachée à un projet (élément du projet) ou personnelle (hors projet, voir `users.ts`).
+ */
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
-  details: z.string().max(5000).default(''),
-  status: z.enum(TASK_STATUSES).default('a_faire'),
-  priority: z.enum(PRIORITIES).default('normale'),
+  details: z.string().max(10_000).default(''),
+  done: z.boolean().default(false),
   /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou tâche antérieure aux utilisateurs). */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
   /** Nom du responsable, recopié de l'annuaire par le serveur quand `assigneeId` est renseigné. */
@@ -343,14 +333,23 @@ export interface OpenTask extends Task {
   projectName: string;
 }
 
+/**
+ * Tâche enregistrée avant la simplification (statut « à faire / en cours / bloqué / fait » et priorité) :
+ * seule la notion de tâche faite est conservée.
+ */
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & { done: boolean } {
+  const { status, priority: _p, ...rest } = raw as T & { status?: unknown; priority?: unknown };
+  return { ...(rest as T), done: typeof raw.done === 'boolean' ? raw.done : status === 'fait' };
+}
+
 // ---------------------------------------------------------------------------
 // Calculs
 // ---------------------------------------------------------------------------
 
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
-export function isTaskOverdue(t: Pick<Task, 'status' | 'dueDate'>, today = todayIso()): boolean {
-  return t.status !== 'fait' && !!t.dueDate && t.dueDate < today;
+export function isTaskOverdue(t: Pick<Task, 'done' | 'dueDate'>, today = todayIso()): boolean {
+  return !t.done && !!t.dueDate && t.dueDate < today;
 }
 
 export function isJalonLate(j: Pick<ProjectJalon, 'done' | 'date'>, today = todayIso()): boolean {
@@ -364,7 +363,7 @@ export function jalonDrift(j: Pick<ProjectJalon, 'date' | 'initialDate'>): numbe
 }
 
 export function computeStats(items: ProjectItems, today = todayIso()): ProjectStats {
-  const open = items.tasks.filter((t) => t.status !== 'fait');
+  const open = items.tasks.filter((t) => !t.done);
   const pendingJalons = items.jalons.filter((j) => !j.done && j.date).sort((a, b) => a.date.localeCompare(b.date));
   const next = pendingJalons.find((j) => j.date >= today) ?? null;
   const prestas = items.prestations.filter((p) => p.status !== 'annule');
@@ -372,7 +371,6 @@ export function computeStats(items: ProjectItems, today = todayIso()): ProjectSt
   return {
     openTasks: open.length,
     overdueTasks: open.filter((t) => isTaskOverdue(t, today)).length,
-    blockedTasks: open.filter((t) => t.status === 'bloque').length,
     doneTasks: items.tasks.length - open.length,
     nextJalon: next ? { label: next.label, date: next.date } : null,
     lateJalons: pendingJalons.filter((j) => j.date < today).length,

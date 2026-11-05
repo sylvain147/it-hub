@@ -164,3 +164,17 @@ describe('revue de sprint Jira', () => {
     expect(normalizeJiraSite('demo')).toBe('demo');
   });
 });
+
+describe('préparation de sprint et tâches', () => {
+  it('classe les priorités Jira, en anglais comme en français', async () => {
+    const { priorityRank } = await import('../src/index.js');
+    expect(['Low', 'Highest', 'Medium', 'Haute', 'Lowest'].sort((a, b) => priorityRank(a) - priorityRank(b))).toEqual(['Highest', 'Haute', 'Medium', 'Low', 'Lowest']);
+  });
+
+  it('convertit les tâches enregistrées avec un statut', async () => {
+    const { normalizeTaskRecord } = await import('../src/index.js');
+    expect(normalizeTaskRecord({ title: 'a', status: 'fait', priority: 'haute' })).toEqual({ title: 'a', done: true });
+    expect(normalizeTaskRecord({ title: 'b', status: 'bloque' })).toEqual({ title: 'b', done: false });
+    expect(normalizeTaskRecord({ title: 'c', done: true })).toEqual({ title: 'c', done: true });
+  });
+});
