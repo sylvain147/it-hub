@@ -15,3 +15,4 @@ export * from './project.js';
 export * from './settings.js';
 export * from './jira/sprint.js';
 export * from './jira/api.js';
+export * from './users.js';

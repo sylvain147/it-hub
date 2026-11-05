@@ -4,7 +4,8 @@ import { StatusOptions, useSettings } from '../settings/context';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { EmptyState, formatDate, shortUser, toast } from '../components/ui';
-import { DataList, DueLabel, ItemModal, PriorityTag, isMine, knownPeople, useItemActions, useProject } from './common';
+import { DueLabel, ItemModal, PriorityTag, useItemActions, useProject } from './common';
+import { UserSelect, useUsers } from '../users/context';
 
 type View = 'tableau' | 'liste';
 
@@ -21,13 +22,14 @@ export function TasksTab() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
-  const people = [...new Set(project.items.tasks.map((t) => t.assignee.trim()).filter(Boolean))].sort();
+  const { name } = useUsers();
+  const people = [...new Set(project.items.tasks.map((t) => t.assigneeId).filter((x) => x && x !== email))].sort((a, b) => name(a).localeCompare(name(b), 'fr'));
   const tasks = useMemo(
     () =>
       project.items.tasks.filter((t) => {
-        if (who === '__me' && !isMine(t.assignee, email)) return false;
-        if (who === '__none' && t.assignee.trim()) return false;
-        if (who && !who.startsWith('__') && t.assignee.trim() !== who) return false;
+        if (who === '__me' && t.assigneeId !== email) return false;
+        if (who === '__ext' && t.assigneeId) return false;
+        if (who && !who.startsWith('__') && t.assigneeId !== who) return false;
         return !q.trim() || `${t.title} ${t.details}`.toLowerCase().includes(q.trim().toLowerCase());
       }),
     [project.items.tasks, who, q, email],
@@ -36,7 +38,8 @@ export function TasksTab() {
   async function quickAdd() {
     if (!quick.trim()) return;
     try {
-      await api.createItem(project.id, 'tasks', { title: quick.trim(), assignee: who && !who.startsWith('__') ? who : who === '__me' ? shortUser(email) : '' });
+      // Sans responsable choisi dans le filtre, la tâche revient à celui qui la crée.
+      await api.createItem(project.id, 'tasks', { title: quick.trim(), ...(who && !who.startsWith('__') ? { assigneeId: who } : {}) });
       setQuick('');
       await reload();
     } catch (e) {
@@ -70,8 +73,8 @@ export function TasksTab() {
         <select className="input input-auto" value={who} onChange={(e) => setWho(e.target.value)}>
           <option value="">Tous les responsables</option>
           <option value="__me">Mes tâches</option>
-          <option value="__none">Sans responsable</option>
-          {people.map((p) => <option key={p} value={p}>{p}</option>)}
+          {people.map((p) => <option key={p} value={p}>{name(p)}</option>)}
+          {project.items.tasks.some((t) => !t.assigneeId) && <option value="__ext">Personnes extérieures</option>}
         </select>
         <div className="seg">
           <button className={view === 'tableau' ? 'on' : ''} onClick={() => setView('tableau')}>Tableau</button>
@@ -113,7 +116,7 @@ export function TasksTab() {
                   >
                     <div className="task-title">{t.title}</div>
                     <div className="task-meta">
-                      {t.assignee && <span className="badge">{t.assignee}</span>}
+                      {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId ? t.assigneeId : 'Personne extérieure au hub'}>{t.assignee}</span>}
                       {t.dueDate && <DueLabel date={t.dueDate} done={t.status === 'fait'} />}
                       <PriorityTag priority={t.priority} hideNormal />
                     </div>
@@ -150,7 +153,7 @@ export function TasksTab() {
                     <button className="btn-link strong-link" onClick={() => setEditing(t)}>{t.title}</button>
                     {t.details && <div className="muted small clamp">{t.details}</div>}
                   </td>
-                  <td>{t.assignee || <span className="muted">—</span>}</td>
+                  <td>{t.assignee ? <span className={t.assigneeId ? '' : 'muted'} title={t.assigneeId ? '' : 'Personne extérieure au hub'}>{t.assignee}</span> : <span className="muted">—</span>}</td>
                   <td><DueLabel date={t.dueDate} done={t.status === 'fait'} /></td>
                   <td><PriorityTag priority={t.priority} /></td>
                   <td>
@@ -171,14 +174,15 @@ export function TasksTab() {
 }
 
 function TaskDialog({ task, onClose }: { task: Task | null; onClose: () => void }) {
-  const { project } = useProject();
   const { email } = useAuth();
   const actions = useItemActions();
+  const [external, setExternal] = useState(!!task && !task.assigneeId);
   const [f, setF] = useState({
     title: task?.title ?? '',
     details: task?.details ?? '',
     status: task?.status ?? ('a_faire' as TaskStatus),
     priority: task?.priority ?? ('normale' as Priority),
+    assigneeId: task ? task.assigneeId : email,
     assignee: task?.assignee ?? '',
     dueDate: task?.dueDate ?? '',
   });
@@ -187,8 +191,8 @@ function TaskDialog({ task, onClose }: { task: Task | null; onClose: () => void 
     <ItemModal
       title={task ? 'Tâche' : 'Nouvelle tâche'}
       onClose={onClose}
-      canSave={!!f.title.trim()}
-      onSave={() => actions.save('tasks', task?.id ?? null, f)}
+      canSave={!!f.title.trim() && (external ? !!f.assignee.trim() : !!f.assigneeId)}
+      onSave={() => actions.save('tasks', task?.id ?? null, external ? { ...f, assigneeId: '' } : { ...f, assignee: '' })}
       extraFooter={
         task && (
           <>
@@ -204,8 +208,14 @@ function TaskDialog({ task, onClose }: { task: Task | null; onClose: () => void 
       </label>
       <label className="field">
         <span>Responsable</span>
-        <input className="input" list="people" value={f.assignee} onChange={(e) => set('assignee', e.target.value)} />
-        <DataList id="people" values={knownPeople(project, email)} />
+        {external ? (
+          <input className="input" value={f.assignee} onChange={(e) => set('assignee', e.target.value)} placeholder="Nom ou société (prestataire, métier…)" />
+        ) : (
+          <UserSelect value={f.assigneeId} onChange={(v) => set('assigneeId', v)} />
+        )}
+        <button type="button" className="btn-link small" onClick={() => setExternal(!external)}>
+          {external ? 'Choisir un utilisateur du hub' : 'Personne extérieure au hub…'}
+        </button>
       </label>
       <label className="field">
         <span>Échéance</span>

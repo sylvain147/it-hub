@@ -6,6 +6,13 @@ import type {
   JiraTestResult,
   Note,
   SprintDetail,
+  HubUser,
+  Me,
+  PersonalTask,
+  TodoInput,
+  TodosResponse,
+  UserInput,
+  UserUpdate,
   ActivityEntry,
   AddSourceBody,
   ApplySuggestionsBody,
@@ -83,7 +90,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  me: () => request<{ email: string; llm: string }>('GET', '/me'),
+  me: () => request<Me>('GET', '/me'),
+
+  users: () => request<HubUser[]>('GET', '/users'),
+  createUser: (b: UserInput) => request<{ user: HubUser; linkedTasks: number }>('POST', '/users', b),
+  updateUser: (email: string, b: UserUpdate) => request<HubUser>('PUT', `/users/${encodeURIComponent(email)}`, b),
+  resendInvitation: (email: string) => request<HubUser>('POST', `/users/${encodeURIComponent(email)}/invitation`),
+  todos: (user?: string) => request<TodosResponse>('GET', `/todos${user ? `?user=${encodeURIComponent(user)}` : ''}`),
+  createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b),
+  updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch),
+  deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`),
 
   listCdcs: () => request<CdcSummary[]>('GET', '/cdcs'),
   getCdc: (id: string) => request<CdcDetail>('GET', `/cdcs/${id}`),
