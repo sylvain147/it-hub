@@ -4,13 +4,19 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ## Modules
 
+### ✅ Tâches
+
+- **Mes tâches au même endroit** : les tâches des projets dont je suis responsable et mes **tâches personnelles** (hors projet), triées par échéance, avec les retards en évidence ; on coche, on change le statut, on ajoute une tâche personnelle en une ligne.
+- **Selon le rôle**, on consulte les tâches d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche personnelle à quelqu'un (« confiée par … »).
+- L'accueil reprend « Mes tâches » (et « Toute l'équipe » pour les rôles qui le permettent).
+
 ### 📁 Projets
 
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
 - **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
 - **Vue d'ensemble** : indicateurs (tâches, prochain jalon, budget engagé, risques), **points d'attention** calculés (tâches et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
-- **Tâches** : tableau (à faire / en cours / bloqué / fait, glisser-déposer) ou liste, ajout rapide, responsable, échéance, priorité ; filtre « mes tâches ».
+- **Tâches** : tableau (à faire / en cours / bloqué / fait, glisser-déposer) ou liste, ajout rapide, échéance, priorité ; filtre « mes tâches ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée la tâche) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
@@ -72,6 +78,22 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 - **Synthèse du mois** rédigée par l'assistant à partir des seuls chiffres calculés.
 - **Confidentialité** : les fichiers sont lus dans le navigateur ; seules les colonnes utiles sont envoyées, après **masquage des données personnelles** (e-mails, téléphones, numéros de client / commande / chèque, noms après une civilité, noms des demandeurs, signatures). Un nom cité sans civilité au milieu d'une phrase peut subsister.
 - **Coût** : classement des tickets par le modèle rapide, une seule fois par ticket (moins d'un euro pour un an de tickets) ; quelques centimes par synthèse. Les rapports eux-mêmes n'utilisent pas l'IA.
+
+### 👥 Utilisateurs et connexion
+
+- **Connexion** : page du hub en français (e-mail + mot de passe, puis code de l'application d'authentification ; première connexion avec choix du mot de passe et activation de la double authentification ; mot de passe oublié).
+- **Utilisateurs** (administrateurs) : ajout (invitation par e-mail avec mot de passe temporaire), nom, rôle, désactivation, renvoi de l'invitation. Le hub garde toujours au moins un administrateur actif.
+- **Rôles** :
+
+| Rôle | Droits |
+|---|---|
+| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l'équipe |
+| Responsable d'équipe | Voit les tâches de toute l'équipe et peut en attribuer à chacun |
+| Chargé de projet | Voit ses propres tâches et en crée pour lui-même |
+
+  Les projets, le lecteur de fichiers, le suivi TMA et le paramétrage restent ouverts à tous.
+- À la création d'un utilisateur, les tâches de projet qui le désignaient déjà en texte (nom ou adresse) lui sont rattachées ; un changement de nom se répercute dans les tâches.
+- En local, pas de mot de passe : on se connecte avec une adresse e-mail (le premier compte devient administrateur).
 
 ### ⚙️ Paramétrage
 

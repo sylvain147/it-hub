@@ -117,6 +117,20 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 
 Le projet porte `jiraProjectKey` et `jiraBoardId` dans sa fiche.
 
+## Utilisateurs, rôles et tâches personnelles
+
+- **Identité** : l'adresse e-mail (identifiant Cognito ; en local, en-tête `x-dev-user`). À chaque requête, `authMiddleware` lit l'utilisateur du hub (`users/access.ts`, annuaire en cache 10 s) : le premier utilisateur devient administrateur, une personne authentifiée inconnue est ajoutée comme chargé de projet, un utilisateur désactivé est refusé (403).
+- **Droits** (`packages/shared/src/users.ts`) : le code teste un droit (`can(role, 'seeAllTodos')`, `requirePermission`), jamais un rôle. `manageUsers` (administrateur), `seeAllTodos` et `assignOthers` (administrateur, responsable d'équipe).
+- **Comptes de connexion** (`users/identity.ts`) : création (invitation), renvoi, désactivation (+ fermeture des sessions), nom — via l'API d'administration Cognito ; sans effet en local.
+- **Connexion** (`apps/web/src/auth/LoginPage.tsx`) : écran propre au hub sur l'API `aws-amplify/auth` (`signIn` / `confirmSignIn`) : mot de passe temporaire, configuration TOTP (QR code généré dans le navigateur), code TOTP, mot de passe oublié.
+- **Tâches de projet** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, la tâche revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
+- **Tâches personnelles** : hors projet, une partition `TODO`. `GET /api/todos?user=` réunit tâches personnelles et tâches de projet ouvertes d'une personne (ou `all`) selon les droits.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `USER` | `U#<e-mail>` | Utilisateur : nom, rôle, actif, invitation, dernière activité |
+| `TODO` | `T#<id>` | Tâche personnelle (responsable `assigneeId`, auteur `createdBy`) |
+
 ## Ajouter un module au hub
 
 1. Créer les pages dans `apps/web/src/pages/` (ou un dossier dédié), et les routes dans `apps/web/src/main.tsx`.

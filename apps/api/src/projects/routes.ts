@@ -29,6 +29,7 @@ import { startJob } from '../jobs/runner.js';
 import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
 import { projectContextMarkdown } from './ai.js';
+import { resolveTaskAssignee } from '../users/routes.js';
 
 /** Phase affichée dans l'en-tête du CDC, déduite du statut du projet. */
 const PHASE_OF_STATUS: Partial<Record<ProjectStatus, ProjectPhase>> = {
@@ -112,7 +113,8 @@ export function projectRoutes() {
   r.post('/:id/items/:kind', async (c) => {
     const kind = kindParam(c.req.param('kind'));
     if (kind === 'files') throw new HttpError(400, 'Utilisez l’envoi de fichier pour ajouter un document.');
-    const raw = await resolveProjectRefs(kind, await rawBody(c), null);
+    let raw = await resolveProjectRefs(kind, await rawBody(c), null);
+    if (kind === 'tasks') raw = await resolveTaskAssignee(raw, null, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind], raw);
     return c.json(await pr.createItem(c.req.param('id'), kind, b as Record<string, unknown>, userName(c)), 201);
   });
@@ -120,7 +122,8 @@ export function projectRoutes() {
   r.patch('/:id/items/:kind/:itemId', async (c) => {
     const kind = kindParam(c.req.param('kind'));
     const before = await pr.getItem(c.req.param('id'), kind, c.req.param('itemId'));
-    const raw = await resolveProjectRefs(kind, await rawBody(c), before as unknown as Record<string, unknown>);
+    let raw = await resolveProjectRefs(kind, await rawBody(c), before as unknown as Record<string, unknown>);
+    if (kind === 'tasks') raw = await resolveTaskAssignee(raw, before as unknown as Record<string, unknown>, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind].partial(), raw);
     // Les valeurs par défaut du schéma ne doivent pas écraser les champs absents de la requête.
     const patch = Object.fromEntries(Object.entries(b as Record<string, unknown>).filter(([k]) => k in raw));
@@ -196,7 +199,8 @@ export function projectRoutes() {
         }),
       );
     const tasks = await decide(s.tasks, b.tasks, async (t) => {
-      await pr.createItem(id, 'tasks', { title: t.title, assignee: t.assignee, dueDate: t.dueDate, priority: t.priority, details: `Issue du compte rendu « ${note.title} »` }, user, { silent: true });
+      const who = await resolveTaskAssignee({ assignee: t.assignee }, null, user);
+      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, priority: t.priority, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
       created.push('tâche');
     });
     const jalons = await decide(s.jalons, b.jalons, async (j) => {

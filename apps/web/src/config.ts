@@ -19,3 +19,6 @@ export async function loadConfig(): Promise<RuntimeConfig> {
 }
 
 export const runtimeConfig = () => current;
+
+/** Mode développement : compte utilisé (pas de mot de passe). */
+export const DEV_USER_KEY = 'hub-dev-user';

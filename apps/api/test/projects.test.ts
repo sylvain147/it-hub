@@ -81,7 +81,7 @@ describe('module Projets', () => {
     // Modification partielle : seuls les champs fournis changent.
     const done = await env.call('PATCH', `/projects/${id}/items/tasks/${task.json.id}`, { status: 'fait' });
     expect(done.status).toBe(200);
-    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'alice', status: 'fait' });
+    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'Alice', assigneeId: 'alice@test', status: 'fait' });
     expect(done.json.doneAt).not.toBe('');
     const moved = await env.call('PATCH', `/projects/${id}/items/jalons/${jalon.json.id}`, { date: '2027-01-24' });
     expect(moved.json).toMatchObject({ date: '2027-01-24', initialDate: '2027-01-10' });

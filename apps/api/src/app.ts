@@ -18,6 +18,7 @@ import {
   translateBody,
   updateQuestionBody,
   validationErrorsForStatus,
+  can,
   type CdcDocument,
 } from '@samm/shared';
 import { authMiddleware, userName } from './auth.js';
@@ -27,6 +28,7 @@ import { tmaRoutes } from './tma/routes.js';
 import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
 import { jiraRoutes } from './jira/routes.js';
+import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -71,7 +73,7 @@ export function createApp() {
   const api = new Hono();
   api.use('*', authMiddleware);
 
-  api.get('/me', (c) => c.json({ ...c.get('user'), llm: config.llmProvider }));
+  api.get('/me', async (c) => c.json(await meHandler(userName(c))));
 
   // ---- Cahiers des charges ----------------------------------------------------
 
@@ -285,9 +287,16 @@ export function createApp() {
   api.route('/settings', settingsRoutes());
   api.route('/projects', projectRoutes());
   api.route('/jira', jiraRoutes());
+  api.route('/users', userRoutes());
+  api.route('/todos', todoRoutes());
 
   // Vues transverses des projets (accueil).
-  api.get('/tasks/open', async (c) => c.json(await pr.listOpenTasks()));
+  // Tâches ouvertes de tous les projets : les siennes seulement, sauf si le rôle permet de voir celles de l'équipe.
+  api.get('/tasks/open', async (c) => {
+    const tasks = await pr.listOpenTasks();
+    const u = c.get('user');
+    return c.json(can(u.role, 'seeAllTodos') ? tasks : tasks.filter((t) => t.assigneeId === u.email));
+  });
   api.get('/activity', async (c) => c.json(await pr.recentActivity(Math.min(Number(c.req.query('limit') ?? 30) || 30, 100))));
 
   app.route('/api', api);

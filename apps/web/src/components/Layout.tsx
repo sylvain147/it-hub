@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { ADMIN_LINKS, MODULES } from '../modules';
-import { signOutEverywhere, useAuth } from '../auth';
+import { ROLE_LABELS } from '@samm/shared';
+import { useAuth } from '../auth';
 import { ToastHost } from './ui';
 import { SettingsProvider } from '../settings/context';
+import { UsersProvider } from '../users/context';
 
 export function Layout() {
-  const { email, signOut } = useAuth();
+  const { me, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const contentRef = useRef<HTMLElement>(null);
@@ -42,28 +44,27 @@ export function Layout() {
             </NavLink>
           ))}
           <div className="nav-title">Pilotage</div>
-          {ADMIN_LINKS.map((l) => (
+          {ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission]).map((l) => (
             <NavLink key={l.path} to={l.path} className="nav-link">
               <span className="nav-icon">{l.icon}</span> {l.title}
             </NavLink>
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="user" title={email}>{email}</div>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={async () => {
-              await signOutEverywhere();
-              signOut();
-            }}
-          >
+          <div className="user" title={me.email}>
+            <strong>{me.name}</strong>
+            <div className="small">{ROLE_LABELS[me.role]}</div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
             Se déconnecter
           </button>
         </div>
       </aside>
       <main className="content" ref={contentRef}>
         <SettingsProvider>
-          <Outlet />
+          <UsersProvider>
+            <Outlet />
+          </UsersProvider>
         </SettingsProvider>
       </main>
       <ToastHost />

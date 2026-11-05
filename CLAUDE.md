@@ -23,6 +23,7 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - `packages/shared/src/tma/` et `apps/api/src/tma/` : module suivi TMA (lecture et masquage des exports, calcul des rapports ; stockage, classement par thème et synthèse IA). Front : `apps/web/src/tma/`.
 - `apps/api/src/projects/` : module projets (routes génériques par type d'élément, stockage `PROJ#…`, IA : analyse de réunion, rapport d'avancement, contexte projet pour la génération de CDC).
 - `packages/shared/src/jira/` et `apps/api/src/jira/` : sprints Jira (connexion, récupération d'un sprint avec historique, calcul de la revue, compte rendu IA). Front : `apps/web/src/jira/` (onglet « Sprints » du projet, page de revue, Paramétrage → Jira).
+- `packages/shared/src/users.ts`, `apps/api/src/users/` et `apps/web/src/users/` : utilisateurs, rôles et droits, tâches personnelles (page « Tâches »). Connexion : `apps/web/src/auth.tsx` + `auth/LoginPage.tsx`.
 - `apps/web` : React + Vite + TipTap. `projects/` contient la liste et la page projet (un fichier par onglet, contexte partagé dans `common.tsx`), `cdc/CdcEditorPage.tsx` l'éditeur de CDC, `files/` le lecteur de fichiers ; `modules.ts` liste les modules du hub.
 - `infra` : CDK. `lib/hub-stack.ts` (tout le hub), `lib/github-oidc-stack.ts` (rôle de déploiement GitHub).
 
@@ -37,8 +38,9 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - Paramétrage (`settings.ts`, `apps/api/src/settings/`, `apps/web/src/settings/`) : afficher les statuts via `useSettings()` / `StatusOptions` (front) ou `getLists()` (API), jamais via les constantes `*_STATUS_LABELS`. Les codes de statut ne changent pas. Une prestation doit référencer un prestataire du paramétrage (`resolveProjectRefs`) ; toute nouvelle copie d'une donnée du référentiel doit être tenue à jour par `syncItems`.
 - Suivi TMA : exports Desk et relevés lus **dans le navigateur** ; seuls les champs utiles partent au serveur, textes passés par `maskPersonalData`. Les chiffres sont calculés par le code (`report.ts`) ; l'IA ne reçoit que des agrégats pour la synthèse, et chaque ticket n'est classé qu'une fois. Ne jamais committer de vrais exports (données personnelles) : fixtures fictives dans `packages/shared/test/fixtures/tma.ts`.
 - Jira : lecture seule, Jira Cloud uniquement (`normalizeJiraSite`), appels depuis l'API ; le jeton n'est jamais renvoyé au navigateur (`confInfo`). Ne lire que les champs utiles (pas de descriptions ni commentaires). Chiffres calculés par `buildSprintReport` ; l'IA ne reçoit que `sprintReportToMarkdown`. Le site `demo` (`jira/demo.ts`, données fictives) sert au local et aux tests.
+- Utilisateurs : tester un droit (`can`, `requirePermission`, `me.permissions` côté front), jamais un rôle. Les tâches de projet portent `assigneeId` (utilisateur) et le nom recopié `assignee` : passer par `resolveTaskAssignee` pour toute création ou modification. Garder au moins un administrateur actif.
 - Images : uniquement PNG/JPEG (formats communs Word + PDF), référencées `asset:<cdcId>/<assetId>`.
-- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `settings.test.ts`, `tma.test.ts`, `jira.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, `jira.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
+- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `settings.test.ts`, `tma.test.ts`, `jira.test.ts`, `users.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, `jira.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
 
 ## Pièges connus
 
@@ -47,4 +49,4 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - Mesurer les performances du moteur de lecture sur un bundle (esbuild/Vite), pas via `tsx` : `tsx` est 4 à 5 fois plus lent.
 - `RichEditor` : n'émettre `onChange` que si `transaction.docChanged` (sinon `setEditable` marque le document comme modifié).
 - Responsive : sous 900 px le menu devient un tiroir (`Layout.tsx`), sous 640 px les tableaux `.table-wrap` passent en cartes (libellés posés automatiquement par `useResponsiveTables` ; ajouter `table-scroll` pour garder un tableau défilant) et les modales s'ouvrent en bas d'écran.
-- Le front charge `/config.json` (généré au déploiement) ; en local, son absence active le mode `dev` (pas de Cognito, en-tête `x-dev-user`).
+- Le front charge `/config.json` (généré au déploiement) ; en local, son absence active le mode `dev` (pas de Cognito : page de connexion sans mot de passe, en-tête `x-dev-user`). Les tests de l'API créent l'annuaire à la volée : le premier utilisateur d'un fichier de test est administrateur.

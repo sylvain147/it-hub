@@ -1,0 +1,107 @@
+/**
+ * Stockage des utilisateurs et des tâches personnelles.
+ *
+ *  pk      sk           contenu
+ *  USER    U#<e-mail>   utilisateur du hub (nom, rôle, actif, dernière activité)
+ *  TODO    T#<id>       tâche personnelle, hors projet (responsable : `assigneeId`)
+ *
+ * L'équipe compte quelques personnes : une partition par entité suffit, lue en entier.
+ */
+import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import type { HubUser, PersonalTask } from '@samm/shared';
+import { config } from '../config.js';
+import { ddb, queryAll } from '../db/client.js';
+import { notFound, nowIso } from '../lib/util.js';
+
+const T = () => config.tableName;
+const USER_PK = 'USER';
+const TODO_PK = 'TODO';
+
+export const userKeys = {
+  user: (email: string) => ({ pk: USER_PK, sk: `U#${email.toLowerCase()}` }),
+  todo: (id: string) => ({ pk: TODO_PK, sk: `T#${id}` }),
+};
+
+type UserItem = HubUser & { pk: string; sk: string };
+const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => u;
+
+/** L'annuaire sert à chaque requête (contrôle d'accès) : courte mise en cache dans le processus. */
+let cache: { at: number; users: HubUser[] } | null = null;
+const CACHE_MS = 10_000;
+
+export function clearUserCache() {
+  cache = null;
+}
+
+export async function listUsers(fresh = false): Promise<HubUser[]> {
+  if (!fresh && cache && Date.now() - cache.at < CACHE_MS) return cache.users;
+  const items = await queryAll<UserItem>({
+    KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)',
+    ExpressionAttributeValues: { ':p': USER_PK, ':s': 'U#' },
+  });
+  const users = items.map(stripUser).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  cache = { at: Date.now(), users };
+  return users;
+}
+
+export async function getUser(email: string): Promise<HubUser> {
+  const res = await ddb().send(new GetCommand({ TableName: T(), Key: userKeys.user(email) }));
+  if (!res.Item) throw notFound('Utilisateur');
+  return stripUser(res.Item as UserItem);
+}
+
+/** Crée l'utilisateur s'il n'existe pas encore (renvoie false sinon). */
+export async function createUser(u: HubUser): Promise<boolean> {
+  try {
+    await ddb().send(new PutCommand({ TableName: T(), Item: { ...userKeys.user(u.email), ...u }, ConditionExpression: 'attribute_not_exists(pk)' }));
+    clearUserCache();
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === 'ConditionalCheckFailedException') return false;
+    throw e;
+  }
+}
+
+export async function putUser(u: HubUser): Promise<HubUser> {
+  await ddb().send(new PutCommand({ TableName: T(), Item: { ...userKeys.user(u.email), ...u } }));
+  clearUserCache();
+  return u;
+}
+
+/** Note la dernière activité, au plus une fois toutes les 10 minutes. */
+export async function touchLastSeen(u: HubUser): Promise<void> {
+  if (u.lastSeenAt && Date.now() - Date.parse(u.lastSeenAt) < 10 * 60_000) return;
+  const now = nowIso();
+  u.lastSeenAt = now;
+  await ddb().send(new UpdateCommand({ TableName: T(), Key: userKeys.user(u.email), UpdateExpression: 'SET lastSeenAt = :n', ExpressionAttributeValues: { ':n': now } }));
+}
+
+// ---------------------------------------------------------------------------
+// Tâches personnelles
+// ---------------------------------------------------------------------------
+
+type TodoItem = PersonalTask & { pk: string; sk: string };
+const stripTodo = ({ pk: _pk, sk: _sk, ...t }: TodoItem): PersonalTask => t;
+
+export async function listTodos(): Promise<PersonalTask[]> {
+  const items = await queryAll<TodoItem>({
+    KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)',
+    ExpressionAttributeValues: { ':p': TODO_PK, ':s': 'T#' },
+  });
+  return items.map(stripTodo);
+}
+
+export async function getTodo(id: string): Promise<PersonalTask> {
+  const res = await ddb().send(new GetCommand({ TableName: T(), Key: userKeys.todo(id) }));
+  if (!res.Item) throw notFound('Tâche');
+  return stripTodo(res.Item as TodoItem);
+}
+
+export async function putTodo(t: PersonalTask): Promise<PersonalTask> {
+  await ddb().send(new PutCommand({ TableName: T(), Item: { ...userKeys.todo(t.id), ...t } }));
+  return t;
+}
+
+export async function deleteTodo(id: string): Promise<void> {
+  await ddb().send(new DeleteCommand({ TableName: T(), Key: userKeys.todo(id) }));
+}
