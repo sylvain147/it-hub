@@ -8,7 +8,7 @@ Voir `README.md` (fonctionnalités), `docs/ARCHITECTURE.md` (conception) et `doc
 
 ```bash
 pnpm install
-pnpm dev             # API :3001 (DynamoDB émulé en mémoire, IA simulée) + front :5173
+pnpm dev             # API :3001 (DynamoDB émulé, enregistré dans apps/api/.data ; IA simulée) + front :5173
 pnpm test            # vitest (shared + parcours complet de l'API contre dynalite)
 pnpm typecheck
 pnpm synth           # synthèse CDK (empaquette aussi les Lambdas) — nécessite apps/web/dist
@@ -40,7 +40,7 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 ## Pièges connus
 
 - Lambdas empaquetées en **CommonJS** : pdfkit (sous pdfmake) charge ses polices via des imports `#standard-fonts/*` dynamiques ; `hub-stack.ts` copie ces modules à côté du bundle (`commandHooks.afterBundling`). Ne pas passer en ESM sans revoir ce point (pdfkit utilise aussi `__filename`).
-- En local, dynalite tourne en mémoire : les données disparaissent au redémarrage de l'API (les fichiers restent dans `apps/api/.data`).
+- En local, dynalite enregistre la base sur disque (`apps/api/.data/dynamodb`, avec les fichiers dans `apps/api/.data`) ; `LOCAL_DB=memoire` pour une base vide à chaque démarrage. Un seul processus API à la fois (verrou LevelDB). Les tests utilisent toujours une base en mémoire.
 - Mesurer les performances du moteur de lecture sur un bundle (esbuild/Vite), pas via `tsx` : `tsx` est 4 à 5 fois plus lent.
 - `RichEditor` : n'émettre `onChange` que si `transaction.docChanged` (sinon `setEditable` marque le document comme modifié).
 - Responsive : sous 900 px le menu devient un tiroir (`Layout.tsx`), sous 640 px les tableaux `.table-wrap` passent en cartes (libellés posés automatiquement par `useResponsiveTables` ; ajouter `table-scroll` pour garder un tableau défilant) et les modales s'ouvrent en bas d'écran.
