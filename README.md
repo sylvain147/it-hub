@@ -23,6 +23,20 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
 - **Accueil** : mes tâches, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
 
+### 🏃 Sprints Jira (dans un projet)
+
+Pour suivre les sprints d'un projet géré dans **Jira Cloud** et préparer la revue de sprint.
+
+- **Connexion** (Paramétrage → Jira) : site, e-mail d'un compte (de service, idéalement) et jeton d'API. La connexion est testée avant l'enregistrement ; les champs « story points » et « Réf Ticket Desk » sont détectés automatiquement (choix manuel possible). Le jeton reste sur le serveur.
+- **Onglet Sprints** du projet : on indique la clé du projet Jira (« TC ») et on choisit le tableau Scrum ; la liste des sprints (à venir, en cours, clos) s'affiche.
+- **Revue de sprint**, calculée à partir de l'historique Jira de chaque ticket, sur les données récupérées à la demande (« Actualiser depuis Jira ») :
+  - chiffres clés : tickets actifs, clôturés (avec et sans la recette), story points livrés, ajouts en cours de sprint, échéances dépassées ;
+  - avancement par statut, charge par personne, story points par statut, périmètre et clôtures jour par jour, temps passé par statut (dont l'attente), délai médian de clôture ;
+  - tableau des tickets avec leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) et le **ticket Desk** lié (sujet repris du suivi TMA) ;
+  - **points d'attention** (échéances dépassées, gros ticket, ajouts, absence de clôture, recette en fin de sprint, attentes externes, tickets sortis) et **qualité des données Jira** (story points manquants, dates de résolution incohérentes, reste à faire non soldé, temps non saisi, type unique).
+- **Compte rendu** rédigé par l'assistant sur clic (message clé, faits marquants, risques, pistes pour le prochain sprint), à partir des seuls chiffres ; modifiable, puis **ajouté au journal du projet** en un clic. Impression / PDF depuis le navigateur.
+- **Lecture seule** : le hub ne modifie jamais Jira et ne lit ni descriptions ni commentaires. En local, le site `demo` donne un projet Jira fictif pour essayer sans compte.
+
 ### 📄 Cahiers des charges (dans un projet)
 
 - **Génération** à partir du projet et/ou d'une transcription brute : l'assistant fait le tri et rédige le CDC selon le modèle de l'équipe (Contexte obligatoire → sections adaptées au sujet → Annexes).

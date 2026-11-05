@@ -26,6 +26,7 @@ import { fileTypeRoutes } from './filetypes/routes.js';
 import { tmaRoutes } from './tma/routes.js';
 import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
+import { jiraRoutes } from './jira/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -283,6 +284,7 @@ export function createApp() {
   api.route('/tma', tmaRoutes());
   api.route('/settings', settingsRoutes());
   api.route('/projects', projectRoutes());
+  api.route('/jira', jiraRoutes());
 
   // Vues transverses des projets (accueil).
   api.get('/tasks/open', async (c) => c.json(await pr.listOpenTasks()));

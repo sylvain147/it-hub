@@ -14,6 +14,8 @@ import { tmaKeys } from '../tma/repo.js';
 import { runTmaJob } from '../tma/jobs.js';
 import { projectKeys } from '../projects/repo.js';
 import { runProjectJob } from '../projects/jobs.js';
+import { jiraKeys } from '../jira/repo.js';
+import { runJiraJob } from '../jira/jobs.js';
 import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
 import * as ai from '../ai/pipeline.js';
@@ -24,6 +26,7 @@ function targetKey(type: JobType, targetId: string) {
   if (type === 'tma_synthesis') return tmaKeys.month(targetId);
   if (type.startsWith('filetype_')) return fileTypeKeys.meta(targetId);
   if (type.startsWith('project_')) return projectKeys.meta(targetId);
+  if (type === 'jira_sprint_review') return jiraKeys.sprint(targetId);
   return keys.cdc(targetId);
 }
 
@@ -102,6 +105,9 @@ export async function runJob(jobId: string): Promise<void> {
       case 'project_digest':
       case 'project_report':
         doneMessage = await runProjectJob(job.type, job.targetId, p, ctx, step);
+        break;
+      case 'jira_sprint_review':
+        doneMessage = await runJiraJob(job.targetId, ctx, step);
         break;
     }
     // Libère le CDC avant d'annoncer la fin, pour que le navigateur puisse éditer dès qu'il voit « terminé ».

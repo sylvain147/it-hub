@@ -273,6 +273,7 @@ export const JOB_TYPES = [
   'project_report',
   'tma_classify',
   'tma_synthesis',
+  'jira_sprint_review',
 ] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
@@ -287,6 +288,7 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   project_report: 'Rapport d’avancement',
   tma_classify: 'Classement des tickets par thème',
   tma_synthesis: 'Rédaction de la synthèse TMA',
+  jira_sprint_review: 'Compte rendu de sprint',
 };
 
 export type JobStatus = 'en_attente' | 'en_cours' | 'termine' | 'erreur';
