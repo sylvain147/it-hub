@@ -1,7 +1,9 @@
 /**
- * Serveur de développement : API + émulateur DynamoDB en mémoire persisté sur disque + fichiers sur disque + IA simulée.
+ * Serveur de développement : API + émulateur DynamoDB enregistré sur disque + fichiers sur disque + IA simulée.
  *   pnpm dev            → http://localhost:3001 (le front Vite proxifie /api et /local-blob)
  *   LLM_PROVIDER=bedrock pnpm dev   → vrais appels Bedrock (identifiants AWS locaux requis)
+ *   LOCAL_DB=memoire pnpm dev       → base en mémoire, vide à chaque démarrage
+ * Toutes les données locales sont dans `apps/api/.data` (base dans `.data/dynamodb`) : supprimer ce dossier repart de zéro.
  */
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,7 +21,9 @@ async function main() {
   const dataDir = resolve(config.localDataDir);
   mkdirSync(dataDir, { recursive: true });
   const dynalite = (await import('dynalite')).default;
-  const server = dynalite({ createTableMs: 0, deleteTableMs: 0, updateTableMs: 0 });
+  const inMemory = process.env.LOCAL_DB === 'memoire';
+  const dbDir = join(dataDir, 'dynamodb');
+  const server = dynalite({ createTableMs: 0, deleteTableMs: 0, updateTableMs: 0, ...(inMemory ? {} : { path: dbDir }) });
   await new Promise<void>((r) => server.listen(DYNAMO_PORT, () => r()));
   const endpoint = `http://127.0.0.1:${DYNAMO_PORT}`;
   process.env.DYNAMO_ENDPOINT = endpoint;
@@ -47,7 +51,11 @@ async function main() {
 
   serve({ fetch: app.fetch, port: PORT });
   console.log(`API locale : http://localhost:${PORT}  (IA : ${config.llmProvider}, données : ${join(dataDir)})`);
-  console.log('⚠️  Base DynamoDB locale en mémoire : les données sont perdues au redémarrage (les fichiers restent dans .data).');
+  console.log(
+    inMemory
+      ? '⚠️  Base DynamoDB locale en mémoire : les données sont perdues au redémarrage (les fichiers restent dans .data).'
+      : `Base DynamoDB locale enregistrée dans ${dbDir} : les données sont conservées d’un démarrage à l’autre.`,
+  );
 }
 
 void main();

@@ -1,0 +1,552 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
+import {
+  LOCKED_STATUS_HINT,
+  STATUS_LISTS,
+  STATUS_LIST_KEYS,
+  defaultListSettings,
+  nameKey,
+  type ListSettings,
+  type Prestataire,
+  type PrestataireContact,
+  type PrestataireContactInput,
+  type PrestataireUsage,
+  type StatusListKey,
+} from '@samm/shared';
+import { api } from '../api';
+import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
+import { useSettings } from './context';
+
+type Tab = 'prestataires' | 'statuts' | 'listes';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'prestataires', label: 'Prestataires et contacts' },
+  { id: 'statuts', label: 'Statuts' },
+  { id: 'listes', label: 'Jalons et rôles' },
+];
+
+export function SettingsPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = (TABS.find((t) => t.id === params.get('onglet'))?.id ?? 'prestataires') as Tab;
+  return (
+    <div className="page">
+      <div className="page-head">
+        <h1>Paramétrage</h1>
+      </div>
+      <p className="muted small">Référentiels communs à tous les projets. Les modifications s’appliquent immédiatement pour toute l’équipe.</p>
+      <div className="tabs tabs-page">
+        {TABS.map((t) => (
+          <button key={t.id} className={tab === t.id ? 'tab active' : 'tab'} onClick={() => setParams({ onglet: t.id })}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="tab-content">
+        {tab === 'prestataires' && <PrestatairesTab />}
+        {tab === 'statuts' && <StatusesTab />}
+        {tab === 'listes' && <SuggestionsTab />}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Prestataires
+// ---------------------------------------------------------------------------
+
+function PrestatairesTab() {
+  const { prestataires, reload } = useSettings();
+  const [usage, setUsage] = useState<PrestataireUsage | null>(null);
+  const [selected, setSelected] = useState<string | 'new' | null>(null);
+  const [q, setQ] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const loadUsage = () => api.settingsUsage().then(setUsage, () => setUsage(null));
+  useEffect(() => {
+    void loadUsage();
+  }, []);
+  const refresh = async () => {
+    await Promise.all([reload(), loadUsage()]);
+  };
+
+  const list = prestataires.filter((p) => (showArchived || p.active || p.id === selected) && (!q.trim() || nameKey(p.name).includes(nameKey(q))));
+  const current = prestataires.find((p) => p.id === selected);
+
+  async function importLegacy() {
+    setImporting(true);
+    try {
+      const r = await api.importPrestataires();
+      toast(`${r.created} prestataire(s) créé(s), ${r.linked} prestation(s) rattachée(s).`);
+      await refresh();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <>
+      {usage && usage.unlinked.length > 0 && (
+        <div className="alert alert-info">
+          <strong>{usage.unlinked.length} prestataire(s) saisi(s) avant le paramétrage</strong> ne sont pas encore dans la liste :{' '}
+          {usage.unlinked.map((u) => `${u.name} (${u.prestations} prestation${u.prestations > 1 ? 's' : ''})`).join(', ')}.
+          <div className="mt">
+            <button className="btn btn-primary btn-sm" disabled={importing} onClick={() => void importLegacy()}>
+              {importing && <Spinner small />} Les ajouter et y rattacher les prestations
+            </button>
+            <span className="muted small"> Les noms identiques à la casse et aux accents près sont regroupés ; vous pourrez ensuite fusionner les doublons restants.</span>
+          </div>
+        </div>
+      )}
+      <div className="presta-layout">
+        <div>
+          <div className="toolbar-row">
+            <input className="input" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="btn btn-primary" onClick={() => setSelected('new')}>+ Prestataire</button>
+          </div>
+          <label className="check small">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Afficher les prestataires archivés
+          </label>
+          <div className="settings-list mt">
+            {!list.length && <EmptyState>Aucun prestataire. Ajoutez vos prestataires pour les choisir dans les projets et les cahiers des charges.</EmptyState>}
+            {list.map((p) => (
+              <button key={p.id} className={`presta-item${p.id === selected ? ' on' : ''}${p.active ? '' : ' archived'}`} onClick={() => setSelected(p.id)}>
+                <span>
+                  <span className="strong">{p.name}</span>
+                  {!p.active && <span className="badge"> archivé</span>}
+                  {p.activite && <div className="muted small">{p.activite}</div>}
+                </span>
+                <span className="muted small nowrap">
+                  {p.contacts.filter((c) => c.active).length} contact(s) · {usage?.prestations[p.id] ?? 0} prestation(s)
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          {selected === 'new' ? (
+            <PrestataireForm key="new" prestataire={null} onSaved={async (p) => { await refresh(); setSelected(p.id); }} />
+          ) : current ? (
+            <>
+              <PrestataireForm key={current.id} prestataire={current} usage={usage?.prestations[current.id] ?? 0} onSaved={refresh} onRemoved={async () => { await refresh(); setSelected(null); }} />
+              <ContactsBook prestataire={current} onChanged={refresh} />
+            </>
+          ) : (
+            <EmptyState>Choisissez un prestataire pour modifier sa fiche et son carnet de contacts.</EmptyState>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PrestataireForm({ prestataire, usage = 0, onSaved, onRemoved }: { prestataire: Prestataire | null; usage?: number; onSaved: (p: Prestataire) => Promise<void>; onRemoved?: () => Promise<void> }) {
+  const { prestataires } = useSettings();
+  const [f, setF] = useState({
+    name: prestataire?.name ?? '',
+    activite: prestataire?.activite ?? '',
+    website: prestataire?.website ?? '',
+    notes: prestataire?.notes ?? '',
+    active: prestataire?.active ?? true,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [mergeInto, setMergeInto] = useState('');
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+  const dirty = !prestataire || (Object.keys(f) as (keyof typeof f)[]).some((k) => f[k] !== prestataire[k]);
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const save = () =>
+    run(async () => {
+      const p = prestataire ? await api.updatePrestataire(prestataire.id, f) : await api.createPrestataire(f);
+      toast(prestataire && prestataire.name !== p.name ? `Renommé : les projets ont été mis à jour.` : 'Enregistré.');
+      await onSaved(p);
+    });
+
+  const merge = () =>
+    run(async () => {
+      const into = prestataires.find((p) => p.id === mergeInto);
+      if (!prestataire || !into) return;
+      if (!confirm(`Fusionner « ${prestataire.name} » dans « ${into.name} » ? Ses prestations, intervenants et contacts passent sur « ${into.name} », puis « ${prestataire.name} » est supprimé.`)) return;
+      await api.mergePrestataire(prestataire.id, into.id);
+      toast('Prestataires fusionnés.');
+      await onRemoved?.();
+    });
+
+  const remove = () =>
+    run(async () => {
+      if (!prestataire || !confirm(`Supprimer « ${prestataire.name} » ?`)) return;
+      await api.deletePrestataire(prestataire.id);
+      toast('Supprimé.');
+      await onRemoved?.();
+    });
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>{prestataire ? prestataire.name : 'Nouveau prestataire'}</h2>
+        {prestataire && <span className="muted small">modifié le {formatDateTime(prestataire.updatedAt)} par {shortUser(prestataire.updatedBy)}</span>}
+      </div>
+      <ErrorBox error={error} />
+      <div className="form-grid">
+        <label className="field">
+          <span>Nom *</span>
+          <input className="input" autoFocus={!prestataire} value={f.name} onChange={(e) => set('name', e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Activité</span>
+          <input className="input" value={f.activite} onChange={(e) => set('activite', e.target.value)} placeholder="ex. TMA de l’ERP, transporteur, éditeur" />
+        </label>
+        <label className="field span-2">
+          <span>Site web</span>
+          <input className="input" value={f.website} onChange={(e) => set('website', e.target.value)} placeholder="https://" />
+        </label>
+        <label className="field span-2">
+          <span>Notes</span>
+          <textarea className="input" rows={3} value={f.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Contrat, conditions, portail support…" />
+        </label>
+        {prestataire && (
+          <label className="check span-2">
+            <input type="checkbox" checked={!f.active} onChange={(e) => set('active', !e.target.checked)} /> Archivé (n’est plus proposé dans les projets ; l’historique est conservé)
+          </label>
+        )}
+      </div>
+      <div className="actions mt">
+        <button className="btn btn-primary" disabled={!f.name.trim() || !dirty || busy} onClick={() => void save()}>
+          {busy && <Spinner small />} {prestataire ? 'Enregistrer' : 'Créer'}
+        </button>
+      </div>
+      {prestataire && (
+        <div className="mt-lg">
+          <h3>Doublon ?</h3>
+          <div className="toolbar-row">
+            <select className="input input-auto" value={mergeInto} onChange={(e) => setMergeInto(e.target.value)}>
+              <option value="">Fusionner dans…</option>
+              {prestataires
+                .filter((p) => p.id !== prestataire.id)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </select>
+            <button className="btn" disabled={!mergeInto || busy} onClick={() => void merge()}>Fusionner</button>
+            {usage === 0 && (
+              <button className="btn btn-danger-ghost" disabled={busy} onClick={() => void remove()}>Supprimer</button>
+            )}
+          </div>
+          {usage > 0 && <p className="muted small">Utilisé dans {usage} prestation(s) : archivez-le plutôt que de le supprimer.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ContactsBook({ prestataire, onChanged }: { prestataire: Prestataire; onChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState<PrestataireContact | 'new' | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const contacts = prestataire.contacts.filter((c) => showArchived || c.active);
+  const archived = prestataire.contacts.length - prestataire.contacts.filter((c) => c.active).length;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Carnet de contacts</h2>
+        <button className="btn btn-sm" onClick={() => setEditing('new')}>+ Contact</button>
+      </div>
+      <p className="muted small">Ces contacts se choisissent comme intervenants dans les projets ; une modification ici se répercute dans tous les projets.</p>
+      {!contacts.length ? (
+        <p className="muted small">Aucun contact.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="table table-compact">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Rôle</th>
+                <th>E-mail</th>
+                <th>Téléphone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contacts.map((c) => (
+                <tr key={c.id} className={c.active ? 'row-click' : 'row-click row-done'} onClick={() => setEditing(c)}>
+                  <td className="strong">{c.name}</td>
+                  <td>{c.role}</td>
+                  <td>{c.email}</td>
+                  <td className="nowrap">{c.phone}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {archived > 0 && (
+        <label className="check small mt">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Afficher les {archived} contact(s) archivé(s)
+        </label>
+      )}
+      {editing && <ContactForm prestataire={prestataire} contact={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onChanged} />}
+    </section>
+  );
+}
+
+function ContactForm({ prestataire, contact, onClose, onSaved }: { prestataire: Prestataire; contact: PrestataireContact | null; onClose: () => void; onSaved: () => Promise<void> }) {
+  const { lists } = useSettings();
+  const [f, setF] = useState<Required<PrestataireContactInput>>({
+    name: contact?.name ?? '',
+    role: contact?.role ?? '',
+    email: contact?.email ?? '',
+    phone: contact?.phone ?? '',
+    notes: contact?.notes ?? '',
+    active: contact?.active ?? true,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+
+  async function run(fn: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await onSaved();
+      toast(done);
+      onClose();
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={contact ? contact.name : `Nouveau contact — ${prestataire.name}`}
+      onClose={onClose}
+      footer={
+        <>
+          {contact && (
+            <button className="btn btn-danger-ghost" disabled={busy} onClick={() => confirm(`Supprimer ${contact.name} du carnet ?`) && void run(() => api.deletePrestataireContact(prestataire.id, contact.id), 'Contact supprimé.')}>
+              Supprimer
+            </button>
+          )}
+          <span className="tb-flex" />
+          <button className="btn" onClick={onClose}>Annuler</button>
+          <button
+            className="btn btn-primary"
+            disabled={!f.name.trim() || busy}
+            onClick={() => void run(() => (contact ? api.updatePrestataireContact(prestataire.id, contact.id, f) : api.addPrestataireContact(prestataire.id, f)), 'Contact enregistré.')}
+          >
+            {busy && <Spinner small />} Enregistrer
+          </button>
+        </>
+      }
+    >
+      <ErrorBox error={error} />
+      <div className="form-grid">
+        <label className="field">
+          <span>Nom *</span>
+          <input className="input" autoFocus value={f.name} onChange={(e) => set('name', e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Rôle</span>
+          <input className="input" list="book-roles" value={f.role} onChange={(e) => set('role', e.target.value)} />
+          <datalist id="book-roles">
+            {lists.contactRoles.map((r) => <option key={r} value={r} />)}
+          </datalist>
+        </label>
+        <label className="field">
+          <span>E-mail</span>
+          <input className="input" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Téléphone</span>
+          <input className="input" type="tel" value={f.phone} onChange={(e) => set('phone', e.target.value)} />
+        </label>
+        <label className="field span-2">
+          <span>Notes</span>
+          <textarea className="input" rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+        </label>
+        {contact && (
+          <label className="check span-2">
+            <input type="checkbox" checked={!f.active} onChange={(e) => set('active', !e.target.checked)} /> Archivé (n’est plus proposé ; reste affiché dans les projets où il intervient)
+          </label>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Statuts et listes de suggestions
+// ---------------------------------------------------------------------------
+
+/** Brouillon local du paramétrage des listes, enregistré d'un bloc. */
+function useListsDraft() {
+  const { lists, reload } = useSettings();
+  const [draft, setDraft] = useState<ListSettings>(lists);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(lists), [lists]);
+  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(lists), [draft, lists]);
+  async function save() {
+    setSaving(true);
+    try {
+      await api.saveLists(draft);
+      await reload();
+      toast('Paramétrage enregistré.');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+  const bar = (
+    <div className="actions settings-save">
+      {dirty && <button className="btn" onClick={() => setDraft(lists)}>Annuler les modifications</button>}
+      <button className="btn btn-primary" disabled={!dirty || saving} onClick={() => void save()}>
+        {saving && <Spinner small />} Enregistrer
+      </button>
+    </div>
+  );
+  return { draft, setDraft, bar };
+}
+
+function move<T>(xs: T[], i: number, delta: number): T[] {
+  const j = i + delta;
+  if (j < 0 || j >= xs.length) return xs;
+  const out = [...xs];
+  [out[i], out[j]] = [out[j]!, out[i]!];
+  return out;
+}
+
+function StatusesTab() {
+  const { draft, setDraft, bar } = useListsDraft();
+  const setList = (k: StatusListKey, list: ListSettings['statuses'][StatusListKey]) => setDraft((d) => ({ ...d, statuses: { ...d.statuses, [k]: list } }));
+  return (
+    <>
+      <p className="muted small">
+        Renommez, réordonnez ou masquez les statuts. Un statut masqué n’est plus proposé, mais les éléments qui l’ont déjà le gardent et l’affichent. Le
+        fonctionnement (projet clos, prestation engagée, tâche faite…) ne change pas.
+      </p>
+      <div className="grid-2">
+        {STATUS_LIST_KEYS.map((k) => {
+          const list = draft.statuses[k];
+          const locked = STATUS_LISTS[k].locked as readonly string[];
+          return (
+            <section key={k} className="card">
+              <div className="card-head">
+                <h2>{STATUS_LISTS[k].title}</h2>
+                <button className="btn btn-ghost btn-sm" onClick={() => setList(k, defaultListSettings().statuses[k])}>Valeurs d’origine</button>
+              </div>
+              <div className="settings-list">
+                {list.map((s, i) => (
+                  <div key={s.key} className={`settings-row${s.hidden ? ' settings-row-hidden' : ''}`}>
+                    <span className="order">
+                      <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => setList(k, move(list, i, -1))}>↑</button>
+                      <button className="btn-icon" title="Descendre" disabled={i === list.length - 1} onClick={() => setList(k, move(list, i, 1))}>↓</button>
+                    </span>
+                    <input
+                      className="input input-sm"
+                      value={s.label}
+                      maxLength={60}
+                      placeholder={STATUS_LISTS[k].labels[s.key]}
+                      title={`Libellé d’origine : ${STATUS_LISTS[k].labels[s.key]}`}
+                      onChange={(e) => setList(k, list.map((x) => (x.key === s.key ? { ...x, label: e.target.value } : x)))}
+                    />
+                    <label className="check small" title={locked.includes(s.key) ? LOCKED_STATUS_HINT : 'Ne plus proposer ce statut'}>
+                      <input
+                        type="checkbox"
+                        checked={s.hidden}
+                        disabled={locked.includes(s.key)}
+                        onChange={(e) => setList(k, list.map((x) => (x.key === s.key ? { ...x, hidden: e.target.checked } : x)))}
+                      />{' '}
+                      Masqué
+                    </label>
+                    <span className="code-key" title="Code interne">{locked.includes(s.key) ? '🔒' : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+      {bar}
+    </>
+  );
+}
+
+function SuggestionsTab() {
+  const { draft, setDraft, bar } = useListsDraft();
+  return (
+    <>
+      <p className="muted small">Valeurs proposées à la saisie ; un texte libre reste toujours possible.</p>
+      <div className="grid-2">
+        <SuggestionList
+          title="Libellés de jalons"
+          hint="Proposés dans le planning des projets et les échéances des cahiers des charges."
+          values={draft.jalonLabels}
+          onChange={(v) => setDraft((d) => ({ ...d, jalonLabels: v }))}
+          reset={() => setDraft((d) => ({ ...d, jalonLabels: defaultListSettings().jalonLabels }))}
+        />
+        <SuggestionList
+          title="Rôles des intervenants"
+          hint="Proposés pour les intervenants des projets et les contacts des prestataires."
+          values={draft.contactRoles}
+          onChange={(v) => setDraft((d) => ({ ...d, contactRoles: v }))}
+          reset={() => setDraft((d) => ({ ...d, contactRoles: defaultListSettings().contactRoles }))}
+        />
+      </div>
+      {bar}
+    </>
+  );
+}
+
+function SuggestionList({ title, hint, values, onChange, reset }: { title: string; hint: string; values: string[]; onChange: (v: string[]) => void; reset: () => void }) {
+  const [adding, setAdding] = useState('');
+  const add = () => {
+    const v = adding.trim();
+    if (v && !values.some((x) => nameKey(x) === nameKey(v))) onChange([...values, v]);
+    setAdding('');
+  };
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>{title}</h2>
+        <button className="btn btn-ghost btn-sm" onClick={reset}>Valeurs d’origine</button>
+      </div>
+      <p className="muted small">{hint}</p>
+      <div className="settings-list">
+        {values.map((v, i) => (
+          <div key={i} className="settings-row">
+            <span className="order">
+              <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => onChange(move(values, i, -1))}>↑</button>
+              <button className="btn-icon" title="Descendre" disabled={i === values.length - 1} onClick={() => onChange(move(values, i, 1))}>↓</button>
+            </span>
+            <input className="input input-sm" value={v} maxLength={200} onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))} />
+            <button className="btn-icon danger" title="Retirer" onClick={() => onChange(values.filter((_, j) => j !== i))}>✕</button>
+            <span />
+          </div>
+        ))}
+      </div>
+      <div className="picker-row mt">
+        <input
+          className="input input-sm"
+          placeholder="Ajouter…"
+          value={adding}
+          onChange={(e) => setAdding(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+        />
+        <button className="btn btn-sm" disabled={!adding.trim()} onClick={add}>Ajouter</button>
+      </div>
+    </section>
+  );
+}

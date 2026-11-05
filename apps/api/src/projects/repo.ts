@@ -21,7 +21,7 @@ import {
   computeStats,
   emptyItems,
   PROJECT_ITEM_SCHEMAS,
-  TASK_STATUS_LABELS,
+  statusLabel,
   type ActivityEntry,
   type ItemBase,
   type OpenTask,
@@ -32,12 +32,14 @@ import {
   type ProjectItems,
   type ProjectStats,
   type ProjectSummary,
+  type ListSettings,
   type Task,
 } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, isConditionFailed, queryAll } from '../db/client.js';
 import { GSI1, ttlInDays } from '../db/schema.js';
 import { HttpError, newId, notFound, nowIso } from '../lib/util.js';
+import { getLists } from '../settings/repo.js';
 
 const T = () => config.tableName;
 const LIST_PK = 'PROJ';
@@ -345,20 +347,20 @@ export async function updateItem<K extends ProjectItemKind>(
   const merged = { ...base, ...derived(kind, base, { ...before, ...extra }) };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...merged };
   await ddb().send(new PutCommand({ TableName: T(), Item: item }));
-  await logActivity(id, project.name, user, activityForUpdate(kind, before, merged));
+  await logActivity(id, project.name, user, activityForUpdate(kind, before, merged, await getLists()));
   await refreshStats(id, user);
   return stripItem(item);
 }
 
-function activityForUpdate(kind: ProjectItemKind, before: Record<string, unknown>, after: Record<string, unknown>): string {
+function activityForUpdate(kind: ProjectItemKind, before: Record<string, unknown>, after: Record<string, unknown>, lists: ListSettings): string {
   const title = `« ${itemTitle(kind, after)} »`;
   if (kind === 'tasks' && before.status !== after.status) {
-    return after.status === 'fait' ? `a terminé la tâche ${title}` : `a passé la tâche ${title} à « ${TASK_STATUS_LABELS[after.status as Task['status']]} »`;
+    return after.status === 'fait' ? `a terminé la tâche ${title}` : `a passé la tâche ${title} à « ${statusLabel(lists, 'task', String(after.status))} »`;
   }
   if (kind === 'jalons' && !before.done && after.done) return `a marqué le jalon ${title} comme atteint`;
   if (kind === 'jalons' && before.date !== after.date) return `a déplacé le jalon ${title} au ${String(after.date) || '(date à définir)'}`;
   if (kind === 'risks' && before.status !== after.status && after.status === 'clos') return `a clos le risque ${title}`;
-  if (kind === 'prestations' && before.status !== after.status) return `a passé la prestation ${title} au statut « ${String(after.status).replace(/_/g, ' ')} »`;
+  if (kind === 'prestations' && before.status !== after.status) return `a passé la prestation ${title} au statut « ${statusLabel(lists, 'prestation', String(after.status))} »`;
   return `a modifié ${KIND_LABELS[kind].one} ${title}`;
 }
 
@@ -454,4 +456,25 @@ export async function recentActivity(limit = 30): Promise<ActivityEntry[]> {
     }),
   );
   return (res.Items ?? []).map(toActivity);
+}
+
+// ---------------------------------------------------------------------------
+// Paramétrage : éléments recopiés du référentiel (prestataires, contacts)
+// ---------------------------------------------------------------------------
+
+/** Éléments d'un type, tous projets confondus. */
+export async function listItemsAllProjects<K extends ProjectItemKind>(kind: K): Promise<{ projectId: string; item: ProjectItem<K> }[]> {
+  const projects = await listProjects();
+  const out: { projectId: string; item: ProjectItem<K> }[] = [];
+  for (const p of projects) for (const item of await listItems(p.id, kind)) out.push({ projectId: p.id, item: item as ProjectItem<K> });
+  return out;
+}
+
+/**
+ * Recopie des champs du paramétrage dans des éléments de projets (renommage d'un prestataire, contact modifié…),
+ * sans historique, puis recalcule les indicateurs des projets concernés.
+ */
+export async function syncItems(kind: ProjectItemKind, updates: { projectId: string; itemId: string; fields: Record<string, unknown> }[], user: string): Promise<void> {
+  for (const u of updates) await setItemFields(u.projectId, kind, u.itemId, u.fields);
+  for (const projectId of new Set(updates.map((u) => u.projectId))) await refreshStats(projectId, user);
 }

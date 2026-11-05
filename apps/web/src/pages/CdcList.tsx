@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { CDC_STATUSES, CDC_STATUS_LABELS, PROJECT_PHASE_LABELS, type CdcStatus } from '@samm/shared';
+import { PROJECT_PHASE_LABELS, type CdcStatus } from '@samm/shared';
+import { useSettings } from '../settings/context';
 import { api } from '../api';
 import { useLoad } from '../hooks';
 import { ProjectStatusBadge } from '../projects/common';
 import { EmptyState, ErrorBox, Spinner, StatusBadge, formatDate, shortUser } from '../components/ui';
 
 export function CdcList() {
+  const { lists } = useSettings();
   const { data, error, loading } = useLoad(() => api.listCdcs(), []);
   const { data: projects } = useLoad(() => api.listProjects(), []);
   const projectById = new Map((projects ?? []).map((p) => [p.id, p]));
@@ -39,8 +41,8 @@ export function CdcList() {
         <select className="input" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="actifs">Tous sauf archivés</option>
           <option value="tous">Tous</option>
-          {CDC_STATUSES.map((s) => (
-            <option key={s} value={s}>{CDC_STATUS_LABELS[s]}</option>
+          {lists.statuses.cdc.map((s) => (
+            <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
         <label className="check">

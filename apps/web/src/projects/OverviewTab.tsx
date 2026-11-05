@@ -6,8 +6,6 @@ import {
   HEALTH_LABELS,
   PRIORITIES,
   PRIORITY_LABELS,
-  PROJECT_STATUSES,
-  PROJECT_STATUS_LABELS,
   isJalonLate,
   isTaskOverdue,
   projectFieldsSchema,
@@ -20,6 +18,7 @@ import { api, ApiError } from '../api';
 import { ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
 import { hasPending } from './ProjectPage';
+import { StatusOptions } from '../settings/context';
 
 export function fieldsOf(p: ProjectDetail): ProjectFields {
   return projectFieldsSchema.parse(p);
@@ -344,7 +343,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
         <label className="field">
           <span>Statut</span>
           <select className="input" value={f.status} onChange={(e) => set('status', e.target.value as ProjectFields['status'])}>
-            {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
+            <StatusOptions list="project" current={f.status} />
           </select>
         </label>
         <label className="field">

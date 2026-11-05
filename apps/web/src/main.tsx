@@ -15,6 +15,7 @@ import { FileTypeNew } from './files/FileTypeNew';
 import { FileTypePage } from './files/FileTypePage';
 import { FileViewer } from './files/FileViewer';
 import { TmaHome } from './tma/TmaHome';
+import { SettingsPage } from './settings/SettingsPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import './styles.css';
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: 'tma', element: <TmaHome /> },
       { path: 'tma/mois/:month', element: <TmaMonthPage /> },
       { path: 'tma/themes', element: <TmaThemesPage /> },
+      { path: 'parametrage', element: <SettingsPage /> },
       { path: 'consommation', element: <Usage /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],

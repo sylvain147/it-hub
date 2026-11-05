@@ -5,7 +5,6 @@ import {
   HEALTH_LABELS,
   markdownToDoc,
   PRIORITY_LABELS,
-  PROJECT_STATUS_LABELS,
   type Health,
   type JobInfo,
   type Priority,
@@ -16,6 +15,7 @@ import {
   type RichNode,
 } from '@samm/shared';
 import { api } from '../api';
+import { useSettings } from '../settings/context';
 import { RichEditor } from '../editor/RichEditor';
 import { ErrorBox, Modal, Spinner, shortUser, toast } from '../components/ui';
 
@@ -78,7 +78,8 @@ export function HealthBadge({ health, withLabel = true }: { health: Health; with
 }
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
-  return <span className={`badge pstatus-${status}`}>{PROJECT_STATUS_LABELS[status]}</span>;
+  const { label } = useSettings();
+  return <span className={`badge pstatus-${status}`}>{label('project', status)}</span>;
 }
 
 export function PriorityTag({ priority, hideNormal }: { priority: Priority; hideNormal?: boolean }) {

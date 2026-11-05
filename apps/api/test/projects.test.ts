@@ -44,9 +44,14 @@ describe('module Projets', () => {
     await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Préparer la recette', status: 'bloque' });
     const jalon = await env.call('POST', `/projects/${id}/items/jalons`, { label: 'Mise en production', date: '2027-01-10' });
     expect(jalon.json.initialDate).toBe('2027-01-10');
-    const presta = await env.call('POST', `/projects/${id}/items/prestations`, { prestataire: 'Coqliqo', objet: 'Offre Essentiel', status: 'commande', chargeJours: 8, montantHT: 6400 });
+    // Le prestataire doit exister dans le paramétrage.
+    const noRef = await env.call('POST', `/projects/${id}/items/prestations`, { prestataire: 'Coqliqo', objet: 'Offre Essentiel' });
+    expect(noRef.status).toBe(400);
+    const coqliqo = (await env.call('POST', '/settings/prestataires', { name: 'Coqliqo' })).json;
+    const presta = await env.call('POST', `/projects/${id}/items/prestations`, { prestataireId: coqliqo.id, objet: 'Offre Essentiel', status: 'commande', chargeJours: 8, montantHT: 6400 });
     expect(presta.status).toBe(201);
-    await env.call('POST', `/projects/${id}/items/prestations`, { prestataire: 'Coqliqo', objet: 'Option abandonnée', status: 'annule', montantHT: 1000 });
+    expect(presta.json).toMatchObject({ prestataireId: coqliqo.id, prestataire: 'Coqliqo' });
+    await env.call('POST', `/projects/${id}/items/prestations`, { prestataireId: coqliqo.id, objet: 'Option abandonnée', status: 'annule', montantHT: 1000 });
     await env.call('POST', `/projects/${id}/items/contacts`, { name: 'Paul Martin', role: 'Chef de projet prestataire', organisation: 'Coqliqo', email: 'paul@coqliqo.fr' });
     const badContact = await env.call('POST', `/projects/${id}/items/contacts`, { name: 'X', email: 'pas-un-mail' });
     expect(badContact.status).toBe(400);

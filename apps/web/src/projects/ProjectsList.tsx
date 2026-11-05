@@ -6,8 +6,6 @@ import {
   HEALTH_LABELS,
   PRIORITIES,
   PRIORITY_LABELS,
-  PROJECT_STATUSES,
-  PROJECT_STATUS_LABELS,
   type Priority,
   type ProjectStatus,
   type ProjectSummary,
@@ -17,11 +15,13 @@ import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, shortUser } from '../components/ui';
 import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge, euros, isMine } from './common';
+import { StatusOptions, useSettings } from '../settings/context';
 
 type StatusFilter = ProjectStatus | 'actifs' | 'tous';
 type Sort = 'recent' | 'echeance' | 'priorite' | 'nom';
 
 export function ProjectsList() {
+  const { lists } = useSettings();
   const { email } = useAuth();
   const { data, error, loading } = useLoad(() => api.listProjects(), []);
   const [q, setQ] = useState('');
@@ -83,8 +83,8 @@ export function ProjectsList() {
         <select className="input" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
           <option value="actifs">Projets actifs</option>
           <option value="tous">Tous les projets</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>
+          {lists.statuses.project.map((s) => (
+            <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
         <select className="input" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
@@ -223,7 +223,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
         <label className="field">
           <span>Statut</span>
           <select className="input" value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)}>
-            {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
+            <StatusOptions list="project" current={status} />
           </select>
         </label>
         <label className="field">

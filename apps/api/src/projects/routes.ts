@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
   applySuggestionsBody,
   cdcMetaSchema,
@@ -18,7 +18,9 @@ import {
   type ProjectPhase,
 } from '@samm/shared';
 import { userName } from '../auth.js';
-import { body } from '../lib/http.js';
+import { body, parseBody } from '../lib/http.js';
+import { resolveProjectRefs } from '../settings/routes.js';
+import { getLists } from '../settings/repo.js';
 import { HttpError, newId } from '../lib/util.js';
 import * as repo from '../db/repo.js';
 import { blobKeys } from '../db/schema.js';
@@ -36,6 +38,16 @@ const PHASE_OF_STATUS: Partial<Record<ProjectStatus, ProjectPhase>> = {
   production: 'production',
   termine: 'termine',
 };
+
+async function rawBody(c: Context): Promise<Record<string, unknown>> {
+  try {
+    const raw = await c.req.json();
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  } catch {
+    /* corps invalide */
+  }
+  throw new HttpError(400, 'Corps de requête JSON invalide');
+}
 
 function kindParam(raw: string): ProjectItemKind {
   if (!(PROJECT_ITEM_KINDS as string[]).includes(raw)) throw new HttpError(404, 'Type d’élément inconnu');
@@ -100,15 +112,17 @@ export function projectRoutes() {
   r.post('/:id/items/:kind', async (c) => {
     const kind = kindParam(c.req.param('kind'));
     if (kind === 'files') throw new HttpError(400, 'Utilisez l’envoi de fichier pour ajouter un document.');
-    const b = await body(c, PROJECT_ITEM_SCHEMAS[kind]);
+    const raw = await resolveProjectRefs(kind, await rawBody(c), null);
+    const b = parseBody(PROJECT_ITEM_SCHEMAS[kind], raw);
     return c.json(await pr.createItem(c.req.param('id'), kind, b as Record<string, unknown>, userName(c)), 201);
   });
 
   r.patch('/:id/items/:kind/:itemId', async (c) => {
     const kind = kindParam(c.req.param('kind'));
-    const b = await body(c, PROJECT_ITEM_SCHEMAS[kind].partial());
+    const before = await pr.getItem(c.req.param('id'), kind, c.req.param('itemId'));
+    const raw = await resolveProjectRefs(kind, await rawBody(c), before as unknown as Record<string, unknown>);
+    const b = parseBody(PROJECT_ITEM_SCHEMAS[kind].partial(), raw);
     // Les valeurs par défaut du schéma ne doivent pas écraser les champs absents de la requête.
-    const raw = (await c.req.json()) as Record<string, unknown>;
     const patch = Object.fromEntries(Object.entries(b as Record<string, unknown>).filter(([k]) => k in raw));
     return c.json(await pr.updateItem(c.req.param('id'), kind, c.req.param('itemId'), patch, userName(c)));
   });
@@ -248,7 +262,7 @@ export function projectRoutes() {
 
     let job = null;
     if (b.withAi) {
-      const context = projectContextMarkdown(project, { prestationId: b.prestationId, noteIds: b.noteIds });
+      const context = projectContextMarkdown(project, { prestationId: b.prestationId, noteIds: b.noteIds }, await getLists());
       job = await startJob('create_from_transcript', cdcId, user, {
         contextKey: await stash(context),
         ...(b.transcript.trim() ? { textKey: await stash(b.transcript) } : {}),

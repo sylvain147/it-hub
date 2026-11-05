@@ -11,11 +11,8 @@ import {
   HEALTHS,
   HEALTH_LABELS,
   NOTE_KIND_LABELS,
-  PRESTA_STATUS_LABELS,
   PRIORITIES,
-  PROJECT_STATUS_LABELS,
   RISK_LEVELS,
-  TASK_STATUS_LABELS,
   isJalonLate,
   isTaskOverdue,
   jalonDrift,
@@ -25,7 +22,10 @@ import {
   type ProjectDetail,
   type ProjectSummary,
   type ProjectItems,
+  statusLabel,
+  type ListSettings,
 } from '@samm/shared';
+import { getLists } from '../settings/repo.js';
 import { callStructured } from '../ai/llm.js';
 import { DIGEST_SYSTEM, REPORT_SYSTEM } from './prompts.js';
 
@@ -72,10 +72,10 @@ export type Report = z.infer<typeof reportSchema>;
 
 const d = (s: string) => s || '?';
 
-function ficheLines(p: ProjectSummary): string[] {
+function ficheLines(p: ProjectSummary, lists: ListSettings): string[] {
   return [
     `Projet : ${p.name}${p.code ? ` (${p.code})` : ''}`,
-    `Statut : ${PROJECT_STATUS_LABELS[p.status]} · priorité ${p.priority} · météo actuelle : ${HEALTH_LABELS[p.health]}${p.healthComment ? ` (${p.healthComment})` : ''}`,
+    `Statut : ${statusLabel(lists, 'project', p.status)} · priorité ${p.priority} · météo actuelle : ${HEALTH_LABELS[p.health]}${p.healthComment ? ` (${p.healthComment})` : ''}`,
     p.demandeur && `Demandeur : ${p.demandeur}`,
     p.chefDeProjet && `Chef de projet : ${p.chefDeProjet}`,
     (p.startDate || p.targetDate) && `Dates : début ${d(p.startDate)}, fin visée ${d(p.targetDate)}`,
@@ -83,10 +83,10 @@ function ficheLines(p: ProjectSummary): string[] {
 }
 
 /** Résumé court du projet donné avec un compte rendu à analyser (pour éviter les doublons). */
-function digestBrief(p: ProjectSummary, items: ProjectItems): string {
+function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings): string {
   const open = items.tasks.filter((t) => t.status !== 'fait');
   return [
-    ...ficheLines(p),
+    ...ficheLines(p, lists),
     `Intervenants : ${items.contacts.map((c) => `${c.name}${c.role ? ` (${c.role}${c.organisation ? `, ${c.organisation}` : ''})` : ''}`).join(' ; ') || '(aucun)'}`,
     `Tâches déjà ouvertes : ${open.map((t) => t.title).join(' ; ') || '(aucune)'}`,
     `Jalons existants : ${items.jalons.map((j) => `${j.label} (${d(j.date)})`).join(' ; ') || '(aucun)'}`,
@@ -95,7 +95,7 @@ function digestBrief(p: ProjectSummary, items: ProjectItems): string {
 }
 
 /** Données complètes du projet pour le rapport d'avancement. Seules les notes récentes sont envoyées. */
-export function reportInput(p: ProjectDetail, today = todayIso()): string {
+export function reportInput(p: ProjectDetail, lists: ListSettings, today = todayIso()): string {
   const { items } = p;
   const since = new Date(Date.parse(today) - 30 * 86400000).toISOString().slice(0, 10);
   const recentDone = items.tasks.filter((t) => t.status === 'fait' && t.doneAt.slice(0, 10) >= since);
@@ -104,7 +104,7 @@ export function reportInput(p: ProjectDetail, today = todayIso()): string {
   const section = (title: string, lines: string[]) => `## ${title}\n${lines.length ? lines.join('\n') : '(aucun)'}`;
   return [
     `Date du jour : ${today}`,
-    section('Fiche', ficheLines(p)),
+    section('Fiche', ficheLines(p, lists)),
     p.objectifs.trim() && section('Objectifs', [p.objectifs.trim()]),
     section(
       'Planning',
@@ -116,11 +116,11 @@ export function reportInput(p: ProjectDetail, today = todayIso()): string {
     section('Tâches terminées depuis 30 jours', recentDone.map((t) => `- ${t.title}${t.assignee ? ` (${t.assignee})` : ''}`)),
     section(
       'Tâches ouvertes',
-      open.map((t) => `- [${TASK_STATUS_LABELS[t.status]}] ${t.title}${t.assignee ? ` — ${t.assignee}` : ''}${t.dueDate ? ` — échéance ${t.dueDate}${isTaskOverdue(t, today) ? ' (EN RETARD)' : ''}` : ''}`),
+      open.map((t) => `- [${statusLabel(lists, 'task', t.status)}] ${t.title}${t.assignee ? ` — ${t.assignee}` : ''}${t.dueDate ? ` — échéance ${t.dueDate}${isTaskOverdue(t, today) ? ' (EN RETARD)' : ''}` : ''}`),
     ),
     section(
       'Prestations',
-      items.prestations.map((x) => `- ${x.prestataire} — ${x.objet} : ${PRESTA_STATUS_LABELS[x.status]}${x.chargeJours != null ? `, ${x.chargeJours} j/h` : ''}${x.montantHT != null ? `, ${x.montantHT} € HT` : ''}${x.dateLivraison ? `, livraison ${x.dateLivraison}` : ''}`),
+      items.prestations.map((x) => `- ${x.prestataire} — ${x.objet} : ${statusLabel(lists, 'prestation', x.status)}${x.chargeJours != null ? `, ${x.chargeJours} j/h` : ''}${x.montantHT != null ? `, ${x.montantHT} € HT` : ''}${x.dateLivraison ? `, livraison ${x.dateLivraison}` : ''}`),
     ),
     section(
       'Risques ouverts',
@@ -141,12 +141,12 @@ function noteBlock(n: Note, maxChars: number): string {
  * Informations du projet fournies à l'assistant pour rédiger un cahier des charges.
  * Les rubriques reprennent celles des notes de réunion pour que la rédaction s'appuie dessus de la même façon.
  */
-export function projectContextMarkdown(p: ProjectDetail, opts: { prestationId: string | null; noteIds: string[] }): string {
+export function projectContextMarkdown(p: ProjectDetail, opts: { prestationId: string | null; noteIds: string[] }, lists: ListSettings): string {
   const { items } = p;
   const presta = items.prestations.find((x) => x.id === opts.prestationId);
   const notes = items.notes.filter((n) => opts.noteIds.includes(n.id));
   const parts = [
-    `## Contexte\n${ficheLines(p).map((l) => `- ${l}`).join('\n')}${p.description.trim() ? `\n\n${p.description.trim()}` : ''}`,
+    `## Contexte\n${ficheLines(p, lists).map((l) => `- ${l}`).join('\n')}${p.description.trim() ? `\n\n${p.description.trim()}` : ''}`,
     (p.objectifs.trim() || presta) &&
       `## Demandes et besoins\n${p.objectifs.trim()}${presta ? `\n\n**Prestation concernée** : ${presta.prestataire} — ${presta.objet}${presta.chargeJours != null ? ` (${presta.chargeJours} j/h estimés)` : ''}${presta.notes.trim() ? `\n${presta.notes.trim()}` : ''}` : ''}`,
     p.horsPerimetre.trim() && `## Hors périmètre\n${p.horsPerimetre.trim()}`,
@@ -167,11 +167,12 @@ export function projectContextMarkdown(p: ProjectDetail, opts: { prestationId: s
 // ---------------------------------------------------------------------------
 
 export async function digestMeeting(p: ProjectSummary, items: ProjectItems, text: string, title: string, ctx: Ctx): Promise<Digest> {
+  const lists = await getLists();
   return callStructured({
     tier: 'fast',
     operation: 'projet_compte_rendu',
     system: DIGEST_SYSTEM,
-    input: `Date du jour : ${todayIso()}\nTitre donné par l'utilisateur : ${title || '(aucun)'}\n\n<projet>\n${digestBrief(p, items)}\n</projet>\n\n<transcription>\n${text}\n</transcription>`,
+    input: `Date du jour : ${todayIso()}\nTitre donné par l'utilisateur : ${title || '(aucun)'}\n\n<projet>\n${digestBrief(p, items, lists)}\n</projet>\n\n<transcription>\n${text}\n</transcription>`,
     schema: digestSchema,
     maxTokens: 8000,
     effort: 'low',
@@ -180,11 +181,12 @@ export async function digestMeeting(p: ProjectSummary, items: ProjectItems, text
 }
 
 export async function progressReport(p: ProjectDetail, ctx: Ctx): Promise<Report> {
+  const lists = await getLists();
   return callStructured({
     tier: 'smart',
     operation: 'projet_rapport',
     system: REPORT_SYSTEM,
-    input: `<donnees_projet>\n${reportInput(p)}\n</donnees_projet>`,
+    input: `<donnees_projet>\n${reportInput(p, lists)}\n</donnees_projet>`,
     schema: reportSchema,
     maxTokens: 6000,
     effort: 'low',

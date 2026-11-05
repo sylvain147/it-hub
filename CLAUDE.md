@@ -8,7 +8,7 @@ Voir `README.md` (fonctionnalités), `docs/ARCHITECTURE.md` (conception) et `doc
 
 ```bash
 pnpm install
-pnpm dev             # API :3001 (DynamoDB émulé en mémoire, IA simulée) + front :5173
+pnpm dev             # API :3001 (DynamoDB émulé, enregistré dans apps/api/.data ; IA simulée) + front :5173
 pnpm test            # vitest (shared + parcours complet de l'API contre dynalite)
 pnpm typecheck
 pnpm synth           # synthèse CDK (empaquette aussi les Lambdas) — nécessite apps/web/dist
@@ -33,14 +33,15 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - Versions immuables ; tout enregistrement passe par `repo.saveVersion` avec `baseSeq` (verrouillage optimiste). Pas d'enregistrement pendant un job actif.
 - Lecteur de fichiers : les fichiers des utilisateurs sont lus **dans le navigateur** et ne doivent jamais être envoyés au serveur. Seul l'extrait (anonymisé par défaut, `anonymizeLine`) et la documentation partent à l'IA. L'IA produit une fiche déclarative (`fileSpecSchema`), jamais du code ; ses sorties passent par `sanitizeSpec`/`applyPatch`. Les jobs IA ciblent un élément via `targetId` (CDC ou type de fichier).
 - Projets : un CDC est rattaché par `projectId` (fiche CDC, hors document versionné) et se crée via `POST /api/projects/:id/cdcs`. Les propositions de l'assistant (tâches, jalons, risques d'un compte rendu) ne sont jamais ajoutées sans validation explicite. Les champs texte des projets sont en Markdown (`MarkdownField` / `MarkdownView` côté front).
+- Paramétrage (`settings.ts`, `apps/api/src/settings/`, `apps/web/src/settings/`) : afficher les statuts via `useSettings()` / `StatusOptions` (front) ou `getLists()` (API), jamais via les constantes `*_STATUS_LABELS`. Les codes de statut ne changent pas. Une prestation doit référencer un prestataire du paramétrage (`resolveProjectRefs`) ; toute nouvelle copie d'une donnée du référentiel doit être tenue à jour par `syncItems`.
 - Suivi TMA : exports Desk et relevés lus **dans le navigateur** ; seuls les champs utiles partent au serveur, textes passés par `maskPersonalData`. Les chiffres sont calculés par le code (`report.ts`) ; l'IA ne reçoit que des agrégats pour la synthèse, et chaque ticket n'est classé qu'une fois. Ne jamais committer de vrais exports (données personnelles) : fixtures fictives dans `packages/shared/test/fixtures/tma.ts`.
 - Images : uniquement PNG/JPEG (formats communs Word + PDF), référencées `asset:<cdcId>/<assetId>`.
-- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `tma.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
+- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `settings.test.ts`, `tma.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
 
 ## Pièges connus
 
 - Lambdas empaquetées en **CommonJS** : pdfkit (sous pdfmake) charge ses polices via des imports `#standard-fonts/*` dynamiques ; `hub-stack.ts` copie ces modules à côté du bundle (`commandHooks.afterBundling`). Ne pas passer en ESM sans revoir ce point (pdfkit utilise aussi `__filename`).
-- En local, dynalite tourne en mémoire : les données disparaissent au redémarrage de l'API (les fichiers restent dans `apps/api/.data`).
+- En local, dynalite enregistre la base sur disque (`apps/api/.data/dynamodb`, avec les fichiers dans `apps/api/.data`) ; `LOCAL_DB=memoire` pour une base vide à chaque démarrage. Un seul processus API à la fois (verrou LevelDB). Les tests utilisent toujours une base en mémoire.
 - Mesurer les performances du moteur de lecture sur un bundle (esbuild/Vite), pas via `tsx` : `tsx` est 4 à 5 fois plus lent.
 - `RichEditor` : n'émettre `onChange` que si `transaction.docChanged` (sinon `setEditable` marque le document comme modifié).
 - Responsive : sous 900 px le menu devient un tiroir (`Layout.tsx`), sous 640 px les tableaux `.table-wrap` passent en cartes (libellés posés automatiquement par `useResponsiveTables` ; ajouter `table-scroll` pour garder un tableau défilant) et les modales s'ouvrent en bas d'écran.

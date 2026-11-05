@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { diffWords } from 'diff';
 import {
-  CDC_STATUS_LABELS,
   PROJECT_PHASE_LABELS,
   VERSION_ORIGIN_LABELS,
   docToMarkdown,
@@ -10,6 +9,7 @@ import {
   type CdcMeta,
   type VersionInfo,
 } from '@samm/shared';
+import { useSettings } from '../settings/context';
 import { api, download } from '../api';
 import { useLoad } from '../hooks';
 import { EmptyState, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
@@ -130,10 +130,10 @@ function VersionModal({
   );
 }
 
-function metaLines(m: CdcMeta): [string, string][] {
+function metaLines(m: CdcMeta, statusLabel: (s: string) => string): [string, string][] {
   return [
     ['Titre', m.title],
-    ['Statut', CDC_STATUS_LABELS[m.status]],
+    ['Statut', statusLabel(m.status)],
     ['Phase', m.phase ? PROJECT_PHASE_LABELS[m.phase] : '—'],
     ['Prestataire', m.prestataire || '—'],
     ['Projet', m.projet || '—'],
@@ -148,8 +148,9 @@ function readable(md: string) {
 }
 
 export function DocDiff({ before, after }: { before: CdcDocument; after: CdcDocument }) {
-  const mb = metaLines(before.meta);
-  const ma = metaLines(after.meta);
+  const { label } = useSettings();
+  const mb = metaLines(before.meta, (s) => label('cdc', s));
+  const ma = metaLines(after.meta, (s) => label('cdc', s));
   const metaChanges = ma.filter(([, v], i) => v !== mb[i]![1]).map(([k, v], i) => ({ k, before: mb.find(([kk]) => kk === k)![1], after: v, i }));
 
   const beforeById = new Map(before.sections.map((s) => [s.id, s]));
