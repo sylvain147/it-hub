@@ -33,7 +33,9 @@ En fin de déploiement, la sortie `HubIt.Url` donne l'adresse de l'application (
 
 ## 4. Créer les comptes utilisateurs
 
-Il n'y a pas d'inscription libre. Pour chaque membre de l'équipe :
+Il n'y a pas d'inscription libre. Les comptes se gèrent **depuis le hub** (menu **Utilisateurs**, réservé aux administrateurs) : ajouter un utilisateur crée son compte de connexion et lui envoie l'invitation ; on y change aussi son rôle, on le désactive (sa connexion est bloquée et ses sessions fermées) et on renvoie l'invitation.
+
+**Premier administrateur** : seul le tout premier compte doit être créé à la main. La première personne qui se connecte au hub en devient administrateur.
 
 ```bash
 aws cognito-idp admin-create-user \
@@ -43,10 +45,10 @@ aws cognito-idp admin-create-user \
   --desired-delivery-mediums EMAIL
 ```
 
-L'utilisateur reçoit un mot de passe temporaire par e-mail. À la première connexion il choisit son mot de passe, puis **scanne le QR code avec Google Authenticator** (ou toute application TOTP). Le code à 6 chiffres est ensuite demandé à chaque connexion.
+L'utilisateur reçoit un mot de passe temporaire par e-mail. À la première connexion il choisit son mot de passe, puis **scanne le QR code avec Google Authenticator** (ou toute application TOTP). Le code à 6 chiffres est ensuite demandé à chaque connexion. « Mot de passe oublié ? » envoie un code par e-mail.
 
-Désactiver un compte : `aws cognito-idp admin-disable-user --user-pool-id … --username …`.
-Réinitialiser le MFA d'un utilisateur qui a perdu son téléphone : supprimer puis recréer son compte (ses CDC sont conservés).
+Un compte créé directement dans Cognito (hors du hub) est ajouté à l'annuaire comme **chargé de projet** à sa première connexion.
+Réinitialiser le MFA d'un utilisateur qui a perdu son téléphone : supprimer son compte dans Cognito (`aws cognito-idp admin-delete-user …`) puis le recréer avec la même adresse ; sa fiche, son rôle et ses tâches dans le hub sont conservés.
 
 > Les e-mails d'invitation partent de l'expéditeur Cognito par défaut (limité à 50 e-mails/jour, largement suffisant pour 4 personnes).
 

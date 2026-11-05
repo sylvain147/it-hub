@@ -2,6 +2,8 @@
  * Modules du hub. Pour ajouter une fonctionnalité : créer ses pages, puis la déclarer ici
  * (elle apparaît dans le menu et sur l'accueil) et dans les routes de `main.tsx`.
  */
+import type { Permission } from '@samm/shared';
+
 export interface HubModule {
   id: string;
   title: string;
@@ -11,6 +13,13 @@ export interface HubModule {
 }
 
 export const MODULES: HubModule[] = [
+  {
+    id: 'taches',
+    title: 'Tâches',
+    description: 'Mes tâches de tous les projets et mes tâches personnelles, au même endroit. Selon le rôle, celles de toute l’équipe.',
+    path: '/taches',
+    icon: '✅',
+  },
   {
     id: 'projets',
     title: 'Projets',
@@ -35,7 +44,8 @@ export const MODULES: HubModule[] = [
   },
 ];
 
-export const ADMIN_LINKS = [
+export const ADMIN_LINKS: { title: string; path: string; icon: string; permission?: Permission }[] = [
+  { title: 'Utilisateurs', path: '/utilisateurs', icon: '👥', permission: 'manageUsers' },
   { title: 'Paramétrage', path: '/parametrage', icon: '⚙️' },
   { title: 'Consommation IA', path: '/consommation', icon: '📊' },
 ];

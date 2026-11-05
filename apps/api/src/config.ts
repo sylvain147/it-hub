@@ -34,6 +34,8 @@ export const config = {
   /** `local` : serveur Node + émulateurs ; `aws` : Lambda. */
   runtime: (env.APP_RUNTIME ?? 'local') as 'local' | 'aws',
   authMode: (env.AUTH_MODE ?? 'dev') as 'dev' | 'cognito',
+  /** Annuaire Cognito : création des comptes à l'invitation, désactivation. */
+  userPoolId: env.USER_POOL_ID ?? '',
   tableName: env.TABLE_NAME ?? 'samm-local',
   bucketName: env.BUCKET_NAME ?? '',
   /** Endpoint DynamoDB local (émulateur). */

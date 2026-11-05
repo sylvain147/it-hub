@@ -181,6 +181,9 @@ export const taskInputSchema = z.object({
   details: z.string().max(5000).default(''),
   status: z.enum(TASK_STATUSES).default('a_faire'),
   priority: z.enum(PRIORITIES).default('normale'),
+  /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou tâche antérieure aux utilisateurs). */
+  assigneeId: z.string().trim().toLowerCase().max(200).default(''),
+  /** Nom du responsable, recopié de l'annuaire par le serveur quand `assigneeId` est renseigné. */
   assignee: z.string().max(200).default(''),
   dueDate: isoDate.default(''),
 });

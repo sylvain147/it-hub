@@ -97,6 +97,7 @@ export class HubStack extends Stack {
     const environment = {
       APP_RUNTIME: 'aws',
       AUTH_MODE: 'cognito',
+      USER_POOL_ID: userPool.userPoolId,
       TABLE_NAME: table.tableName,
       BUCKET_NAME: dataBucket.bucketName,
       LLM_PROVIDER: 'bedrock',
@@ -163,6 +164,15 @@ export class HubStack extends Stack {
       dataBucket.grantReadWrite(fn);
     }
     worker.grantInvoke(api);
+    // Gestion des utilisateurs depuis le hub : invitation, renvoi, désactivation, nom affiché.
+    userPool.grant(
+      api,
+      'cognito-idp:AdminCreateUser',
+      'cognito-idp:AdminDisableUser',
+      'cognito-idp:AdminEnableUser',
+      'cognito-idp:AdminUserGlobalSignOut',
+      'cognito-idp:AdminUpdateUserAttributes',
+    );
     worker.addToRolePolicy(
       new iam.PolicyStatement({
         sid: 'InvokeClaudeOnBedrock',
