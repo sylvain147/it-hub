@@ -126,6 +126,14 @@ export const projectFieldsSchema = z.object({
   /** Budget prévisionnel (€ HT), indépendant des prestations saisies. */
   budgetPrevu: z.number().min(0).max(1e9).nullable().default(null),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  /** Projet Jira (clé, ex. « TC ») et tableau dont on suit les sprints. */
+  jiraProjectKey: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^([A-Z][A-Z0-9_]{0,19})?$/, 'Clé de projet Jira invalide (ex. TC)')
+    .default(''),
+  jiraBoardId: z.number().int().positive().nullable().default(null),
 });
 export type ProjectFields = z.infer<typeof projectFieldsSchema>;
 

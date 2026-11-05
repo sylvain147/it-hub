@@ -102,6 +102,21 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | (S3) `projects/<id>/files/<fileId>` | | Pièce jointe |
 | (S3) `projects/<id>/notes/<noteId>.txt` | | Transcription d'origine d'un compte rendu analysé |
 
+## Sprints Jira
+
+- **Connexion** (`apps/api/src/jira/client.ts`) : Jira Cloud uniquement (`https://<site>.atlassian.net`, `normalizeJiraSite`), e-mail + jeton d'API en authentification Basic, appels depuis l'API (le jeton ne quitte pas le serveur). Lecture seule. Le site `demo` (`jira/demo.ts`) imite l'API Jira pour le développement local et les tests ; il est refusé sur AWS.
+- **Récupération d'un sprint** (`jira/sync.ts`) : sprint (API Agile), catégories des statuts, tickets du sprint **et tickets retirés** (rapport de sprint du tableau, sinon recherche des tickets du projet modifiés depuis le lancement) avec leur historique (`expand=changelog`, complété ticket par ticket si Jira l'a tronqué). Seuls les champs utiles sont gardés : résumé, type, priorité, assigné, statut, story points, échéance, dates, temps, référence Desk, changements de sprint et de statut. Le résultat (`SprintSnapshot`) est conservé dans le bucket.
+- **Calculs** (`packages/shared/src/jira/sprint.ts`, `buildSprintReport`) : l'historique est rejoué pour connaître, à tout instant, les sprints et le statut de chaque ticket. Les statuts sont regroupés (terminé selon la catégorie Jira ; recette et attente reconnues au nom ; à faire ; en cours). Données arrêtées à la clôture du sprint, sinon à la récupération. Jours calculés à l'heure de Paris.
+- **IA** (`jira/jobs.ts`) : job `jira_sprint_review`, modèle de rédaction, entrée = chiffres du sprint en Markdown (`sprintReportToMarkdown`, quelques Ko).
+
+| pk | sk | Contenu |
+|---|---|---|
+| `JIRA#CONF` | `CONF` | Connexion (site, compte, jeton), champs retenus (story points, réf. Desk, sprint) |
+| `JIRA#SPRINT#<id>` | `META` | Sprint récupéré, compte rendu, job actif (index `gsi1` « JIRA_BOARD#<tableau> ») |
+| (S3) `jira/sprints/<id>.json` | | Instantané du sprint (tickets et historique) |
+
+Le projet porte `jiraProjectKey` et `jiraBoardId` dans sa fiche.
+
 ## Ajouter un module au hub
 
 1. Créer les pages dans `apps/web/src/pages/` (ou un dossier dédié), et les routes dans `apps/web/src/main.tsx`.

@@ -8,6 +8,7 @@ import { Home } from './pages/Home';
 import { CdcList } from './pages/CdcList';
 import { ProjectsList } from './projects/ProjectsList';
 import { ProjectPage } from './projects/ProjectPage';
+import { SprintPage } from './jira/SprintPage';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
 import { FilesHome } from './files/FilesHome';
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'projets', element: <ProjectsList /> },
       { path: 'projets/:id', element: <ProjectPage /> },
+      { path: 'projets/:id/sprints/:sprintId', element: <SprintPage /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
       { path: 'cdc/nouveau', element: <Navigate to="/projets" replace /> },

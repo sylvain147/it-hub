@@ -1,4 +1,11 @@
 import type {
+  JiraBoard,
+  JiraConfigBody,
+  JiraConfigInfo,
+  JiraSprintListItem,
+  JiraTestResult,
+  Note,
+  SprintDetail,
   ActivityEntry,
   AddSourceBody,
   ApplySuggestionsBody,
@@ -165,6 +172,17 @@ export const api = {
   createProjectCdc: (id: string, b: CreateProjectCdcBody) => request<{ id: string; job: JobInfo | null }>('POST', `/projects/${id}/cdcs`, b),
   attachCdc: (cdcId: string, projectId: string | null) => request<CdcDetail>('PATCH', `/cdcs/${cdcId}/project`, { projectId }),
   openTasks: () => request<OpenTask[]>('GET', '/tasks/open'),
+
+  jiraConfig: () => request<JiraConfigInfo>('GET', '/jira/config'),
+  saveJiraConfig: (b: JiraConfigBody) => request<{ config: JiraConfigInfo; test: JiraTestResult }>('PUT', '/jira/config', b),
+  jiraFields: () => request<JiraTestResult>('GET', '/jira/fields'),
+  jiraBoards: (projectKey: string) => request<JiraBoard[]>('GET', `/jira/boards?project=${encodeURIComponent(projectKey)}`),
+  jiraSprints: (boardId: number) => request<JiraSprintListItem[]>('GET', `/jira/boards/${boardId}/sprints`),
+  syncSprint: (sprintId: number, boardId: number, projectKey: string) => request<SprintDetail>('POST', `/jira/sprints/${sprintId}/sync`, { boardId, projectKey }),
+  getSprint: (sprintId: number) => request<SprintDetail>('GET', `/jira/sprints/${sprintId}`),
+  writeSprintReview: (sprintId: number) => request<JobInfo>('POST', `/jira/sprints/${sprintId}/compte-rendu`),
+  saveSprintReview: (sprintId: number, markdown: string) => request<SprintDetail>('PUT', `/jira/sprints/${sprintId}/compte-rendu`, { markdown }),
+  publishSprintReview: (sprintId: number, projectId: string) => request<Note>('POST', `/jira/sprints/${sprintId}/journal`, { projectId }),
   activity: () => request<ActivityEntry[]>('GET', '/activity'),
 };
 

@@ -13,3 +13,5 @@ export * from './tma/report.js';
 export * from './tma/api.js';
 export * from './project.js';
 export * from './settings.js';
+export * from './jira/sprint.js';
+export * from './jira/api.js';

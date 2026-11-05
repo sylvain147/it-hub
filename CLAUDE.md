@@ -22,6 +22,7 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - `apps/api/src/filetypes/` : module lecteur de fichiers (routes, stockage, pipeline IA, jobs).
 - `packages/shared/src/tma/` et `apps/api/src/tma/` : module suivi TMA (lecture et masquage des exports, calcul des rapports ; stockage, classement par thème et synthèse IA). Front : `apps/web/src/tma/`.
 - `apps/api/src/projects/` : module projets (routes génériques par type d'élément, stockage `PROJ#…`, IA : analyse de réunion, rapport d'avancement, contexte projet pour la génération de CDC).
+- `packages/shared/src/jira/` et `apps/api/src/jira/` : sprints Jira (connexion, récupération d'un sprint avec historique, calcul de la revue, compte rendu IA). Front : `apps/web/src/jira/` (onglet « Sprints » du projet, page de revue, Paramétrage → Jira).
 - `apps/web` : React + Vite + TipTap. `projects/` contient la liste et la page projet (un fichier par onglet, contexte partagé dans `common.tsx`), `cdc/CdcEditorPage.tsx` l'éditeur de CDC, `files/` le lecteur de fichiers ; `modules.ts` liste les modules du hub.
 - `infra` : CDK. `lib/hub-stack.ts` (tout le hub), `lib/github-oidc-stack.ts` (rôle de déploiement GitHub).
 
@@ -35,8 +36,9 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 - Projets : un CDC est rattaché par `projectId` (fiche CDC, hors document versionné) et se crée via `POST /api/projects/:id/cdcs`. Les propositions de l'assistant (tâches, jalons, risques d'un compte rendu) ne sont jamais ajoutées sans validation explicite. Les champs texte des projets sont en Markdown (`MarkdownField` / `MarkdownView` côté front).
 - Paramétrage (`settings.ts`, `apps/api/src/settings/`, `apps/web/src/settings/`) : afficher les statuts via `useSettings()` / `StatusOptions` (front) ou `getLists()` (API), jamais via les constantes `*_STATUS_LABELS`. Les codes de statut ne changent pas. Une prestation doit référencer un prestataire du paramétrage (`resolveProjectRefs`) ; toute nouvelle copie d'une donnée du référentiel doit être tenue à jour par `syncItems`.
 - Suivi TMA : exports Desk et relevés lus **dans le navigateur** ; seuls les champs utiles partent au serveur, textes passés par `maskPersonalData`. Les chiffres sont calculés par le code (`report.ts`) ; l'IA ne reçoit que des agrégats pour la synthèse, et chaque ticket n'est classé qu'une fois. Ne jamais committer de vrais exports (données personnelles) : fixtures fictives dans `packages/shared/test/fixtures/tma.ts`.
+- Jira : lecture seule, Jira Cloud uniquement (`normalizeJiraSite`), appels depuis l'API ; le jeton n'est jamais renvoyé au navigateur (`confInfo`). Ne lire que les champs utiles (pas de descriptions ni commentaires). Chiffres calculés par `buildSprintReport` ; l'IA ne reçoit que `sprintReportToMarkdown`. Le site `demo` (`jira/demo.ts`, données fictives) sert au local et aux tests.
 - Images : uniquement PNG/JPEG (formats communs Word + PDF), référencées `asset:<cdcId>/<assetId>`.
-- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `settings.test.ts`, `tma.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
+- Les tests de l'API (`apps/api/test/cdc.test.ts`, `filetypes.test.ts`, `projects.test.ts`, `settings.test.ts`, `tma.test.ts`, `jira.test.ts`) et du moteur de lecture (`packages/shared/test/files.test.ts`, `tma.test.ts`, `jira.test.ts`, fichier de démonstration `fixtures/demo.ww`) couvrent les parcours complets : les compléter à chaque évolution.
 
 ## Pièges connus
 

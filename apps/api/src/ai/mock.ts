@@ -6,6 +6,7 @@ import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
 import type { SpecPatch } from '../filetypes/ai-schemas.js';
 import type { SynthesisOutput, ThemesOutput } from '../tma/ai-schemas.js';
+import type { SprintReviewOutput } from '../jira/ai-schemas.js';
 import type { Digest, Report } from '../projects/ai.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
@@ -56,6 +57,8 @@ export class MockProvider implements LlmProvider {
         return this.themes(call.input);
       case 'tma_synthese':
         return this.tmaSynthesis(call.input);
+      case 'jira_compte_rendu':
+        return this.sprintReview(call.input);
       default:
         return this.update(call.input, call.operation);
     }
@@ -167,6 +170,15 @@ export class MockProvider implements LlmProvider {
         id: m[1]!,
         theme: rules.find(([re]) => re.test(m[2]!))?.[1] ?? 'Autres demandes',
       })),
+    };
+  }
+
+  private sprintReview(input: string): SprintReviewOutput {
+    const data = between(input, 'chiffres_du_sprint');
+    const facts = data.split('\n').filter((l) => l.startsWith('- ')).slice(0, 5);
+    const alerts = data.split('\n').filter((l) => /^- \[(critique|attention)\]/.test(l)).slice(0, 4).map((l) => l.replace(/^- \[\w+\] /, '- '));
+    return {
+      markdown: `## Message clé\n\n*Compte rendu simulé (aucun appel IA).*\n\n## Faits marquants\n\n${facts.join('\n')}\n\n## Risques et points d'attention\n\n${alerts.join('\n') || '- Aucun'}\n\n## Pistes pour le prochain sprint\n\n- [À compléter]`,
     };
   }
 
