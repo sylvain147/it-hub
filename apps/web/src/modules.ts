@@ -54,5 +54,6 @@ export const MODULES: HubModule[] = [
 export const ADMIN_LINKS: { title: string; path: string; icon: string; permission?: Permission }[] = [
   { title: 'Utilisateurs', path: '/utilisateurs', icon: '👥', permission: 'manageUsers' },
   { title: 'Paramétrage', path: '/parametrage', icon: '⚙️' },
+  { title: 'Retours', path: '/retours', icon: '💬', permission: 'manageFeedback' },
   { title: 'Consommation IA', path: '/consommation', icon: '📊' },
 ];

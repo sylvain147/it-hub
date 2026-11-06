@@ -29,6 +29,7 @@ import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
 import { jiraRoutes } from './jira/routes.js';
 import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
+import { feedbackRoutes } from './feedback/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -289,6 +290,7 @@ export function createApp() {
   api.route('/jira', jiraRoutes());
   api.route('/users', userRoutes());
   api.route('/todos', todoRoutes());
+  api.route('/feedback', feedbackRoutes());
 
   // Vues transverses des projets (accueil).
   // Tâches ouvertes de tous les projets : les siennes seulement, sauf si le rôle permet de voir celles de l'équipe.

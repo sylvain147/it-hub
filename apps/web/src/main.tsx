@@ -19,6 +19,7 @@ import { FileViewer } from './files/FileViewer';
 import { TmaHome } from './tma/TmaHome';
 import { SettingsPage } from './settings/SettingsPage';
 import { TasksPage } from './users/TasksPage';
+import { FeedbackPage } from './feedback/FeedbackPage';
 import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
@@ -55,6 +56,7 @@ const router = createBrowserRouter([
       { path: 'jira/sprints/:sprintId', element: <SprintPage /> },
       { path: 'utilisateurs', element: <UsersPage /> },
       { path: 'parametrage', element: <SettingsPage /> },
+      { path: 'retours', element: <FeedbackPage /> },
       { path: 'consommation', element: <Usage /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],

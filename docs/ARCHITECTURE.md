@@ -140,3 +140,11 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 2. Déclarer le module dans `apps/web/src/modules.ts` (il apparaît dans le menu et sur l'accueil).
 3. Ajouter les routes d'API dans `apps/api/src/app.ts` (ou un routeur dédié monté sous `/api`) et les entités DynamoDB avec un nouveau préfixe de `pk` dans `apps/api/src/db/`.
 4. Si le module utilise l'IA : passer par `callStructured` (`apps/api/src/ai/llm.ts`) pour bénéficier du suivi de consommation et du budget.
+
+## Retours sur l'application
+
+`packages/shared/src/feedback.ts`, `apps/api/src/feedback/routes.ts` (`/api/feedback`), front `apps/web/src/feedback/`. Tout utilisateur envoie un retour (type, message, page, navigateur) ; lecture, traitement et suppression demandent le droit `manageFeedback`.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `FEEDBACK` | `F#<date ISO>#<id>` | Retour (type, message, page, auteur, statut, note de traitement) |

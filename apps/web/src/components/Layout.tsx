@@ -6,6 +6,7 @@ import { useAuth } from '../auth';
 import { ToastHost } from './ui';
 import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
+import { FeedbackButton } from '../feedback/FeedbackButton';
 
 export function Layout() {
   const { me, signOut } = useAuth();
@@ -51,6 +52,7 @@ export function Layout() {
           ))}
         </nav>
         <div className="sidebar-foot">
+          <FeedbackButton />
           <div className="user" title={me.email}>
             <strong>{me.name}</strong>
             <div className="small">{ROLE_LABELS[me.role]}</div>
