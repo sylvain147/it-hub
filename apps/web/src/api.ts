@@ -7,6 +7,7 @@ import type {
   JiraTestResult,
   MoveTaskBody,
   SprintDocKind,
+  SprintPromptExport,
   Note,
   SprintDetail,
   HubUser,
@@ -206,6 +207,7 @@ export const api = {
   writeSprintDoc: (sprintId: number, kind: SprintDocKind) => request<JobInfo>('POST', `/jira/sprints/${sprintId}/documents/${kind}`),
   saveSprintDoc: (sprintId: number, kind: SprintDocKind, markdown: string) => request<SprintDetail>('PUT', `/jira/sprints/${sprintId}/documents/${kind}`, { markdown }),
   publishSprintDoc: (sprintId: number, kind: SprintDocKind, projectId: string) => request<Note>('POST', `/jira/sprints/${sprintId}/documents/${kind}/journal`, { projectId }),
+  sprintDocPrompt: (sprintId: number, kind: SprintDocKind) => request<SprintPromptExport>('GET', `/jira/sprints/${sprintId}/documents/${kind}/prompt`),
   sprintDocWord: (sprintId: number, kind: SprintDocKind) => request<{ url: string; fileName: string }>('POST', `/jira/sprints/${sprintId}/documents/${kind}/word`),
   activity: () => request<ActivityEntry[]>('GET', '/activity'),
 };

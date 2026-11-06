@@ -210,6 +210,18 @@ export function sprintDocKinds(state: JiraSprintInfo['state']): SprintDocKind[] 
   return ['compte_rendu', 'preparation'];
 }
 
+/**
+ * Export (tests) de la requête qui serait envoyée à Bedrock pour rédiger un document de sprint, sans appel au modèle.
+ */
+export interface SprintPromptExport {
+  model: string;
+  url: string;
+  /** Corps JSON exact de la requête, tel que produit par le SDK. */
+  body: Record<string, unknown>;
+  /** Même contenu en texte, à coller dans une IA locale. */
+  text: string;
+}
+
 export const saveSprintDocBody = z.object({ markdown: z.string().max(30_000) });
 export const publishSprintDocBody = z.object({ projectId: z.string().min(1).max(40) });
 

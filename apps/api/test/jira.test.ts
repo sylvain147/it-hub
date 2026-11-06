@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestEnv } from './helpers.js';
 import { setJiraFetch } from '../src/jira/client.js';
 import { demoJiraFetch } from '../src/jira/demo.js';
+import { BedrockProvider } from '../src/ai/bedrock.js';
+import { config } from '../src/config.js';
+import { sprintDocCall } from '../src/jira/jobs.js';
+import { SPRINT_REVIEW_SYSTEM } from '../src/jira/prompts.js';
 
 let env: Awaited<ReturnType<typeof setupTestEnv>>;
 beforeAll(async () => {
@@ -197,6 +201,41 @@ describe('module Jira (import, rattachement, documents de sprint)', () => {
     });
     expect((await env.call('GET', '/jira/boards')).json.error).toMatch(/injoignable/);
     setJiraFetch(demoJiraFetch);
+  });
+
+  it('exporte la requête exacte qui serait envoyée à Bedrock, sans appeler le modèle', async () => {
+    const usageBefore = (await env.call('GET', '/usage')).json.calls;
+    const res = await env.call('GET', '/jira/sprints/42/documents/compte_rendu/prompt');
+    expect(res.status).toBe(200);
+    const e = res.json;
+    expect(e.model).toBe(config.modelSmart);
+    expect(e.url).toMatch(/\/anthropic\/v1\/messages$/);
+    expect(e.body).toMatchObject({ model: config.modelSmart, max_tokens: 4000, output_config: { effort: 'medium', format: { type: 'json_schema' } } });
+    expect(e.body.system[0]).toEqual({ type: 'text', text: SPRINT_REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } });
+    expect(e.body.messages[0].content).toContain('<chiffres_du_sprint>\n# TC Sprint 4 (en cours)');
+    expect(e.text).toContain('=== SYSTÈME ===');
+    expect(e.text).toContain('=== UTILISATEUR ===');
+    expect((await env.call('GET', '/usage')).json.calls).toBe(usageBefore); // aucun appel IA
+
+    // Identique, à l'octet près, à ce qu'envoie le fournisseur Bedrock pour le même appel.
+    let sent: any = null;
+    const provider = new BedrockProvider({
+      skipAuth: true,
+      maxRetries: 0,
+      fetch: (async (_url: unknown, init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'x', content: [{ type: 'text', text: '{"markdown":"ok"}' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+    await provider.structured(await sprintDocCall('compte_rendu', 42, { user: 'alice@test', cdcId: '42' }), config.modelSmart);
+    expect(sent).toEqual(e.body);
+
+    const prep = await env.call('GET', '/jira/sprints/43/documents/preparation/prompt');
+    expect(prep.json.body.messages[0].content).toContain('<preparation_du_sprint>');
+    expect((await env.call('GET', '/jira/sprints/42/documents/bilan/prompt')).status).toBe(404);
   });
 
   it('importe les tableaux des projets gérés par l’équipe et signale les tableaux sans sprints', async () => {

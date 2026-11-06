@@ -13,6 +13,7 @@ import {
   SPRINT_DOC_LABELS,
   SPRINT_GROUP_LABELS,
   type SprintDocKind,
+  type SprintPromptExport,
   type SprintReport,
 } from '@samm/shared';
 import { userName } from '../auth.js';
@@ -26,7 +27,8 @@ import { renderMarkdownDocx } from '../export/docx.js';
 import * as pr from '../projects/repo.js';
 import { JiraClient } from './client.js';
 import * as repo from './repo.js';
-import { JOB_OF_DOC } from './jobs.js';
+import { JOB_OF_DOC, sprintDocCall } from './jobs.js';
+import { captureBedrockRequest } from '../ai/bedrock.js';
 import { importBoards, listBoards, testConnection } from './sync.js';
 import { overview, sprintDetail, taskViews } from './views.js';
 
@@ -34,6 +36,25 @@ function idParam(c: Context, name: string): number {
   const n = Number(c.req.param(name));
   if (!Number.isInteger(n) || n < 1) throw new HttpError(400, `Paramètre ${name} invalide`);
   return n;
+}
+
+/** Version texte d'une requête Messages : ce que voit le modèle, dans l'ordre. */
+function promptText(model: string, body: Record<string, unknown>): string {
+  const system = (body.system as { text: string }[] | undefined) ?? [];
+  const messages = (body.messages as { role: string; content: string }[] | undefined) ?? [];
+  const out = body.output_config as { effort?: string; format?: { schema?: unknown } } | undefined;
+  return [
+    `<!-- Requête Bedrock : modèle ${model}, max_tokens ${String(body.max_tokens)}, effort ${out?.effort ?? '—'} -->`,
+    '',
+    '=== SYSTÈME ===',
+    system.map((b) => b.text).join('\n\n'),
+    '',
+    ...messages.flatMap((m) => [`=== ${m.role === 'user' ? 'UTILISATEUR' : 'ASSISTANT'} ===`, m.content, '']),
+    '=== FORMAT DE RÉPONSE ===',
+    'Bedrock impose ce format par output_config.format (il ne fait pas partie du texte envoyé) ; pour une IA locale :',
+    'réponds uniquement par un objet JSON conforme à ce schéma JSON.',
+    JSON.stringify(out?.format?.schema ?? {}, null, 2),
+  ].join('\n');
 }
 
 function kindParam(c: Context): SprintDocKind {
@@ -162,6 +183,20 @@ export function jiraRoutes() {
       throw new HttpError(400, kind === 'compte_rendu' ? 'Ce sprint n’a pas encore démarré : préparez-le plutôt.' : 'Ce sprint est clos : rédigez plutôt son compte rendu.');
     }
     return c.json(await startJob(JOB_OF_DOC[kind], String(sprintId), userName(c), {}), 202);
+  });
+
+  /**
+   * Tests : requête exacte qui serait envoyée à Bedrock pour ce document, sans appel au modèle (aucun coût),
+   * pour la rejouer sur une IA locale.
+   */
+  r.get('/sprints/:sprintId/documents/:kind/prompt', async (c) => {
+    const sprintId = idParam(c, 'sprintId');
+    const kind = kindParam(c);
+    const call = await sprintDocCall(kind, sprintId, { user: userName(c), cdcId: String(sprintId) });
+    const model = call.tier === 'fast' ? config.modelFast : config.modelSmart;
+    const req = await captureBedrockRequest(call, model);
+    const res: SprintPromptExport = { model, url: req.url, body: req.body, text: promptText(model, req.body) };
+    return c.json(res);
   });
 
   r.put('/sprints/:sprintId/documents/:kind', async (c) => {

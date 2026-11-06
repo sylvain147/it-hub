@@ -16,18 +16,7 @@ export class BedrockProvider implements LlmProvider {
   }
 
   async structured<T>(call: StructuredCall<T>, model: string): Promise<{ output: T; usage: LlmUsage }> {
-    // Les instructions système (et le contexte stable éventuel) sont identiques d'un appel à l'autre : on les met en cache.
-    const system = [
-      { type: 'text' as const, text: call.system, cache_control: { type: 'ephemeral' as const } },
-      ...(call.context ? [{ type: 'text' as const, text: call.context, cache_control: { type: 'ephemeral' as const } }] : []),
-    ];
-    const params = {
-      model,
-      max_tokens: call.maxTokens,
-      system,
-      messages: [{ role: 'user' as const, content: call.input }],
-      output_config: { effort: call.effort, format: zodOutputFormat(call.schema) },
-    };
+    const params = bedrockParams(call, model);
     // Au-delà de 16 000 tokens de sortie, la réponse est reçue en flux (évite les délais d'attente HTTP).
     const response =
       call.maxTokens > 16000
@@ -55,6 +44,59 @@ export class BedrockProvider implements LlmProvider {
       },
     };
   }
+}
+
+/** Paramètres de l'appel Messages. */
+function bedrockParams<T>(call: StructuredCall<T>, model: string) {
+  // Les instructions système (et le contexte stable éventuel) sont identiques d'un appel à l'autre : on les met en cache.
+  const system = [
+    { type: 'text' as const, text: call.system, cache_control: { type: 'ephemeral' as const } },
+    ...(call.context ? [{ type: 'text' as const, text: call.context, cache_control: { type: 'ephemeral' as const } }] : []),
+  ];
+  return {
+    model,
+    max_tokens: call.maxTokens,
+    system,
+    messages: [{ role: 'user' as const, content: call.input }],
+    output_config: { effort: call.effort, format: zodOutputFormat(call.schema) },
+  };
+}
+
+/** Requête HTTP que le SDK enverrait à Bedrock. */
+export interface CapturedRequest {
+  url: string;
+  body: Record<string, unknown>;
+}
+
+class Captured extends Error {
+  constructor(readonly request: CapturedRequest) {
+    super('requête capturée');
+  }
+}
+
+/**
+ * Construit la requête exactement comme pour un vrai appel (même SDK, mêmes paramètres), mais l'intercepte avant
+ * l'envoi : rien ne part sur le réseau, aucun coût. Sert à exporter le prompt pour le rejouer ailleurs (tests).
+ */
+export async function captureBedrockRequest<T>(call: StructuredCall<T>, model: string): Promise<CapturedRequest> {
+  const capture = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    throw new Captured({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown> });
+  };
+  const client = new AnthropicBedrockMantle({ awsRegion: config.bedrockRegion, skipAuth: true, fetch: capture as typeof fetch, maxRetries: 0 });
+  try {
+    const params = bedrockParams(call, model);
+    if (call.maxTokens > 16000) await client.messages.stream(params).finalMessage();
+    else await client.messages.parse(params);
+  } catch (e) {
+    let cur: unknown = e;
+    // Le SDK peut envelopper l'erreur levée par `fetch`.
+    for (let i = 0; i < 5 && cur; i++) {
+      if (cur instanceof Captured) return cur.request;
+      cur = (cur as { cause?: unknown }).cause;
+    }
+    throw e;
+  }
+  throw new Error('Requête Bedrock non capturée');
 }
 
 function parseText<T>(content: { type: string; text?: string }[], schema: StructuredCall<T>['schema']): T | null {
