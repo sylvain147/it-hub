@@ -19,6 +19,8 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 
 export interface HubStackProps extends StackProps {
   repoRoot: string;
+  /** `bedrock` : vrais appels ; `mock` : IA simulée (aucun appel, coût nul), tant que Bedrock n'est pas activé. */
+  llmProvider: 'bedrock' | 'mock';
   bedrockRegion: string;
   modelFast: string;
   modelSmart: string;
@@ -100,7 +102,7 @@ export class HubStack extends Stack {
       USER_POOL_ID: userPool.userPoolId,
       TABLE_NAME: table.tableName,
       BUCKET_NAME: dataBucket.bucketName,
-      LLM_PROVIDER: 'bedrock',
+      LLM_PROVIDER: props.llmProvider,
       BEDROCK_REGION: props.bedrockRegion,
       MODEL_FAST: props.modelFast,
       MODEL_SMART: props.modelSmart,
