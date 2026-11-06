@@ -16,7 +16,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   membre: 'Chargé de projet',
 };
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l’équipe.',
+  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l’équipe ; lit les retours sur l’application.',
   responsable: 'Voit les tâches de toute l’équipe et peut en attribuer à chacun.',
   membre: 'Voit ses propres tâches et en crée pour lui-même. Les projets restent partagés par toute l’équipe.',
 };
@@ -29,6 +29,8 @@ export const PERMISSIONS = {
   seeAllTodos: ['admin', 'responsable'],
   /** Créer ou réattribuer une tâche personnelle pour quelqu'un d'autre. */
   assignOthers: ['admin', 'responsable'],
+  /** Lire et traiter les retours des utilisateurs sur l'application. */
+  manageFeedback: ['admin'],
 } as const satisfies Record<string, readonly Role[]>;
 export type Permission = keyof typeof PERMISSIONS;
 

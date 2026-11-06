@@ -751,3 +751,8 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .sidebar-foot .user strong { display: block; color: #fff; }
 
 .prompt-export { max-height: 45vh; font-size: 11.5px; }
+
+.feedback-btn { width: 100%; justify-content: center; margin-bottom: 10px; color: #dbe4f3; border-color: rgba(255, 255, 255, 0.25); background: transparent; }
+.feedback-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.feedback-message { white-space: pre-wrap; margin: 10px 0 6px; }
+.feedback-card.treated { opacity: 0.75; }

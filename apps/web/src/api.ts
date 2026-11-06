@@ -1,4 +1,7 @@
 import type {
+  Feedback,
+  FeedbackInput,
+  UpdateFeedbackBody,
   JiraBoard,
   JiraConfigBody,
   JiraConfigInfo,
@@ -209,6 +212,10 @@ export const api = {
   publishSprintDoc: (sprintId: number, kind: SprintDocKind, projectId: string) => request<Note>('POST', `/jira/sprints/${sprintId}/documents/${kind}/journal`, { projectId }),
   sprintDocPrompt: (sprintId: number, kind: SprintDocKind) => request<SprintPromptExport>('GET', `/jira/sprints/${sprintId}/documents/${kind}/prompt`),
   sprintDocWord: (sprintId: number, kind: SprintDocKind) => request<{ url: string; fileName: string }>('POST', `/jira/sprints/${sprintId}/documents/${kind}/word`),
+  sendFeedback: (b: FeedbackInput) => request<Feedback>('POST', '/feedback', b),
+  listFeedback: () => request<Feedback[]>('GET', '/feedback'),
+  updateFeedback: (id: string, b: UpdateFeedbackBody) => request<Feedback>('PATCH', `/feedback/${id}`, b),
+  deleteFeedback: (id: string) => request<null>('DELETE', `/feedback/${id}`),
   activity: () => request<ActivityEntry[]>('GET', '/activity'),
 };
 

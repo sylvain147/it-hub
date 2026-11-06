@@ -90,7 +90,7 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 
 | Rôle | Droits |
 |---|---|
-| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l'équipe |
+| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l'équipe ; lit et traite les retours |
 | Responsable d'équipe | Voit les tâches de toute l'équipe et peut en attribuer à chacun |
 | Chargé de projet | Voit ses propres tâches et en crée pour lui-même |
 
@@ -110,6 +110,11 @@ Référentiels communs, modifiables par tous les utilisateurs :
 ### 📊 Consommation IA
 
 Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).
+
+### 💬 Retours sur l'application
+
+- Bouton **« Faire un retour »** en bas du menu, sur toutes les pages : bug, idée ou remarque, avec la page en cours et l'auteur joints automatiquement.
+- Page **Retours** (Pilotage, administrateurs) : retours à traiter / traités, note de suivi, réouverture, suppression.
 
 ## Maîtrise des coûts IA (Bedrock)
 
