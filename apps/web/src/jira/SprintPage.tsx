@@ -10,12 +10,13 @@ import {
   type SprintAlert,
   type SprintDetail,
   type SprintDocKind,
+  type SprintPromptExport,
   type SprintPreparation,
   type SprintReport,
 } from '@samm/shared';
 import { api, download } from '../api';
 import { useJobPolling } from '../hooks';
-import { ErrorBox, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
+import { ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { MarkdownField, MarkdownView } from '../projects/common';
 import { PeopleChart, PointsChart, ProgressChart, ScopeChart, Swatch, TimeChart } from './charts';
 import { SprintStateBadge } from './JiraPage';
@@ -435,6 +436,7 @@ function SprintDocCard({
   const projects = useProjectsList();
   const label = SPRINT_DOC_LABELS[kind];
   const review = kind === 'compte_rendu';
+  const [exporting, setExporting] = useState(false);
 
   async function write() {
     if (doc && !confirm(`Rédiger à nouveau ? Le document actuel (et vos modifications) sera remplacé.`)) return;
@@ -458,6 +460,7 @@ function SprintDocCard({
 
   return (
     <section className="card">
+      {exporting && <PromptExportModal sid={sid} kind={kind} onClose={() => setExporting(false)} onSaved={onSaved} />}
       <div className="card-head">
         <h2>{label}</h2>
         <div className="row-actions no-print">
@@ -468,6 +471,11 @@ function SprintDocCard({
                 ⬇ Word
               </button>
             </>
+          )}
+          {!editing && (
+            <button className="btn btn-ghost btn-sm" disabled={!!jobId} onClick={() => setExporting(true)} title="Tests : requête exacte qui serait envoyée à Bedrock, sans appel au modèle">
+              Exporter le prompt
+            </button>
           )}
           {!editing && (
             <button className="btn btn-ai" disabled={!!jobId} onClick={() => void write()}>
@@ -543,6 +551,100 @@ function SprintDocCard({
       )}
     </section>
   );
+}
+
+/**
+ * Tests : requête qui serait envoyée à Bedrock (texte pour une IA locale, ou corps JSON exact), et collage de la
+ * réponse obtenue pour l'enregistrer comme document.
+ */
+function PromptExportModal({ sid, kind, onClose, onSaved }: { sid: number; kind: SprintDocKind; onClose: () => void; onSaved: (d: SprintDetail) => void }) {
+  const [data, setData] = useState<SprintPromptExport | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [tab, setTab] = useState<'texte' | 'json'>('texte');
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.sprintDocPrompt(sid, kind).then(setData, setError);
+  }, [sid, kind]);
+
+  const content = !data ? '' : tab === 'texte' ? data.text : JSON.stringify(data.body, null, 2);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast('Copié dans le presse-papiers.');
+    } catch {
+      toast('Copie impossible : sélectionnez le texte à la main.', 'error');
+    }
+  }
+
+  function save() {
+    const blob = new Blob([content], { type: tab === 'texte' ? 'text/plain;charset=utf-8' : 'application/json' });
+    const url = URL.createObjectURL(blob);
+    download(url, `prompt-${kind}-sprint-${sid}.${tab === 'texte' ? 'txt' : 'json'}`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function useAnswer() {
+    setBusy(true);
+    try {
+      onSaved(await api.saveSprintDoc(sid, kind, markdownOfAnswer(answer)));
+      toast('Réponse enregistrée comme document.');
+      onClose();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Exporter le prompt — ${SPRINT_DOC_LABELS[kind]}`} onClose={onClose} wide>
+      <p className="muted small">
+        Requête que le hub enverrait à Bedrock, produite par le même code que l’appel réel mais interceptée avant l’envoi : aucun appel au modèle, aucun coût.
+      </p>
+      <ErrorBox error={error} />
+      {!data && !error && <Spinner />}
+      {data && (
+        <>
+          <div className="toolbar-row">
+            <div className="seg">
+              <button className={tab === 'texte' ? 'on' : ''} onClick={() => setTab('texte')}>Prompt (texte)</button>
+              <button className={tab === 'json' ? 'on' : ''} onClick={() => setTab('json')}>Requête Bedrock (JSON exact)</button>
+            </div>
+            <span className="tb-flex" />
+            <button className="btn btn-sm" onClick={() => void copy()}>Copier</button>
+            <button className="btn btn-sm" onClick={save}>⬇ Télécharger</button>
+          </div>
+          <p className="muted small">
+            {tab === 'texte'
+              ? 'Instructions système puis message, dans l’ordre où le modèle les reçoit ; le schéma de réponse (imposé par Bedrock hors texte) est ajouté à la fin pour votre IA locale.'
+              : `POST ${data.url} — corps envoyé tel quel (modèle ${data.model}).`}
+          </p>
+          <pre className="notes prompt-export">{content}</pre>
+          <h3 className="mt">Réponse de votre IA</h3>
+          <p className="muted small">Collez la réponse (le JSON {'{"markdown": "…"}'} ou directement le Markdown) pour l’enregistrer comme document de ce sprint.</p>
+          <textarea className="input" rows={6} value={answer} onChange={(e) => setAnswer(e.target.value)} />
+          <div className="actions mt">
+            <button className="btn btn-primary" disabled={busy || !answer.trim()} onClick={() => void useAnswer()}>{busy && <Spinner small />} Enregistrer comme document</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/** Réponse collée : objet JSON `{ markdown }` (éventuellement entre ```json … ```), sinon Markdown brut. */
+function markdownOfAnswer(raw: string): string {
+  const t = raw.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, '$1');
+  try {
+    const j = JSON.parse(t) as { markdown?: unknown };
+    if (typeof j.markdown === 'string') return j.markdown.trim();
+  } catch {
+    /* Markdown brut */
+  }
+  return raw.trim();
 }
 
 function useProjectsList() {
