@@ -213,8 +213,8 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
           <input className="input input-title" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. Migration de l’offre Coliéco" onKeyDown={(e) => e.key === 'Enter' && name.trim() && void create()} />
         </label>
         <label className="field">
-          <span>Code</span>
-          <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. COL-27" />
+          <span>Code (clé de l’épopée Jira)</span>
+          <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. TC-300" title="Les tickets de cette épopée Jira sont rattachés automatiquement au projet à chaque import" />
         </label>
         <label className="field">
           <span>Date de fin visée</span>

@@ -359,6 +359,8 @@ export async function importBoards(jira: JiraClient, o: ImportOptions): Promise<
       boardId: 0,
       sprintIds: issue.sprints,
       parent: parent?.key ? `${parent.key}${parent.fields?.summary ? ` ${parent.fields.summary}` : ''}` : '',
+      parentKey: parent?.key ?? '',
+      parentSummary: parent?.fields?.summary ?? '',
       deskRef: issue.deskRef,
     };
     return { issue, task };

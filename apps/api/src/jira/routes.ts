@@ -163,10 +163,13 @@ export function jiraRoutes() {
     return c.json(await taskViews(await repo.getImport(), { projectId }));
   });
 
-  /** Relie des tickets à un projet (ou les détache). Les tickets eux-mêmes ne se modifient que dans Jira. */
+  /**
+   * Relie des tickets à un projet, les détache, ou les rend au rattachement automatique par l'épopée (`projectId` « auto »).
+   * Les tickets eux-mêmes ne se modifient que dans Jira.
+   */
   r.put('/links', async (c) => {
     const b = await body(c, linkJiraTasksBody);
-    if (b.projectId) await pr.requireProject(b.projectId);
+    if (b.projectId && b.projectId !== repo.AUTO_LINK) await pr.requireProject(b.projectId);
     await repo.setLinks([...new Set(b.keys)], b.projectId, userName(c));
     return c.json({ updated: b.keys.length });
   });

@@ -22,6 +22,8 @@ import { Swatch } from './charts';
 
 const STATE_LABELS: Record<JiraSprintListItem['state'], string> = { future: 'À venir', active: 'En cours', closed: 'Clos' };
 const STATE_BADGES: Record<JiraSprintListItem['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
+/** Rattachement automatique par l'épopée (voir `projectsByEpic`). */
+const AUTO = 'auto';
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 
 export function SprintStateBadge({ state }: { state: JiraSprintListItem['state'] }) {
@@ -111,7 +113,7 @@ export function JiraPage() {
             <div key={w} className="alert alert-info">{w}</div>
           ))}
           <SprintsCard o={o} />
-          <TasksCard o={o} projects={projects.data ?? []} onLinked={(keys, projectId) => data.setData(withLinks(o, keys, projectId, projects.data ?? []))} />
+          <TasksCard o={o} projects={projects.data ?? []} onLinked={() => void data.reload()} />
         </>
       )}
       {boardsOpen && o && (
@@ -127,11 +129,6 @@ export function JiraPage() {
       )}
     </div>
   );
-}
-
-function withLinks(o: JiraOverview, keys: string[], projectId: string | null, projects: ProjectSummary[]): JiraOverview {
-  const name = projects.find((p) => p.id === projectId)?.name ?? '';
-  return { ...o, tasks: o.tasks.map((t) => (keys.includes(t.key) ? { ...t, projectId, projectName: projectId ? name : '' } : t)) };
 }
 
 /** Choix des tableaux Scrum dont les sprints et le backlog sont importés. */
@@ -246,7 +243,7 @@ function SprintsCard({ o }: { o: JiraOverview }) {
 
 type Who = 'mine' | 'all';
 
-function TasksCard({ o, projects, onLinked }: { o: JiraOverview; projects: ProjectSummary[]; onLinked: (keys: string[], projectId: string | null) => void }) {
+function TasksCard({ o, projects, onLinked }: { o: JiraOverview; projects: ProjectSummary[]; onLinked: () => void }) {
   const { me } = useAuth();
   const [params] = useSearchParams();
   const target = params.get('projet') ?? '';
@@ -280,10 +277,12 @@ function TasksCard({ o, projects, onLinked }: { o: JiraOverview; projects: Proje
     setBusy(true);
     try {
       await api.linkJiraTasks(keys, projectId);
-      onLinked(keys, projectId);
+      onLinked();
       setSelected(new Set());
       const p = projects.find((x) => x.id === projectId);
-      toast(projectId ? `${keys.length} ticket${keys.length > 1 ? 's' : ''} relié${keys.length > 1 ? 's' : ''} à « ${p?.name ?? ''} ».` : `${keys.length} ticket${keys.length > 1 ? 's' : ''} détaché${keys.length > 1 ? 's' : ''}.`);
+      const n = `${keys.length} ticket${keys.length > 1 ? 's' : ''}`;
+      const pl = keys.length > 1 ? 's' : '';
+      toast(projectId === AUTO ? `${n} rendu${pl} au rattachement par l’épopée.` : projectId ? `${n} relié${pl} à « ${p?.name ?? ''} ».` : `${n} détaché${pl}.`);
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -337,6 +336,7 @@ function TasksCard({ o, projects, onLinked }: { o: JiraOverview; projects: Proje
           </select>
           <button className="btn btn-primary btn-sm" disabled={busy || !bulkProject} onClick={() => void link([...selected], bulkProject)}>Relier au projet</button>
           <button className="btn btn-sm" disabled={busy} onClick={() => void link([...selected], null)}>Détacher</button>
+          <button className="btn btn-sm" disabled={busy} onClick={() => void link([...selected], AUTO)} title="Le projet est déduit de l’épopée : le code du projet est la clé de l’épopée Jira">Automatique (épopée)</button>
           <button className="btn-link small" onClick={() => setSelected(new Set())}>Annuler</button>
         </div>
       )}
@@ -391,11 +391,13 @@ function TasksCard({ o, projects, onLinked }: { o: JiraOverview; projects: Proje
                     <td>
                       <select className="input input-sm" value={t.projectId ?? ''} disabled={busy} onChange={(e) => void link([t.key], e.target.value || null)} aria-label={`Projet de ${t.key}`}>
                         <option value="">—</option>
+                        {t.linkSource !== 'epopee' && <option value={AUTO}>↺ Automatique (épopée)</option>}
                         {t.projectId && !activeProjects.some((p) => p.id === t.projectId) && <option value={t.projectId}>{t.projectName}</option>}
                         {activeProjects.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
+                      {t.linkSource === 'epopee' && <div className="muted small" title="Le code du projet est la clé de l’épopée">via l’épopée {t.linkEpic}</div>}
                     </td>
                   </tr>
                 );

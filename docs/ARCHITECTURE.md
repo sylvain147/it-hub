@@ -106,7 +106,7 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 
 - **Connexion** (`apps/api/src/jira/client.ts`) : Jira Cloud uniquement (`https://<site>.atlassian.net`, `normalizeJiraSite`), e-mail + jeton d'API en authentification Basic, appels depuis l'API (le jeton ne quitte pas le serveur). Lecture seule. Le site `demo` (`jira/demo.ts`) imite l'API Jira pour le développement local et les tests ; il est refusé sur AWS.
 - **Import** (`jira/sync.ts`, `importBoards`) : pour chaque tableau Scrum suivi, sprints en cours, à venir et les `JIRA_CLOSED_SPRINTS_KEPT` derniers clos ; une recherche JQL ramène leurs tickets **et les tickets retirés** (rapport de sprint du tableau, sinon tickets du projet modifiés depuis le lancement) avec leur historique (`expand=changelog`, complété ticket par ticket si tronqué) ; une seconde recherche, sans historique, ramène le backlog ouvert (`sprint is EMPTY`). Seuls les champs utiles sont gardés (pas de description ni de commentaire). Résultat : la liste des tickets (`JiraTask`, lecture seule), les sprints et leur bilan, la vélocité par tableau, et un instantané par sprint (`SprintSnapshot`).
-- **Rattachement** : un ticket se relie à un projet du hub (`JIRA#LINK`), indépendamment de l'import ; un rattachement vers un projet supprimé est ignoré.
+- **Rattachement** : calculé à la lecture (`taskViews`). Un choix manuel (`JIRA#LINK`, `projectId` null = détaché) l'emporte ; sinon `projectsByEpic` rattache le ticket au projet dont le code est la clé de son épopée (le ticket lui-même, son parent ou un ancêtre importé ; résumé de l'épopée égal au code accepté). `projectId: "auto"` efface le choix manuel. Un rattachement vers un projet supprimé est ignoré.
 - **Calculs** (`packages/shared/src/jira/`) : `buildSprintReport` rejoue l'historique pour connaître, à tout instant, les sprints et le statut de chaque ticket (statuts regroupés : terminé selon la catégorie Jira ; recette et attente reconnues au nom ; à faire ; en cours ; jours à l'heure de Paris). `buildSprintPreparation` calcule la préparation d'un sprint à venir ou en cours (tickets prévus, charge, vélocité, reports probables, backlog prioritaire, points à clarifier).
 - **IA** (`jira/jobs.ts`) : jobs `jira_sprint_review` (entrée `sprintReportToMarkdown`) et `jira_sprint_preparation` (entrée `sprintPreparationToMarkdown`), modèle de rédaction, quelques Ko. Export Word par `renderMarkdownDocx`. Pour les tests, `GET /api/jira/sprints/:id/documents/:kind/prompt` renvoie la requête exacte qui serait envoyée à Bedrock (`captureBedrockRequest` : même SDK et mêmes paramètres que l'appel réel — `sprintDocCall` —, requête interceptée avant l'envoi, sans coût), à rejouer sur une IA locale.
 
@@ -115,7 +115,7 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | `JIRA#CONF` | `CONF` | Connexion (site, compte, jeton), champs retenus (story points, réf. Desk, sprint), tableaux suivis |
 | `JIRA#IMPORT` | `META` | Dernier import (date, auteur, nombre de tickets) |
 | `JIRA#SPRINT#<id>` | `META` | Sprint importé, documents (`compteRendu`, `preparation`), job actif |
-| `JIRA#LINK` | `L#<clé>` | Ticket relié à un projet |
+| `JIRA#LINK` | `L#<clé>` | Rattachement manuel d'un ticket (projet, ou null = détaché) |
 | (S3) `jira/import.json` | | Dernier import : tickets, sprints, vélocité |
 | (S3) `jira/sprints/<id>.json` | | Instantané du sprint (tickets et historique) |
 

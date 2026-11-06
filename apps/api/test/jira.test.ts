@@ -203,6 +203,38 @@ describe('module Jira (import, rattachement, documents de sprint)', () => {
     setJiraFetch(demoJiraFetch);
   });
 
+  it('rattache automatiquement les tickets de l’épopée dont la clé est le code du projet', async () => {
+    const ess = (await env.call('POST', '/projects', { name: 'Offre ESS', code: 'tc-300' })).json.id;
+    const pay = (await env.call('POST', '/projects', { name: 'Paiements', code: 'TC-301' })).json.id;
+    await env.call('POST', '/jira/import');
+    const byKey = async () => Object.fromEntries((await env.call('GET', '/jira/overview')).json.tasks.map((t: any) => [t.key, t]));
+    let t = await byKey();
+    // TC-382 est dans l'épopée TC-301 : rattaché sans rien faire.
+    expect(t['TC-382']).toMatchObject({ projectId: pay, projectName: 'Paiements', linkSource: 'epopee', linkEpic: 'TC-301' });
+    // Un choix manuel l'emporte sur l'épopée…
+    expect(t['TC-367']).toMatchObject({ projectId, linkSource: 'manuel' });
+    // … et un ticket détaché à la main le reste.
+    expect(t['TC-390']).toMatchObject({ projectId: null, linkSource: null });
+    expect(t['TC-320']).toMatchObject({ projectId: null, linkSource: null }); // sans épopée
+    expect((await env.call('GET', `/jira/tasks?projectId=${pay}`)).json.map((x: any) => x.key)).toEqual(['TC-382']);
+
+    // Retour au rattachement automatique.
+    await env.call('PUT', '/jira/links', { keys: ['TC-367', 'TC-390'], projectId: 'auto' });
+    t = await byKey();
+    expect(t['TC-367']).toMatchObject({ projectId: ess, linkSource: 'epopee', linkEpic: 'TC-300' });
+    expect(t['TC-390']).toMatchObject({ projectId: pay, linkSource: 'epopee' });
+    // Détacher un ticket rattaché par l'épopée : retenu, même après un nouvel import.
+    await env.call('PUT', '/jira/links', { keys: ['TC-382'], projectId: null });
+    await env.call('POST', '/jira/import');
+    expect((await byKey())['TC-382']).toMatchObject({ projectId: null, linkSource: null });
+    // Changer le code du projet change le rattachement.
+    const p = (await env.call('GET', `/projects/${pay}`)).json;
+    await env.call('PUT', `/projects/${pay}`, { rev: p.rev, fields: { name: p.name, code: '' } });
+    expect((await byKey())['TC-390'].projectId).toBeNull();
+    await env.call('DELETE', `/projects/${ess}`);
+    await env.call('DELETE', `/projects/${pay}`);
+  });
+
   it('exporte la requête exacte qui serait envoyée à Bedrock, sans appeler le modèle', async () => {
     const usageBefore = (await env.call('GET', '/usage')).json.calls;
     const res = await env.call('GET', '/jira/sprints/42/documents/compte_rendu/prompt');
