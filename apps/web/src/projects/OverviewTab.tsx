@@ -333,8 +333,8 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <input className="input input-title" value={f.name} onChange={(e) => set('name', e.target.value)} />
         </label>
         <label className="field">
-          <span>Code</span>
-          <input className="input" value={f.code} onChange={(e) => set('code', e.target.value)} />
+          <span>Code (clé de l’épopée Jira)</span>
+          <input className="input" value={f.code} onChange={(e) => set('code', e.target.value)} placeholder="ex. TC-300" title="Les tickets de cette épopée Jira sont rattachés automatiquement au projet à chaque import" />
         </label>
         <label className="field">
           <span>Étiquettes <span className="muted">(séparées par des virgules)</span></span>

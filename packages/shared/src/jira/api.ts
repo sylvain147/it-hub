@@ -122,6 +122,9 @@ export interface JiraTask {
   sprintIds: number[];
   /** Ticket parent (épopée…) : « TC-12 Paiements », ou chaîne vide. */
   parent: string;
+  /** Clé et résumé du parent (absents des imports antérieurs : voir `parentKeyOf`). */
+  parentKey?: string;
+  parentSummary?: string;
   /** Référence du ticket Desk (suivi TMA), sans « # ». */
   deskRef: string;
 }
@@ -130,6 +133,46 @@ export interface JiraTask {
 export interface JiraTaskView extends JiraTask {
   projectId: string | null;
   projectName: string;
+  /** Origine du rattachement : choisi à la main, ou déduit de l'épopée dont la clé est le code du projet. */
+  linkSource: 'manuel' | 'epopee' | null;
+  /** Épopée qui a donné le rattachement automatique. */
+  linkEpic: string;
+}
+
+export function parentKeyOf(t: Pick<JiraTask, 'parent' | 'parentKey'>): string {
+  return t.parentKey ?? (/^[A-Z][A-Z0-9_]*-\d+/.exec(t.parent)?.[0] ?? '');
+}
+
+/**
+ * Rattachement automatique par épopée : le code d'un projet du hub est la clé de son épopée Jira (« TC-300 »).
+ * Un ticket est rattaché au projet si l'épopée est le ticket lui-même, son parent ou un ancêtre importé
+ * (sous-tâche d'une story de l'épopée). Le résumé de l'épopée égal au code est aussi accepté.
+ */
+export function projectsByEpic(tasks: JiraTask[], projects: { id: string; code: string }[]): Map<string, { projectId: string; epic: string }> {
+  const norm = (s: string) => s.trim().toUpperCase();
+  const byCode = new Map<string, string>();
+  for (const p of projects) if (p.code.trim() && !byCode.has(norm(p.code))) byCode.set(norm(p.code), p.id);
+  const byKey = new Map(tasks.map((t) => [t.key, t]));
+  const out = new Map<string, { projectId: string; epic: string }>();
+  if (!byCode.size) return out;
+  for (const t of tasks) {
+    let cur: JiraTask | undefined = t;
+    for (let depth = 0; cur && depth < 5; depth++) {
+      const hit = byCode.get(norm(cur.key)) ?? (cur !== t ? byCode.get(norm(cur.summary)) : undefined);
+      if (hit) {
+        out.set(t.key, { projectId: hit, epic: cur.key });
+        break;
+      }
+      const pk = parentKeyOf(cur);
+      const viaParent = pk ? (byCode.get(norm(pk)) ?? (cur.parentSummary ? byCode.get(norm(cur.parentSummary)) : undefined)) : undefined;
+      if (viaParent) {
+        out.set(t.key, { projectId: viaParent, epic: pk });
+        break;
+      }
+      cur = pk ? byKey.get(pk) : undefined;
+    }
+  }
+  return out;
 }
 
 export interface JiraSprintListItem extends JiraSprintInfo {
@@ -157,7 +200,10 @@ export interface JiraOverview {
 
 export const linkJiraTasksBody = z.object({
   keys: z.array(z.string().trim().min(1).max(40)).min(1, 'Choisissez au moins un ticket').max(1000),
-  /** null : détacher du projet. */
+  /**
+   * null : détacher du projet (le détachement est retenu : l'épopée ne le rattache plus) ;
+   * « auto » : revenir au rattachement automatique par l'épopée.
+   */
   projectId: z.string().min(1).max(40).nullable(),
 });
 export type LinkJiraTasksBody = z.input<typeof linkJiraTasksBody>;

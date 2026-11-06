@@ -178,3 +178,31 @@ describe('préparation de sprint et tâches', () => {
     expect(normalizeTaskRecord({ title: 'c', done: true })).toEqual({ title: 'c', done: true });
   });
 });
+
+describe('rattachement par épopée', () => {
+  it('suit la chaîne des parents et accepte le résumé de l’épopée', async () => {
+    const { projectsByEpic } = await import('../src/index.js');
+    const t = (key: string, parentKey = '', summary = key, parentSummary = '') =>
+      ({ key, summary, parent: parentKey ? `${parentKey} ${parentSummary}`.trim() : '', parentKey, parentSummary }) as any;
+    const tasks = [
+      t('X-1', 'X-100', 'Story', 'Paiements'),
+      t('X-2', 'X-1', 'Sous-tâche de X-1'), // sous-tâche : son parent est une story de l'épopée
+      t('X-3', 'X-200', 'Autre', 'COL-27'), // épopée nommée par le code du projet
+      t('X-100', '', 'Paiements'), // l'épopée elle-même
+      t('X-4'),
+      { key: 'X-5', summary: 'Import antérieur', parent: 'X-100 Paiements' } as any, // sans parentKey
+    ];
+    const m = projectsByEpic(tasks, [
+      { id: 'p1', code: 'x-100' },
+      { id: 'p2', code: 'COL-27' },
+      { id: 'p3', code: '' },
+    ]);
+    expect(Object.fromEntries([...m].map(([k, v]) => [k, `${v.projectId}:${v.epic}`]))).toEqual({
+      'X-1': 'p1:X-100',
+      'X-2': 'p1:X-100',
+      'X-3': 'p2:X-200',
+      'X-100': 'p1:X-100',
+      'X-5': 'p1:X-100',
+    });
+  });
+});

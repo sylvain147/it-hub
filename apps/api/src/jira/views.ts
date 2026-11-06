@@ -2,6 +2,7 @@
 import {
   buildSprintPreparation,
   buildSprintReport,
+  projectsByEpic,
   type DeskLink,
   type JiraOverview,
   type JiraSprintInfo,
@@ -13,20 +14,29 @@ import * as tma from '../tma/repo.js';
 import * as pr from '../projects/repo.js';
 import * as repo from './repo.js';
 
-async function projectNames(): Promise<Map<string, string>> {
-  return new Map((await pr.listProjects()).map((p) => [p.id, p.name]));
-}
-
-/** Tickets importés avec leur projet (un rattachement vers un projet supprimé est ignoré). */
+/**
+ * Tickets importés avec leur projet : rattachement manuel s'il existe (y compris « détaché »), sinon projet dont le
+ * code est la clé de l'épopée du ticket. Un rattachement vers un projet supprimé est ignoré.
+ */
 export async function taskViews(imp: repo.StoredImport | null, filter: { projectId?: string } = {}): Promise<JiraTaskView[]> {
   if (!imp) return [];
-  const [links, names] = await Promise.all([repo.listLinks(), projectNames()]);
+  const [links, projects] = await Promise.all([repo.listLinks(), pr.listProjects()]);
+  const names = new Map(projects.map((p) => [p.id, p.name]));
+  const byEpic = projectsByEpic(imp.tasks, projects);
   const out: JiraTaskView[] = [];
   for (const t of imp.tasks) {
-    const pid = links.get(t.key);
-    const projectId = pid && names.has(pid) ? pid : null;
+    let projectId: string | null = null;
+    let linkSource: JiraTaskView['linkSource'] = null;
+    let linkEpic = '';
+    if (links.has(t.key)) {
+      const pid = links.get(t.key);
+      if (pid && names.has(pid)) [projectId, linkSource] = [pid, 'manuel'];
+    } else {
+      const e = byEpic.get(t.key);
+      if (e) [projectId, linkSource, linkEpic] = [e.projectId, 'epopee', e.epic];
+    }
     if (filter.projectId && projectId !== filter.projectId) continue;
-    out.push({ ...t, projectId, projectName: projectId ? names.get(projectId)! : '' });
+    out.push({ ...t, projectId, projectName: projectId ? names.get(projectId)! : '', linkSource, linkEpic });
   }
   return out;
 }

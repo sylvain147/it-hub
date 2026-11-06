@@ -89,7 +89,10 @@ function JiraTasksCard() {
         <Link to={`/jira?projet=${project.id}`} className="small">Relier des tickets →</Link>
       </div>
       {!list.length ? (
-        <p className="muted small">Aucun ticket Jira relié à ce projet. Depuis l’onglet Jira, importez vos tickets puis reliez-les au projet.</p>
+        <p className="muted small">
+          Aucun ticket Jira relié à ce projet. {project.code ? `Les tickets de l’épopée ${project.code} y sont rattachés automatiquement à l’import ; ` : 'Indiquez la clé de l’épopée Jira comme code du projet pour y rattacher automatiquement ses tickets, ou '}
+          reliez des tickets depuis l’onglet Jira.
+        </p>
       ) : (
         <>
           <ul className="checklist">
@@ -102,9 +105,10 @@ function JiraTasksCard() {
                     <div className="check-line">
                       <span className="check-title-ro">{t.summary}</span>
                       <span className="check-meta">
+                        {t.linkSource === 'epopee' && <span className="muted small" title="Le code du projet est la clé de cette épopée Jira">épopée {t.linkEpic}</span>}
                         <JiraStatus t={t} />
                         {t.assignee && <span className="badge">{t.assignee}</span>}
-                        <button className="btn-icon" title="Délier du projet" onClick={() => void unlink(t)}>✕</button>
+                        <button className="btn-icon" title={t.linkSource === 'epopee' ? 'Délier du projet (le ticket ne sera plus rattaché par l’épopée)' : 'Délier du projet'} onClick={() => void unlink(t)}>✕</button>
                       </span>
                     </div>
                   </div>

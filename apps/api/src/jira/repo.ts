@@ -5,7 +5,7 @@
  *  JIRA#CONF            CONF       connexion (site, compte, jeton d'API), champs personnalisés retenus, tableaux suivis
  *  JIRA#IMPORT          META       dernier import (date, auteur, nombre de tickets)
  *  JIRA#SPRINT#<id>     META       sprint importé, documents rédigés (compte rendu, préparation), job actif
- *  JIRA#LINK            L#<clé>    rattachement d'un ticket Jira à un projet du hub
+ *  JIRA#LINK            L#<clé>    rattachement manuel d'un ticket à un projet (projectId null : détaché) ; sinon, l'épopée décide
  *  bucket : jira/import.json          dernier import : tickets (lecture seule), sprints, vélocité par tableau
  *  bucket : jira/sprints/<id>.json    instantané du sprint (tickets et historique)
  */
@@ -107,6 +107,8 @@ interface SprintItem {
   activeJobAt: string | null;
 }
 
+export const AUTO_LINK = 'auto';
+
 const DOC_ATTR: Record<SprintDocKind, 'compteRendu' | 'preparation'> = { compte_rendu: 'compteRendu', preparation: 'preparation' };
 
 function activeJob(it: SprintItem): string | null {
@@ -185,19 +187,20 @@ export function newDocument(markdown: string, user: string): SprintDocument {
 // Rattachement des tickets aux projets
 // ---------------------------------------------------------------------------
 
-/** Projet du hub de chaque ticket rattaché, par clé. */
-export async function listLinks(): Promise<Map<string, string>> {
-  const items = await queryAll<{ key: string; projectId: string }>({
+/** Rattachement choisi à la main, par clé : projet, ou null pour un ticket détaché (l'épopée ne le rattache plus). */
+export async function listLinks(): Promise<Map<string, string | null>> {
+  const items = await queryAll<{ key: string; projectId: string | null }>({
     KeyConditionExpression: 'pk = :p AND begins_with(sk, :s)',
     ExpressionAttributeValues: { ':p': 'JIRA#LINK', ':s': 'L#' },
   });
   return new Map(items.map((x) => [x.key, x.projectId]));
 }
 
+/** `projectId` null : détachement retenu ; « auto » : retour au rattachement par l'épopée (le choix manuel est effacé). */
 export async function setLinks(keys: string[], projectId: string | null, user: string): Promise<void> {
   const at = nowIso();
   const requests = keys.map((key) =>
-    projectId ? { PutRequest: { Item: { ...jiraKeys.link(key), key, projectId, linkedAt: at, linkedBy: user } } } : { DeleteRequest: { Key: jiraKeys.link(key) } },
+    projectId === AUTO_LINK ? { DeleteRequest: { Key: jiraKeys.link(key) } } : { PutRequest: { Item: { ...jiraKeys.link(key), key, projectId, linkedAt: at, linkedBy: user } } },
   );
   for (let i = 0; i < requests.length; i += 25) {
     await ddb().send(new BatchWriteCommand({ RequestItems: { [T()]: requests.slice(i, i + 25) } }));
