@@ -2,11 +2,12 @@
   "app": "npx tsx bin/app.ts",
   "context": {
     "region": "eu-west-3",
+    "llmProvider": "mock",
     "bedrockRegion": "eu-west-3",
     "modelFast": "anthropic.claude-haiku-5-5",
     "modelSmart": "anthropic.claude-sonnet-5-5",
     "monthlyBudgetUsd": 30,
-    "githubRepository": "coderhammer/samm",
+    "githubRepository": "sylvain147/it-hub",
     "githubBranch": "main",
     "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": true
   }

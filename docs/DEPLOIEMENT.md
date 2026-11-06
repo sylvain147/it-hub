@@ -6,7 +6,7 @@ Tout est décrit en code (AWS CDK, dossier `infra/`). Une stack principale, `Hub
 
 - Un compte AWS et l'AWS CLI configurée (`aws sts get-caller-identity` doit répondre).
 - Node 22+ et pnpm (`corepack enable`).
-- **Accès aux modèles Claude sur Bedrock** : console AWS → Amazon Bedrock → *Model access* → activer **Claude Haiku 5.5** et **Claude Sonnet 5.5** dans la région utilisée.
+- **Accès aux modèles Claude sur Bedrock** (inutile tant que `llmProvider` vaut `mock`) : console AWS → Amazon Bedrock → *Model access* → activer **Claude Haiku 5.5** et **Claude Sonnet 5.5** dans la région utilisée.
 
 ## 2. Paramètres
 
@@ -15,6 +15,7 @@ Dans `infra/cdk.json` (section `context`) :
 | Clé | Défaut | Rôle |
 |---|---|---|
 | `region` | `eu-west-3` (Paris) | Région de l'application |
+| `llmProvider` | `mock` | `mock` : IA simulée (aucun appel Bedrock, coût nul, textes marqués « simulation ») ; `bedrock` : vrais appels. Passer à `bedrock` puis redéployer une fois l'accès aux modèles activé |
 | `bedrockRegion` | `eu-west-3` | Région d'appel de Bedrock |
 | `modelFast` / `modelSmart` | `anthropic.claude-haiku-5-5` / `anthropic.claude-sonnet-5-5` | Modèles utilisés |
 | `monthlyBudgetUsd` | `30` | Plafond mensuel des fonctions IA (en $) |
@@ -60,7 +61,7 @@ Une fois en place, chaque push sur `main` est testé puis déployé, sans clé A
    ```bash
    pnpm --filter @samm/infra exec cdk deploy HubItGithubOidc
    ```
-   Le rôle ne peut être assumé que depuis la branche `main` du dépôt `coderhammer/samm` (modifiable dans `cdk.json`).
+   Le rôle ne peut être assumé que depuis la branche `main` du dépôt `sylvain147/it-hub` (modifiable dans `cdk.json`).
 2. Dans GitHub → *Settings* → *Environments*, créer l'environnement `production` (on peut y exiger une validation manuelle).
 3. Dans *Settings* → *Secrets and variables* → *Actions* → *Variables*, créer :
    - `AWS_DEPLOY_ROLE_ARN` = sortie `HubItGithubOidc.DeployRoleArn`

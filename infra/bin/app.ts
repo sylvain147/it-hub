@@ -14,6 +14,7 @@ new HubStack(app, 'HubIt', {
   env,
   description: 'Hub IT – générateur de cahiers des charges et futurs modules',
   repoRoot,
+  llmProvider: ctx('llmProvider', 'bedrock') === 'mock' ? 'mock' : 'bedrock',
   bedrockRegion: ctx('bedrockRegion', env.region),
   modelFast: ctx('modelFast', 'anthropic.claude-haiku-5-5'),
   modelSmart: ctx('modelSmart', 'anthropic.claude-sonnet-5-5'),
@@ -22,6 +23,6 @@ new HubStack(app, 'HubIt', {
 
 new GithubOidcStack(app, 'HubItGithubOidc', {
   env,
-  repository: ctx('githubRepository', 'coderhammer/samm'),
+  repository: ctx('githubRepository', 'sylvain147/it-hub'),
   branch: ctx('githubBranch', 'main'),
 });
