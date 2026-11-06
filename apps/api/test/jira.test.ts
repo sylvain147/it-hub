@@ -198,4 +198,17 @@ describe('module Jira (import, rattachement, documents de sprint)', () => {
     expect((await env.call('GET', '/jira/boards')).json.error).toMatch(/injoignable/);
     setJiraFetch(demoJiraFetch);
   });
+
+  it('importe les tableaux des projets gérés par l’équipe et signale les tableaux sans sprints', async () => {
+    const boards = await env.call('GET', '/jira/boards');
+    expect(boards.json.map((b: any) => [b.name, b.type])).toEqual([['Tableau TC', 'scrum'], ['Tableau EQ', 'simple'], ['Support KB', 'kanban']]);
+    // Le type « simple » (projet géré par l'équipe) n'empêche pas d'avoir des sprints.
+    expect((await env.call('PUT', '/jira/boards', { boardIds: [7, 8, 9] })).status).toBe(200);
+    const imp = await env.call('POST', '/jira/import');
+    expect(imp.status).toBe(200);
+    expect(imp.json.sprints.find((s: any) => s.name === 'EQ Sprint 1')).toMatchObject({ state: 'active', boardName: 'Tableau EQ', issueCount: 0 });
+    expect(imp.json.sprints.filter((s: any) => s.boardId === 7)).toHaveLength(3);
+    expect(imp.json.warnings).toEqual([expect.stringContaining('« Support KB » : Jira ne gère pas de sprints')]);
+    await env.call('PUT', '/jira/boards', { boardIds: [7] });
+  });
 });

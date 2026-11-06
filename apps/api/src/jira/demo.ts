@@ -213,10 +213,18 @@ export async function demoJiraFetch(url: string, init: { method: string; body?: 
   if (p === '/rest/api/3/status') return json(Object.entries(STATUSES).map(([name, key]) => ({ name, statusCategory: { key } })));
   if (p === '/rest/agile/1.0/board') {
     const key = (q.get('projectKeyOrId') ?? '').toUpperCase();
-    const boards = !key || key === 'TC' ? [{ id: 7, name: 'Tableau TC', type: 'scrum', location: { projectKey: 'TC' } }] : [];
-    return json({ values: boards, isLast: true });
+    const all = [
+      { id: 7, name: 'Tableau TC', type: 'scrum', location: { projectKey: 'TC' } },
+      // Projet géré par l'équipe : tableau « simple », avec sprints.
+      { id: 8, name: 'Tableau EQ', type: 'simple', location: { projectKey: 'EQ' } },
+      // Tableau Kanban : Jira refuse de lister ses sprints.
+      { id: 9, name: 'Support KB', type: 'kanban', location: { projectKey: 'KB' } },
+    ];
+    return json({ values: all.filter((b) => !key || b.location.projectKey === key), isLast: true });
   }
   if (p === '/rest/agile/1.0/board/7/sprint') return json({ values: SPRINTS, isLast: true });
+  if (p === '/rest/agile/1.0/board/8/sprint') return json({ values: [{ id: 60, name: 'EQ Sprint 1', state: 'active', startDate: '2026-11-02T08:00:00.000Z', endDate: '2026-11-16T17:00:00.000Z', goal: '', originBoardId: 8 }], isLast: true });
+  if (p === '/rest/agile/1.0/board/9/sprint') return json({ errorMessages: ['The board does not support sprints'] }, 400);
   let m = /^\/rest\/agile\/1\.0\/sprint\/(\d+)$/.exec(p);
   if (m) return sprintById.has(Number(m[1])) ? json(sprintById.get(Number(m[1]))) : notFoundRes();
   if (p === '/rest/greenhopper/1.0/rapid/charts/sprintreport') {

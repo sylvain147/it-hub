@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
+  jiraBoardTypeLabel,
   jiraIssueUrl,
   nameKey,
   shortDay,
@@ -106,6 +107,9 @@ export function JiraPage() {
             Dernier import le {formatDateTime(o.syncedAt)} par {shortUser(o.syncedBy ?? '')} : {o.tasks.length} tickets ({o.boards.map((b) => b.name).join(', ')}). Les tickets se
             modifient dans Jira ; importez à nouveau pour récupérer leur état.
           </p>
+          {o.warnings.map((w) => (
+            <div key={w} className="alert alert-info">{w}</div>
+          ))}
           <SprintsCard o={o} />
           <TasksCard o={o} projects={projects.data ?? []} onLinked={(keys, projectId) => data.setData(withLinks(o, keys, projectId, projects.data ?? []))} />
         </>
@@ -156,7 +160,7 @@ function BoardsPicker({ current, onSaved }: { current: number[]; onSaved: (o: Ji
     <section className="card">
       <h2>Tableaux à importer</h2>
       <p className="muted small">
-        Choisissez les tableaux Scrum de vos projets Jira : leurs sprints (en cours, à venir et les derniers clos) et leur backlog seront importés.
+        Choisissez les tableaux de vos projets Jira : leurs sprints (en cours, à venir et les derniers clos) et leur backlog seront importés.
       </p>
       <ErrorBox error={error ?? boards.error} />
       {boards.loading && !boards.data && <Spinner />}
@@ -168,11 +172,10 @@ function BoardsPicker({ current, onSaved }: { current: number[]; onSaved: (o: Ji
               <label key={b.id} className="check">
                 <input
                   type="checkbox"
-                  disabled={b.type !== 'scrum'}
                   checked={chosen.includes(b.id)}
                   onChange={(e) => setChosen((xs) => (e.target.checked ? [...xs, b.id] : xs.filter((x) => x !== b.id)))}
                 />
-                {b.name} <span className="muted small">{b.projectKey && `${b.projectKey} · `}{b.type === 'scrum' ? 'Scrum' : b.type === 'kanban' ? 'Kanban — pas de sprints' : b.type}</span>
+                {b.name} <span className="muted small">{b.projectKey && `${b.projectKey} · `}{jiraBoardTypeLabel(b.type)}</span>
               </label>
             ))}
             {!list.length && <p className="muted small">Aucun tableau accessible au compte Jira du hub.</p>}
