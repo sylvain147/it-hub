@@ -51,7 +51,7 @@ export function JournalTab() {
           ))}
         </div>
         <span className="tb-flex" />
-        <button className="btn btn-ai" disabled={jobBusy} onClick={() => setDigest(true)} title="Coller une transcription ou des notes : l’assistant rédige le compte rendu et propose tâches, jalons et risques">
+        <button className="btn btn-ai" disabled={jobBusy} onClick={() => setDigest(true)} title="Coller une transcription ou des notes : l’assistant rédige le compte rendu et propose tickets, jalons et risques">
           ✨ Analyser une réunion
         </button>
         <button className="btn btn-ai" disabled={jobBusy} onClick={report} title="Rédige un rapport d’avancement à partir des données du projet">
@@ -210,7 +210,7 @@ function Suggestions({ note }: { note: Note }) {
       <div className="strong">✨ {pending ? 'Propositions de l’assistant — cochez ce qu’il faut ajouter au projet' : 'Propositions de l’assistant (traitées)'}</div>
       {s.tasks.length > 0 && (
         <>
-          <div className="muted small">Tâches</div>
+          <div className="muted small">Tickets</div>
           <ul className="list-plain">
             {s.tasks.map((t, i) => (
               <Row key={i} k="tasks" i={i} state={t.state}>
@@ -326,7 +326,7 @@ function DigestDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <p className="muted small">
-        Collez la transcription (Teams, dictée…) ou vos notes en vrac. L’assistant rédige le compte rendu dans le journal et propose les tâches, jalons et risques à
+        Collez la transcription (Teams, dictée…) ou vos notes en vrac. L’assistant rédige le compte rendu dans le journal et propose les tickets, jalons et risques à
         ajouter : rien n’est ajouté au projet sans votre validation. La transcription brute est conservée avec le compte rendu.
       </p>
       <div className="form-grid">

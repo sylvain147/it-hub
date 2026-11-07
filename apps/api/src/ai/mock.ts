@@ -6,7 +6,7 @@ import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 import type { Draft, Extraction, Translation, Update } from './schemas.js';
 import type { SpecPatch } from '../filetypes/ai-schemas.js';
 import type { SynthesisOutput, ThemesOutput } from '../tma/ai-schemas.js';
-import type { SprintDocOutput } from '../jira/ai-schemas.js';
+import type { SprintDocOutput } from '../sprints/ai-schemas.js';
 import type { Digest, Report } from '../projects/ai.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
@@ -57,9 +57,9 @@ export class MockProvider implements LlmProvider {
         return this.themes(call.input);
       case 'tma_synthese':
         return this.tmaSynthesis(call.input);
-      case 'jira_compte_rendu':
+      case 'sprint_compte_rendu':
         return this.sprintReview(call.input);
-      case 'jira_preparation':
+      case 'sprint_preparation':
         return this.sprintPreparation(call.input);
       default:
         return this.update(call.input, call.operation);

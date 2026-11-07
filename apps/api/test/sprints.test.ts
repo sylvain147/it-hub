@@ -1,0 +1,228 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { setupTestEnv } from './helpers.js';
+import { BedrockProvider } from '../src/ai/bedrock.js';
+import { config } from '../src/config.js';
+import { ddb } from '../src/db/client.js';
+import { sprintDocCall } from '../src/sprints/jobs.js';
+import { SPRINT_REVIEW_SYSTEM } from '../src/sprints/prompts.js';
+
+let env: Awaited<ReturnType<typeof setupTestEnv>>;
+beforeAll(async () => {
+  env = await setupTestEnv();
+});
+afterAll(async () => {
+  await env.close();
+});
+
+/** Laisse passer quelques millisecondes : l'historique des tickets est horodaté. */
+const tick = () => new Promise((r) => setTimeout(r, 5));
+
+describe('module Sprints (tickets, planification, tableau, documents)', () => {
+  let p1 = '';
+  let p2 = '';
+  const ids: Record<string, string> = {};
+
+  async function ticket(projectId: string, title: string, extra: Record<string, unknown> = {}) {
+    const res = await env.call('POST', `/projects/${projectId}/items/tasks`, { title, ...extra });
+    expect(res.status).toBe(201);
+    ids[title] = res.json.id;
+    return res.json;
+  }
+  const patch = (projectId: string, title: string, body: Record<string, unknown>) => env.call('PATCH', `/projects/${projectId}/items/tasks/${ids[title]}`, body);
+
+  it('crée des tickets numérotés dans les projets, au backlog', async () => {
+    await env.call('POST', '/users', { email: 'bruno@exemple.fr', name: 'Bruno Petit', role: 'membre' });
+    p1 = (await env.call('POST', '/projects', { name: 'Portail fournisseurs' })).json.id;
+    p2 = (await env.call('POST', '/projects', { name: 'Paie' })).json.id;
+    const a = await ticket(p1, 'Maquettes');
+    expect(a).toMatchObject({ number: 1, status: 'a_faire', sprintId: null, done: false, assigneeId: 'alice@test', statusChanges: [], sprintChanges: [] });
+    await ticket(p1, 'API commandes', { assigneeId: 'bruno@exemple.fr', dueDate: '2020-01-10' });
+    const c = await ticket(p2, 'Bulletin de décembre');
+    expect(c.number).toBe(3);
+    expect((await env.call('POST', `/projects/${p1}/items/tasks`, { title: 'X', status: 'fini' })).status).toBe(400);
+    expect((await env.call('POST', `/projects/${p1}/items/tasks`, { title: 'X', sprintId: 99 })).status).toBe(400); // sprint inconnu
+
+    const project = (await env.call('GET', `/projects/${p1}`)).json;
+    expect(project.stats).toMatchObject({ openTasks: 2, doneTasks: 0 });
+    expect(project.activity[0].text).toContain('a ajouté le ticket « T-2 API commandes »');
+  });
+
+  it('crée les sprints à la suite les uns des autres', async () => {
+    const s1 = await env.call('POST', '/sprints', { goal: 'Ouvrir le portail en recette' });
+    expect(s1.status).toBe(201);
+    expect(s1.json).toMatchObject({ id: 1, name: 'Sprint 1', state: 'future', startedAt: null });
+    expect(s1.json.endDate > s1.json.startDate).toBe(true);
+    const s2 = await env.call('POST', '/sprints', { name: 'Sprint 2 — paie' });
+    expect(s2.json).toMatchObject({ id: 2, name: 'Sprint 2 — paie' });
+    expect(s2.json.startDate > s1.json.endDate).toBe(true);
+    expect((await env.call('POST', '/sprints', { startDate: '2026-05-10', endDate: '2026-05-01' })).status).toBe(400);
+    const s3 = await env.call('POST', '/sprints', {});
+    expect((await env.call('DELETE', `/sprints/${s3.json.id}`)).status).toBe(204);
+    expect((await env.call('GET', `/sprints/${s3.json.id}`)).status).toBe(404);
+  });
+
+  it('planifie les tickets dans un sprint et lance le sprint', async () => {
+    await patch(p1, 'Maquettes', { sprintId: 1 });
+    await patch(p1, 'API commandes', { sprintId: 1 });
+    const moved = await patch(p2, 'Bulletin de décembre', { sprintId: 2 });
+    expect(moved.json.sprintChanges).toEqual([{ at: expect.any(String), from: null, to: 2 }]);
+
+    const o = (await env.call('GET', '/sprints')).json;
+    expect(o.sprints.map((s: any) => [s.id, s.state, s.ticketCount])).toEqual([[1, 'future', 2], [2, 'future', 1]]);
+    expect(o.tickets).toHaveLength(3);
+
+    await tick();
+    const started = await env.call('POST', '/sprints/1/start');
+    expect(started.status).toBe(200);
+    expect(started.json.sprint).toMatchObject({ state: 'active', startedAt: expect.any(String) });
+    expect((await env.call('POST', '/sprints/1/start')).status).toBe(400);
+    expect((await env.call('POST', '/sprints/2/start')).status).toBe(409); // un seul sprint en cours
+    expect((await env.call('DELETE', '/sprints/1')).status).toBe(400);
+  });
+
+  it('fait avancer les tickets sur le tableau et calcule la revue du sprint', async () => {
+    await tick();
+    await patch(p1, 'Maquettes', { status: 'en_cours' });
+    await tick();
+    const done = await patch(p1, 'Maquettes', { status: 'termine' });
+    expect(done.json).toMatchObject({ status: 'termine', done: true, doneAt: expect.any(String) });
+    expect(done.json.statusChanges.map((c: any) => `${c.from}>${c.to}`)).toEqual(['a_faire>en_cours', 'en_cours>termine']);
+    await patch(p1, 'API commandes', { status: 'attente' });
+    // Ajouté en cours de sprint.
+    await ticket(p2, 'Contrôle des cotisations', { sprintId: 1, status: 'recette' });
+
+    const project = (await env.call('GET', `/projects/${p1}`)).json;
+    expect(project.stats).toMatchObject({ openTasks: 1, doneTasks: 1 });
+    expect(project.activity.map((a: any) => a.text)).toContain('a passé le ticket « T-1 Maquettes » au statut « Terminé »');
+    expect(project.activity.map((a: any) => a.text)).toContain('a planifié le ticket « T-1 Maquettes » dans le sprint « Sprint 1 »');
+
+    const d = (await env.call('GET', '/sprints/1')).json;
+    expect(d.report.counts).toMatchObject({ total: 3, active: 3, atStart: 2, added: 1, done: 1, recette: 1, overdue: 1, removed: 0 });
+    expect(d.report.issues.find((i: any) => i.key === 'T-4')).toMatchObject({ movement: { kind: 'cree' }, project: 'Paie', status: 'recette' });
+    expect(d.report.issues.find((i: any) => i.key === 'T-1')).toMatchObject({ movement: { kind: 'lancement' }, doneDay: expect.any(String) });
+    expect(d.report.attention.map((a: any) => a.title)).toEqual(expect.arrayContaining(['T-2 API commandes', 'Ajouts en cours de sprint']));
+    expect(d.preparation.planned.map((i: any) => i.key)).toEqual(['T-2', 'T-1', 'T-4']);
+    expect(d.projects.map((p: any) => p.name)).toEqual(['Portail fournisseurs', 'Paie']);
+  });
+
+  it('prépare le sprint suivant : reports probables et backlog', async () => {
+    await ticket(p1, 'Recette utilisateurs', { dueDate: '2030-01-01' });
+    const d = (await env.call('GET', '/sprints/2')).json;
+    expect(d.report).toBeNull();
+    const p = d.preparation;
+    expect(p.planned.map((i: any) => i.key)).toEqual(['T-3']);
+    expect(p.carryOverFrom).toBe('Sprint 1');
+    expect(p.carryOver.map((i: any) => i.key)).toEqual(['T-2', 'T-4']);
+    expect(p.backlog.map((i: any) => i.key)).toEqual(['T-5']);
+    expect(p.alerts.map((a: any) => a.title)).toEqual(expect.arrayContaining(['Objectif non défini', 'Reports probables du Sprint 1']));
+  });
+
+  it('rédige, corrige, exporte et publie les documents de sprint', async () => {
+    expect((await env.call('POST', '/sprints/1/documents/compte_rendu/journal', { projectId: p1 })).status).toBe(400); // pas encore rédigé
+    expect((await env.call('POST', '/sprints/2/documents/compte_rendu')).status).toBe(400); // sprint à venir
+    expect((await env.call('POST', '/sprints/1/documents/bilan')).status).toBe(404);
+
+    const start = await env.call('POST', '/sprints/1/documents/compte_rendu');
+    expect(start.status).toBe(202);
+    expect((await env.waitJob(start.json.id)).status).toBe('termine');
+    let detail = (await env.call('GET', '/sprints/1')).json;
+    expect(detail.documents.compte_rendu.markdown).toContain('## Message clé');
+    expect(detail.documents.compte_rendu.markdown).toContain('Tickets : 3 actifs');
+
+    const edited = await env.call('PUT', '/sprints/1/documents/compte_rendu', { markdown: '## Message clé\n\nSprint tenu, API en attente.' });
+    expect(edited.json.documents.compte_rendu).toMatchObject({ markdown: '## Message clé\n\nSprint tenu, API en attente.', editedBy: 'alice@test' });
+    const note = await env.call('POST', '/sprints/1/documents/compte_rendu/journal', { projectId: p1 });
+    expect(note.status).toBe(201);
+    expect(note.json).toMatchObject({ kind: 'compte_rendu', title: 'Revue du Sprint 1', origin: 'manuel' });
+    expect(note.json.content).toContain('1 clôturés sur 3');
+
+    const prep = await env.call('POST', '/sprints/2/documents/preparation');
+    expect((await env.waitJob(prep.json.id)).status).toBe('termine');
+    detail = (await env.call('GET', '/sprints/2')).json;
+    expect(detail.documents.preparation.markdown).toContain('## Objectif proposé');
+    const word = await env.call('POST', '/sprints/2/documents/preparation/word');
+    expect(word.json.fileName).toBe('Préparation du sprint — Sprint 2 — paie.docx');
+  });
+
+  it('clôt le sprint : les tickets non terminés passent au sprint suivant', async () => {
+    expect((await env.call('POST', '/sprints/1/close', { moveTo: 1 })).status).toBe(400); // pas un sprint à venir
+    await tick();
+    const closed = await env.call('POST', '/sprints/1/close', { moveTo: 2 });
+    expect(closed.status).toBe(200);
+    expect(closed.json.moved).toBe(2);
+    const r = closed.json.detail.report;
+    expect(closed.json.detail.sprint.state).toBe('closed');
+    // Les chiffres du sprint clos s'arrêtent avant le report des tickets.
+    expect(r.counts).toMatchObject({ active: 3, removed: 0, done: 1 });
+    expect(closed.json.detail.preparation).toBeNull();
+    expect((await env.call('POST', '/sprints/1/documents/preparation')).status).toBe(400);
+    expect((await patch(p1, 'Recette utilisateurs', { sprintId: 1 })).status).toBe(400); // sprint clos
+
+    const o = (await env.call('GET', '/sprints')).json;
+    expect(o.sprints.map((s: any) => [s.id, s.state, s.ticketCount])).toEqual([[2, 'future', 3], [1, 'closed', 1]]);
+    expect(o.tickets.map((t: any) => t.number).sort()).toEqual([2, 3, 4, 5]); // les tickets terminés des sprints clos sortent de la vue
+
+    await tick();
+    await env.call('POST', '/sprints/2/start');
+    const d2 = (await env.call('GET', '/sprints/2')).json;
+    expect(d2.report.issues.find((i: any) => i.key === 'T-2').movement).toEqual({ kind: 'report', from: 'Sprint 1' });
+    expect(d2.report.issues.find((i: any) => i.key === 'T-3').movement).toEqual({ kind: 'lancement' });
+    expect(d2.preparation.history).toEqual([{ name: 'Sprint 1', done: 1, active: 3 }]);
+  });
+
+  it('exporte la requête exacte qui serait envoyée à Bedrock, sans appeler le modèle', async () => {
+    // Sprint clos : chiffres figés, la requête est identique d'un appel à l'autre.
+    const usageBefore = (await env.call('GET', '/usage')).json.calls;
+    const res = await env.call('GET', '/sprints/1/documents/compte_rendu/prompt');
+    expect(res.status).toBe(200);
+    const e = res.json;
+    expect(e.body).toMatchObject({ model: config.modelSmart, max_tokens: 4000, output_config: { effort: 'medium', format: { type: 'json_schema' } } });
+    expect(e.body.system[0]).toEqual({ type: 'text', text: SPRINT_REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } });
+    expect(e.body.messages[0].content).toContain('<chiffres_du_sprint>\n# Sprint 1 (clos)');
+    expect(e.body.messages[0].content).toContain('T-2 « API commandes » [Portail fournisseurs] — Bruno Petit · En attente');
+    expect(e.body.messages[0].content).not.toContain('SP');
+    expect((await env.call('GET', '/usage')).json.calls).toBe(usageBefore); // aucun appel IA
+
+    let sent: any = null;
+    const provider = new BedrockProvider({
+      skipAuth: true,
+      maxRetries: 0,
+      fetch: (async (_url: unknown, init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'x', content: [{ type: 'text', text: '{"markdown":"ok"}' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    });
+    await provider.structured(await sprintDocCall('compte_rendu', 1, { user: 'alice@test', cdcId: '1' }), config.modelSmart);
+    expect(sent).toEqual(e.body);
+    expect((await env.call('GET', '/sprints/2/documents/preparation/prompt')).json.body.messages[0].content).toContain('<preparation_du_sprint>');
+  });
+
+  it('remet au backlog les tickets d’un sprint à venir supprimé', async () => {
+    const s = (await env.call('POST', '/sprints', {})).json;
+    await patch(p1, 'Recette utilisateurs', { sprintId: s.id });
+    expect((await env.call('DELETE', `/sprints/${s.id}`)).status).toBe(204);
+    const t = (await env.call('GET', `/projects/${p1}`)).json.items.tasks.find((x: any) => x.id === ids['Recette utilisateurs']);
+    expect(t.sprintId).toBeNull();
+    expect((await env.call('DELETE', '/sprints/1')).status).toBe(400); // sprint clos
+  });
+
+  it('numérote les tâches enregistrées avant les sprints', async () => {
+    const now = new Date().toISOString();
+    const base = { createdAt: now, createdBy: 'alice@test', updatedAt: now, updatedBy: 'alice@test', title: 'Ancienne tâche', details: '', assigneeId: 'alice@test', assignee: 'Alice', dueDate: '', projectId: p2 };
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: { pk: `PROJ#${p2}`, sk: 'TASK#old1', id: 'old1', ...base, done: false, doneAt: '', gsi1pk: 'TASK_OPEN', gsi1sk: '9999-12-31#old1' } }));
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: { pk: `PROJ#${p2}`, sk: 'TASK#old2', id: 'old2', ...base, title: 'Très ancienne', status: 'fait', priority: 'haute', doneAt: now } }));
+    const o = (await env.call('GET', '/sprints')).json;
+    const old = o.tickets.find((t: any) => t.id === 'old1');
+    expect(old).toMatchObject({ number: 6, status: 'a_faire', sprintId: null, projectName: 'Paie' });
+    const items = (await env.call('GET', `/projects/${p2}`)).json.items.tasks;
+    expect(items.find((t: any) => t.id === 'old2')).toMatchObject({ number: 7, status: 'termine', done: true });
+    expect(items.find((t: any) => t.id === 'old2').priority).toBeUndefined();
+    // Toujours modifiables, et désormais indexées comme tickets.
+    expect((await env.call('PATCH', `/projects/${p2}/items/tasks/old1`, { status: 'en_cours' })).json.statusChanges).toHaveLength(1);
+    expect((await env.call('GET', '/sprints')).json.tickets.filter((t: any) => t.id === 'old1')).toHaveLength(1);
+  });
+});

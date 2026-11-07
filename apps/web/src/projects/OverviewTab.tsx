@@ -38,7 +38,7 @@ export function OverviewTab() {
   const hotRisks = p.items.risks.filter((r) => r.status !== 'clos' && riskScore(r) >= 6);
   const pending = p.items.notes.filter((n) => n.suggestions && hasPending(n.suggestions));
   const upcoming = [
-    ...p.items.tasks.filter((t) => !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= in15).map((t) => ({ date: t.dueDate, label: t.title, kind: 'Tâche', who: t.assignee })),
+    ...p.items.tasks.filter((t) => !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= in15).map((t) => ({ date: t.dueDate, label: t.title, kind: 'Ticket', who: t.assignee })),
     ...p.items.jalons.filter((j) => !j.done && j.date && j.date >= today && j.date <= in15).map((j) => ({ date: j.date, label: j.label, kind: 'Jalon', who: '' })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   const progress = s.openTasks + s.doneTasks ? Math.round((s.doneTasks / (s.openTasks + s.doneTasks)) * 100) : null;
@@ -84,7 +84,7 @@ export function OverviewTab() {
             <h2>Points d’attention</h2>
             <ul className="alerts">
               {overdue.length > 0 && (
-                <li><button className="btn-link" onClick={() => goTab('taches')}>{overdue.length} tâche{overdue.length > 1 ? 's' : ''} en retard</button> : {overdue.slice(0, 3).map((t) => t.title).join(', ')}{overdue.length > 3 ? '…' : ''}</li>
+                <li><button className="btn-link" onClick={() => goTab('tickets')}>{overdue.length} ticket{overdue.length > 1 ? 's' : ''} en retard</button> : {overdue.slice(0, 3).map((t) => t.title).join(', ')}{overdue.length > 3 ? '…' : ''}</li>
               )}
               {lateJalons.length > 0 && (
                 <li><button className="btn-link" onClick={() => goTab('planning')}>{lateJalons.length} jalon{lateJalons.length > 1 ? 's' : ''} dépassé{lateJalons.length > 1 ? 's' : ''}</button> : {lateJalons.map((j) => j.label).join(', ')}</li>
@@ -138,13 +138,13 @@ export function OverviewTab() {
           </div>
         </section>
 
-        <section className="card stat-card" onClick={() => goTab('taches')} role="button">
-          <div className="stat-label">Tâches</div>
-          <div className="stat-value">{s.openTasks} <span className="muted small">ouverte{s.openTasks > 1 ? 's' : ''}</span></div>
+        <section className="card stat-card" onClick={() => goTab('tickets')} role="button">
+          <div className="stat-label">Tickets</div>
+          <div className="stat-value">{s.openTasks} <span className="muted small">ouvert{s.openTasks > 1 ? 's' : ''}</span></div>
           {progress != null && (
             <>
               <div className="meter"><div style={{ width: `${progress}%` }} /></div>
-              <div className="muted small">{progress} % terminées · {s.overdueTasks > 0 ? <span className="due-late">{s.overdueTasks} en retard</span> : 'aucune en retard'}</div>
+              <div className="muted small">{progress} % terminés · {s.overdueTasks > 0 ? <span className="due-late">{s.overdueTasks} en retard</span> : 'aucun en retard'}</div>
             </>
           )}
         </section>
@@ -309,7 +309,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
   }
 
   async function remove() {
-    const typed = prompt(`Supprimer définitivement le projet et tout son contenu (tâches, documents, journal…) ?\nLes cahiers des charges sont conservés.\n\nTapez le nom du projet pour confirmer : ${project.name}`);
+    const typed = prompt(`Supprimer définitivement le projet et tout son contenu (tickets, documents, journal…) ?\nLes cahiers des charges sont conservés.\n\nTapez le nom du projet pour confirmer : ${project.name}`);
     if (typed?.trim() !== project.name.trim()) return;
     try {
       await api.deleteProject(project.id);
@@ -333,8 +333,8 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <input className="input input-title" value={f.name} onChange={(e) => set('name', e.target.value)} />
         </label>
         <label className="field">
-          <span>Code (clé de l’épopée Jira)</span>
-          <input className="input" value={f.code} onChange={(e) => set('code', e.target.value)} placeholder="ex. TC-300" title="Les tickets de cette épopée Jira sont rattachés automatiquement au projet à chaque import" />
+          <span>Code</span>
+          <input className="input" value={f.code} onChange={(e) => set('code', e.target.value)} placeholder="ex. TC-300" />
         </label>
         <label className="field">
           <span>Étiquettes <span className="muted">(séparées par des virgules)</span></span>

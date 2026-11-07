@@ -6,7 +6,7 @@
 import { maskPersonalData, namesToMask } from './mask.js';
 
 export interface DeskTicket {
-  /** Numéro du ticket Desk (celui que reprend le champ « Réf Ticket Desk » de Jira). */
+  /** Numéro du ticket Desk. */
   id: string;
   subject: string;
   description: string;

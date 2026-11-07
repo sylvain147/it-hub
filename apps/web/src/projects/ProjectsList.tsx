@@ -61,7 +61,7 @@ export function ProjectsList() {
       <div className="page-head">
         <div>
           <h1>Projets</h1>
-          <p className="muted">Tout le suivi d’un projet au même endroit : intervenants, prestations, tâches, planning, documents, journal, risques et cahiers des charges.</p>
+          <p className="muted">Tout le suivi d’un projet au même endroit : intervenants, prestations, tickets, planning, documents, journal, risques et cahiers des charges.</p>
         </div>
         <div className="row-actions">
           <Link to="/cdc" className="btn">📄 Tous les cahiers des charges</Link>
@@ -74,7 +74,7 @@ export function ProjectsList() {
           <div className="kpi"><span className="kpi-value">{counters.actifs}</span><span className="kpi-label">projets actifs</span></div>
           <div className={`kpi${counters.rouge ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.rouge}</span><span className="kpi-label">🔴 en difficulté</span></div>
           <div className={`kpi${counters.orange ? ' kpi-warn' : ''}`}><span className="kpi-value">{counters.orange}</span><span className="kpi-label">🟠 en vigilance</span></div>
-          <div className={`kpi${counters.retard ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.retard}</span><span className="kpi-label">tâches en retard</span></div>
+          <div className={`kpi${counters.retard ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.retard}</span><span className="kpi-label">tickets en retard</span></div>
         </div>
       )}
 
@@ -122,7 +122,7 @@ export function ProjectsList() {
                 <th>Chef de projet</th>
                 <th>Prestataires</th>
                 <th>Prochaine échéance</th>
-                <th className="num">Tâches</th>
+                <th className="num">Tickets</th>
                 <th className="num">Budget</th>
                 <th className="num">CDC</th>
                 <th>Modifié</th>
@@ -213,8 +213,8 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
           <input className="input input-title" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. Migration de l’offre Coliéco" onKeyDown={(e) => e.key === 'Enter' && name.trim() && void create()} />
         </label>
         <label className="field">
-          <span>Code (clé de l’épopée Jira)</span>
-          <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. TC-300" title="Les tickets de cette épopée Jira sont rattachés automatiquement au projet à chaque import" />
+          <span>Code</span>
+          <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. TC-300" />
         </label>
         <label className="field">
           <span>Date de fin visée</span>

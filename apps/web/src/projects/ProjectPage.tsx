@@ -6,7 +6,7 @@ import { useJobPolling } from '../hooks';
 import { ErrorBox, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { HealthBadge, PriorityTag, ProjectProvider, ProjectStatusBadge } from './common';
 import { OverviewTab } from './OverviewTab';
-import { TasksTab } from './TasksTab';
+import { TicketsTab } from './TicketsTab';
 import { PlanningTab } from './PlanningTab';
 import { PrestationsTab } from './PrestationsTab';
 import { ContactsTab } from './ContactsTab';
@@ -17,7 +17,7 @@ import { CdcTab } from './CdcTab';
 
 const TABS = [
   { id: 'apercu', label: 'Aperçu' },
-  { id: 'taches', label: 'Tâches' },
+  { id: 'tickets', label: 'Tickets' },
   { id: 'planning', label: 'Planning' },
   { id: 'prestations', label: 'Prestations' },
   { id: 'cdc', label: 'Cahiers des charges' },
@@ -32,7 +32,9 @@ export function ProjectPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = (TABS.some((t) => t.id === params.get('onglet')) ? params.get('onglet') : 'apercu') as TabId;
+  // Ancienne adresse de l'onglet des tickets : « taches ».
+  const asked = params.get('onglet') === 'taches' ? 'tickets' : params.get('onglet');
+  const tab = (TABS.some((t) => t.id === asked) ? asked : 'apercu') as TabId;
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export function ProjectPage() {
 
   const s = project.stats;
   const counts: Partial<Record<TabId, { n: number; warn?: boolean }>> = {
-    taches: { n: s.openTasks, warn: s.overdueTasks > 0 },
+    tickets: { n: s.openTasks, warn: s.overdueTasks > 0 },
     planning: { n: project.items.jalons.length, warn: s.lateJalons > 0 },
     prestations: { n: project.items.prestations.length },
     intervenants: { n: s.contacts },
@@ -141,7 +143,7 @@ export function ProjectPage() {
         </div>
         <div className="tab-content">
           {tab === 'apercu' && <OverviewTab />}
-          {tab === 'taches' && <TasksTab />}
+          {tab === 'tickets' && <TicketsTab />}
           {tab === 'planning' && <PlanningTab />}
           {tab === 'prestations' && <PrestationsTab />}
           {tab === 'intervenants' && <ContactsTab />}

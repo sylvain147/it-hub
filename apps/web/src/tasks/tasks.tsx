@@ -1,51 +1,26 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import type { OpenTask, PersonalTask, Task } from '@samm/shared';
+import { ticketKey, type PersonalTask, type TicketView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, ItemModal, MarkdownField, MarkdownView } from '../projects/common';
 import { UserSelect, useUsers } from '../users/context';
+import { TicketStatusChip } from '../sprints/tickets';
 
 /**
- * Tâches : listes de choses à faire que l'on coche. Une tâche est rattachée à un projet ou personnelle (hors projet) ;
- * les mêmes composants servent à l'onglet « Tâches » d'un projet et à la page « Tâches ».
+ * To-do : la liste personnelle de choses à faire, que l'on coche. Une tâche peut être liée à un ticket
+ * (« relancer le prestataire sur T-12 ») ; le ticket, lui, suit son statut dans le sprint.
  */
 
-/** Tâche, où qu'elle soit enregistrée. `projectId` vide : tâche personnelle. */
-export interface TaskRow {
-  id: string;
-  title: string;
-  details: string;
-  done: boolean;
-  doneAt: string;
-  dueDate: string;
-  assigneeId: string;
-  /** Nom affiché du responsable (utilisateur du hub ou personne extérieure). */
+/** Tâche de la to-do, avec le nom de son responsable et son ticket lié. */
+export interface TaskRow extends PersonalTask {
   assignee: string;
-  projectId: string;
-  projectName: string;
-  createdAt: string;
-  createdBy: string;
+  ticket: TicketView | null;
 }
 
-export function projectRow(t: Task | OpenTask, projectId: string, projectName: string): TaskRow {
-  return { ...t, projectId, projectName };
-}
-
-export function personalRow(t: PersonalTask, name: (email: string) => string): TaskRow {
-  return { ...t, assignee: name(t.assigneeId), projectId: '', projectName: '' };
-}
-
-export async function setTaskDone(t: TaskRow, done: boolean) {
-  if (t.projectId) await api.updateItem(t.projectId, 'tasks', t.id, { done });
-  else await api.updateTodo(t.id, { done });
-}
-
-export async function deleteTask(t: TaskRow) {
-  if (t.projectId) await api.deleteItem(t.projectId, 'tasks', t.id);
-  else await api.deleteTodo(t.id);
+export function todoRow(t: PersonalTask, name: (email: string) => string, tickets: TicketView[]): TaskRow {
+  return { ...t, assignee: name(t.assigneeId), ticket: t.ticketId ? (tickets.find((x) => x.id === t.ticketId) ?? null) : null };
 }
 
 /** Tri : échéance la plus proche d'abord, puis ordre de création. */
@@ -56,13 +31,11 @@ export function TaskChecklist({
   rows,
   onChanged,
   onEdit,
-  showProject,
   showAssignee = true,
 }: {
   rows: TaskRow[];
   onChanged: () => Promise<void> | void;
   onEdit: (t: TaskRow) => void;
-  showProject?: boolean;
   showAssignee?: boolean;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -72,7 +45,7 @@ export function TaskChecklist({
   async function toggle(t: TaskRow) {
     setBusy(t.id);
     try {
-      await setTaskDone(t, !t.done);
+      await api.updateTodo(t.id, { done: !t.done });
       await onChanged();
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -94,7 +67,7 @@ export function TaskChecklist({
       {rows.map((t) => {
         const expanded = open.has(t.id);
         return (
-          <li key={`${t.projectId}-${t.id}`} className={t.done ? 'check-item done' : 'check-item'}>
+          <li key={t.id} className={t.done ? 'check-item done' : 'check-item'}>
             <input type="checkbox" checked={t.done} disabled={busy === t.id} onChange={() => void toggle(t)} aria-label={t.done ? 'Marquer comme à faire' : 'Marquer comme faite'} />
             <div className="check-body">
               <div className="check-line">
@@ -103,10 +76,12 @@ export function TaskChecklist({
                   {t.details.trim() && <span className="check-more">{expanded ? ' ▾' : ' ▸'}</span>}
                 </button>
                 <span className="check-meta">
-                  {showProject && (t.projectId ? <Link to={`/projets/${t.projectId}?onglet=taches`} className="small">📁 {t.projectName}</Link> : <span className="small muted">Personnelle</span>)}
-                  {showAssignee && t.assignee && t.assigneeId !== email && (
-                    <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId ? t.assigneeId : 'Personne extérieure au hub'}>{t.assignee}</span>
+                  {t.ticket && (
+                    <Link to={`/projets/${t.ticket.projectId}?onglet=tickets`} className="small" title={`${t.ticket.projectName} — ${t.ticket.title}`}>
+                      🎫 {ticketKey(t.ticket)}
+                    </Link>
                   )}
+                  {showAssignee && t.assignee && t.assigneeId !== email && <span className="badge" title={t.assigneeId}>{t.assignee}</span>}
                   {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
                   <button className="btn-icon" title="Modifier" onClick={() => onEdit(t)}>✎</button>
                 </span>
@@ -144,62 +119,48 @@ export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (
   );
 }
 
-/**
- * Création ou modification d'une tâche : intitulé, détails (Markdown), échéance, responsable et projet.
- * Changer de projet (ou passer en tâche personnelle) déplace la tâche.
- */
+/** Création ou modification d'une tâche de la to-do : intitulé, détails (Markdown), échéance, responsable et ticket lié. */
 export function TaskModal({
   task,
   defaults,
+  tickets,
   onClose,
   onSaved,
 }: {
   task: TaskRow | null;
-  defaults: { projectId: string; assigneeId: string };
+  defaults: { assigneeId: string };
+  /** Tickets proposés pour le lien (ouverts). */
+  tickets: TicketView[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }) {
   const { me } = useAuth();
   const { name } = useUsers();
-  const projects = useLoad(() => api.listProjects(), []);
   const [f, setF] = useState({
     title: task?.title ?? '',
     details: task?.details ?? '',
     dueDate: task?.dueDate ?? '',
     done: task?.done ?? false,
-    projectId: task ? task.projectId : defaults.projectId,
     assigneeId: task ? task.assigneeId : defaults.assigneeId,
-    assignee: task && !task.assigneeId ? task.assignee : '',
+    ticketId: task?.ticketId ?? '',
   });
-  const [external, setExternal] = useState(!!task && !task.assigneeId);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
-  // Une tâche personnelle revient toujours à un utilisateur du hub ; seul un rôle habilité la confie à un autre.
-  const personal = !f.projectId;
-  const ext = external && !personal;
-  const restrict = personal && !me.permissions.assignOthers ? [me.email, ...(task?.assigneeId ? [task.assigneeId] : [])] : undefined;
+  // Seul un rôle habilité confie une tâche à un autre.
+  const restrict = !me.permissions.assignOthers ? [me.email, ...(task?.assigneeId ? [task.assigneeId] : [])] : undefined;
+  const choices = [...tickets.filter((t) => !t.done), ...(task?.ticket && task.ticket.done ? [task.ticket] : [])].sort((a, b) => a.number - b.number);
+  const linked = choices.find((t) => t.id === f.ticketId);
 
   async function save() {
-    const who = ext ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, ...(f.projectId ? { assignee: '' } : {}) };
-    const fields = { title: f.title, details: f.details, dueDate: f.dueDate, done: f.done, ...who };
-    if (!task) {
-      if (f.projectId) await api.createItem(f.projectId, 'tasks', fields);
-      else await api.createTodo({ ...fields, assigneeId: who.assigneeId });
-    } else {
-      let where = task.projectId;
-      if (f.projectId !== task.projectId) {
-        await api.moveTask({ id: task.id, fromProjectId: task.projectId, toProjectId: f.projectId });
-        where = f.projectId;
-      }
-      if (where) await api.updateItem(where, 'tasks', task.id, fields);
-      else await api.updateTodo(task.id, { ...fields, assigneeId: who.assigneeId });
-    }
+    const fields = { ...f, assigneeId: f.assigneeId || me.email };
+    if (task) await api.updateTodo(task.id, fields);
+    else await api.createTodo(fields);
     await onSaved();
   }
 
   async function remove() {
     if (!task || !confirm(`Supprimer « ${task.title} » ?`)) return;
     try {
-      await deleteTask(task);
+      await api.deleteTodo(task.id);
       toast('Tâche supprimée.');
       onClose();
       await onSaved();
@@ -208,15 +169,13 @@ export function TaskModal({
     }
   }
 
-  const activeProjects = (projects.data ?? []).filter((p) => p.id === f.projectId || !['termine', 'abandonne'].includes(p.status));
-
   return (
     <ItemModal
       title={task ? 'Tâche' : 'Nouvelle tâche'}
       onClose={onClose}
       onSave={save}
       wide
-      canSave={!!f.title.trim() && (ext ? !!f.assignee.trim() : true)}
+      canSave={!!f.title.trim()}
       extraFooter={
         task && (
           <>
@@ -234,14 +193,15 @@ export function TaskModal({
         <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} />
       </label>
       <label className="field">
-        <span>Projet</span>
-        <select className="input" value={f.projectId} onChange={(e) => set('projectId', e.target.value)}>
-          <option value="">Aucun — tâche personnelle</option>
-          {f.projectId && !activeProjects.some((p) => p.id === f.projectId) && <option value={f.projectId}>{task?.projectName || 'Projet'}</option>}
-          {activeProjects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
+        <span>Ticket lié</span>
+        <select className="input" value={f.ticketId} onChange={(e) => set('ticketId', e.target.value)}>
+          <option value="">Aucun</option>
+          {f.ticketId && !linked && <option value={f.ticketId}>Ticket supprimé</option>}
+          {choices.map((t) => (
+            <option key={t.id} value={t.id}>{ticketKey(t)} {t.title} — {t.projectName}</option>
           ))}
         </select>
+        {linked && <span className="small"><TicketStatusChip status={linked.status} /></span>}
       </label>
       <label className="field">
         <span>Échéance</span>
@@ -249,16 +209,7 @@ export function TaskModal({
       </label>
       <label className="field">
         <span>Responsable</span>
-        {ext ? (
-          <input className="input" value={f.assignee} onChange={(e) => set('assignee', e.target.value)} placeholder="Nom ou société (prestataire, métier…)" />
-        ) : (
-          <UserSelect value={f.assigneeId || me.email} onChange={(v) => set('assigneeId', v)} only={restrict} />
-        )}
-        {!personal && (
-          <button type="button" className="btn-link small" onClick={() => setExternal(!external)}>
-            {ext ? 'Choisir un utilisateur du hub' : 'Personne extérieure au hub…'}
-          </button>
-        )}
+        <UserSelect value={f.assigneeId || me.email} onChange={(v) => set('assigneeId', v)} only={restrict} />
       </label>
       <label className="field check-field">
         <span>&nbsp;</span>
@@ -270,11 +221,6 @@ export function TaskModal({
         <span>Détails</span>
         <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Précisions, liens, étapes…" resetKey={task?.id ?? 'nouvelle'} />
       </div>
-      {task && f.projectId !== task.projectId && (
-        <p className="muted small span-2">
-          La tâche sera {f.projectId ? (task.projectId ? 'déplacée vers ce projet' : 'rattachée à ce projet') : 'retirée du projet et deviendra personnelle'}.
-        </p>
-      )}
     </ItemModal>
   );
 }

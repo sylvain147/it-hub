@@ -14,25 +14,25 @@ export interface HubModule {
 
 export const MODULES: HubModule[] = [
   {
-    id: 'taches',
-    title: 'Tâches',
-    description: 'Ma liste de choses à faire : tâches de tous les projets et tâches personnelles, à cocher. Selon le rôle, celles de toute l’équipe.',
-    path: '/taches',
+    id: 'todo',
+    title: 'To-do',
+    description: 'Ma liste de choses à faire, à cocher, liées ou non à un ticket, et mes tickets ouverts. Selon le rôle, celles de toute l’équipe.',
+    path: '/todo',
     icon: '✅',
   },
   {
     id: 'projets',
     title: 'Projets',
     description:
-      'Suivre chaque projet : intervenants, prestations et budget, tâches, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
+      'Suivre chaque projet : intervenants, prestations et budget, tickets, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
     path: '/projets',
     icon: '📁',
   },
   {
-    id: 'jira',
-    title: 'Jira',
-    description: 'Importer mes tickets et mes sprints Jira, les relier aux projets, et faire rédiger par l’IA le compte rendu ou la préparation d’un sprint.',
-    path: '/jira',
+    id: 'sprints',
+    title: 'Sprints',
+    description: 'Planifier les tickets des projets dans des sprints, les faire avancer sur le tableau, et faire rédiger par l’IA la préparation ou le compte rendu d’un sprint.',
+    path: '/sprints',
     icon: '🧭',
   },
   {

@@ -3,7 +3,7 @@ import type { CdcSummary } from './cdc.js';
 
 /**
  * Module « Projets » : un projet regroupe tout ce que le chargé de projet suit (fiche, intervenants, prestations,
- * tâches, planning, documents, liens, journal, risques). Les cahiers des charges sont rattachés à un projet.
+ * tickets, planning, documents, liens, journal, risques). Les cahiers des charges sont rattachés à un projet.
  */
 
 const isoDate = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Date invalide (AAAA-MM-JJ)');
@@ -31,6 +31,20 @@ export const PRIORITIES = ['basse', 'normale', 'haute', 'critique'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 export const PRIORITY_LABELS: Record<Priority, string> = { basse: 'Basse', normale: 'Normale', haute: 'Haute', critique: 'Critique' };
 
+/**
+ * Statuts d'un ticket, dans l'ordre des colonnes du tableau du sprint. Les codes portent le comportement
+ * (« termine » : ticket fait ; « attente » et « recette » : points d'attention de la revue de sprint).
+ */
+export const TICKET_STATUSES = ['a_faire', 'en_cours', 'attente', 'recette', 'termine'] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  a_faire: 'À faire',
+  en_cours: 'En cours',
+  attente: 'En attente',
+  recette: 'En recette',
+  termine: 'Terminé',
+};
+
 /** Météo du projet. */
 export const HEALTHS = ['vert', 'orange', 'rouge'] as const;
 export type Health = (typeof HEALTHS)[number];
@@ -54,7 +68,7 @@ export const ENGAGED_PRESTA_STATUSES: PrestaStatus[] = ['commande', 'en_cours', 
 export const LINK_CATEGORIES = ['ticket', 'documentation', 'code', 'environnement', 'partage', 'autre'] as const;
 export type LinkCategory = (typeof LINK_CATEGORIES)[number];
 export const LINK_CATEGORY_LABELS: Record<LinkCategory, string> = {
-  ticket: 'Tickets (Jira, GLPI…)',
+  ticket: 'Tickets externes (GLPI, Jira…)',
   documentation: 'Documentation',
   code: 'Code source',
   environnement: 'Environnement (recette, prod…)',
@@ -164,19 +178,42 @@ export interface ProjectSummary extends ProjectFields {
 // ---------------------------------------------------------------------------
 
 /**
- * Tâche : une ligne de liste de choses à faire, que l'on coche quand elle est faite. Les détails sont en Markdown.
- * Rattachée à un projet (élément du projet) ou personnelle (hors projet, voir `users.ts`).
+ * Ticket : travail planifié d'un projet, qui suit les statuts du tableau et se range dans un sprint
+ * (`sprintId` null : backlog). La description est en Markdown. Les tâches personnelles (to-do) sont à part (`users.ts`).
  */
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
   details: z.string().max(10_000).default(''),
-  done: z.boolean().default(false),
-  /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou tâche antérieure aux utilisateurs). */
+  status: z.enum(TICKET_STATUSES).default('a_faire'),
+  sprintId: z.number().int().positive().nullable().default(null),
+  /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou ticket antérieur aux utilisateurs). */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
   /** Nom du responsable, recopié de l'annuaire par le serveur quand `assigneeId` est renseigné. */
   assignee: z.string().max(200).default(''),
   dueDate: isoDate.default(''),
 });
+
+/** Changement de statut d'un ticket (historique : revue de sprint). */
+export interface StatusChange {
+  at: string;
+  from: TicketStatus;
+  to: TicketStatus;
+}
+
+/** Changement de sprint d'un ticket (null : backlog). */
+export interface SprintChange {
+  at: string;
+  from: number | null;
+  to: number | null;
+}
+
+/** Historique conservé par ticket (les plus récents). */
+export const MAX_TICKET_HISTORY = 200;
+
+/** Clé affichée d'un ticket (« T-12 »). */
+export function ticketKey(t: { number: number }): string {
+  return t.number ? `T-${t.number}` : 'T-?';
+}
 
 export const jalonInputSchema = z.object({
   label: z.string().trim().min(1, 'Le libellé est obligatoire').max(200),
@@ -283,7 +320,16 @@ export interface ItemBase {
   updatedAt: string;
   updatedBy: string;
 }
-export type Task = z.infer<typeof taskInputSchema> & ItemBase & { doneAt: string };
+export type Task = z.infer<typeof taskInputSchema> &
+  ItemBase & {
+    /** Numéro unique, attribué à la création (clé « T-12 »). */
+    number: number;
+    /** Ticket terminé (statut « termine »), calculé par le serveur. */
+    done: boolean;
+    doneAt: string;
+    statusChanges: StatusChange[];
+    sprintChanges: SprintChange[];
+  };
 export type ProjectJalon = z.infer<typeof jalonInputSchema> & ItemBase & { initialDate: string };
 export type Prestation = z.infer<typeof prestationInputSchema> & ItemBase;
 export type Contact = z.infer<typeof contactInputSchema> & ItemBase;
@@ -327,19 +373,31 @@ export interface ProjectDetail extends ProjectSummary {
   activity: ActivityEntry[];
 }
 
-/** Tâche ouverte, vue transverse (accueil). */
-export interface OpenTask extends Task {
+/** Ticket avec son projet, vue transverse (sprints, to-do, accueil). */
+export interface TicketView extends Task {
   projectId: string;
   projectName: string;
 }
 
+const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: 'attente' };
+
 /**
- * Tâche enregistrée avant la simplification (statut « à faire / en cours / bloqué / fait » et priorité) :
- * seule la notion de tâche faite est conservée.
+ * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
+ * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & { done: boolean } {
-  const { status, priority: _p, ...rest } = raw as T & { status?: unknown; priority?: unknown };
-  return { ...(rest as T), done: typeof raw.done === 'boolean' ? raw.done : status === 'fait' };
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges'> {
+  const { priority: _p, ...rest } = raw as T & { priority?: unknown };
+  const s = String(raw.status ?? '');
+  const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
+  return {
+    ...(rest as T),
+    status,
+    done: status === 'termine',
+    sprintId: typeof raw.sprintId === 'number' ? raw.sprintId : null,
+    number: typeof raw.number === 'number' ? raw.number : 0,
+    statusChanges: Array.isArray(raw.statusChanges) ? (raw.statusChanges as StatusChange[]) : [],
+    sprintChanges: Array.isArray(raw.sprintChanges) ? (raw.sprintChanges as SprintChange[]) : [],
+  };
 }
 
 // ---------------------------------------------------------------------------

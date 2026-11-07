@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { CLOSED_PROJECT_STATUSES, HEALTHS } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, HEALTHS, ticketKey } from '@samm/shared';
 import { MODULES } from '../modules';
 import { api } from '../api';
 import { useLoad } from '../hooks';
@@ -21,10 +21,10 @@ export function Home() {
   const active = (projects ?? []).filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status));
   // Projets à surveiller d'abord (météo rouge, puis orange), puis les plus récemment modifiés.
   const watch = [...active].sort((a, b) => HEALTHS.indexOf(b.health) - HEALTHS.indexOf(a.health) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
-  // Tâches de projet et tâches personnelles ouvertes, par échéance.
+  // Tickets ouverts et tâches de la to-do, par échéance.
   const myTasks = [
-    ...(todos?.project ?? []).map((t) => ({ ...t, where: t.projectName, to: `/projets/${t.projectId}?onglet=taches`, who: t.assignee })),
-    ...(todos?.personal ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: 'Personnelle', to: '/taches', who: name(t.assigneeId) })),
+    ...(todos?.tickets ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: `${ticketKey(t)} · ${t.projectName}`, to: `/projets/${t.projectId}?onglet=tickets`, who: t.assignee })),
+    ...(todos?.personal ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: 'To-do', to: '/todo', who: name(t.assigneeId) })),
   ]
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
     .slice(0, 12);
@@ -53,16 +53,16 @@ export function Home() {
       <div className="home-grid">
         <section className="card">
           <div className="card-head">
-            <h2>{allTasks ? 'Tâches ouvertes' : 'Mes tâches'}</h2>
+            <h2>{allTasks ? 'Tickets et to-do de l’équipe' : 'Mes tickets et ma to-do'}</h2>
             <span className="row-actions">
               {me.permissions.seeAllTodos && (
                 <button className="btn-link small" onClick={() => setAllTasks(!allTasks)}>{allTasks ? 'Seulement les miennes' : 'Toute l’équipe'}</button>
               )}
-              <Link to={allTasks ? '/taches?qui=all' : '/taches'} className="small">Tout voir →</Link>
+              <Link to={allTasks ? '/todo?qui=all' : '/todo'} className="small">Tout voir →</Link>
             </span>
           </div>
           {myTasks.length === 0 ? (
-            <p className="muted">{allTasks ? 'Aucune tâche ouverte.' : 'Aucune tâche ouverte à votre nom.'}</p>
+            <p className="muted">{allTasks ? 'Rien d’ouvert.' : 'Rien d’ouvert à votre nom.'}</p>
           ) : (
             <ul className="list-plain">
               {myTasks.map((t) => (
@@ -119,7 +119,7 @@ export function Home() {
                     {p.stats.overdueTasks > 0 && <span className="badge badge-danger">{p.stats.overdueTasks} en retard</span>}
                   </div>
                   <div className="muted small">
-                    {p.stats.openTasks} tâche{p.stats.openTasks > 1 ? 's' : ''} · {p.stats.prestataires.join(', ') || 'aucun prestataire'}
+                    {p.stats.openTasks} ticket{p.stats.openTasks > 1 ? 's' : ''} ouvert{p.stats.openTasks > 1 ? 's' : ''} · {p.stats.prestataires.join(', ') || 'aucun prestataire'}
                   </div>
                   {p.healthComment && <div className="small clamp">{p.healthComment}</div>}
                 </Link>

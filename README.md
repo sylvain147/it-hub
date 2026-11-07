@@ -4,47 +4,49 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ## Modules
 
-### ✅ Tâches
+### ✅ To-do
 
-- **Une liste de choses à faire** : les tâches des projets dont je suis responsable et mes **tâches personnelles** (hors projet), triées par échéance, avec les retards en évidence. On **coche** quand c'est fait (et on décoche si besoin), on déplie les **détails** (texte mis en forme), on ajoute une tâche en une ligne.
-- Une tâche se **rattache à un projet** ou reste personnelle ; changer le projet dans la fiche de la tâche la déplace.
-- **Selon le rôle**, on consulte les tâches d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche personnelle à quelqu'un (« confiée par … »).
-- L'accueil reprend « Mes tâches » (et « Toute l'équipe » pour les rôles qui le permettent).
+- **Ma liste de choses à faire**, personnelle : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, triées par échéance avec les retards en évidence. On ajoute une tâche en une ligne.
+- Une tâche peut être **liée à un ticket** (« relancer le prestataire sur T-12 ») : la clé du ticket s'affiche et mène au projet.
+- En dessous, **mes tickets ouverts** (tous projets, avec leur sprint et leur statut).
+- **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
+- L'accueil reprend « Mes tickets et ma to-do » (et « Toute l'équipe » pour les rôles qui le permettent).
 
 ### 📁 Projets
 
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
 - **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
-- **Vue d'ensemble** : indicateurs (tâches, prochain jalon, budget engagé, risques), **points d'attention** calculés (tâches et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
-- **Tâches** : liste à cocher (intitulé, détails, échéance, responsable), ajout rapide, filtre « seulement les miennes ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée la tâche) ; une personne extérieure (prestataire, métier) peut être saisie en texte. Les **tickets Jira reliés** au projet s'affichent en dessous, en lecture seule.
+- **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
+- **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description, statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
-- **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (Jira, SharePoint, Git, environnements…).
+- **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (outils de tickets externes, SharePoint, Git, environnements…).
 - **Journal** : comptes rendus, décisions, informations, points d'attention, rapports ; notes épinglables.
 - **Risques** : probabilité × impact, parade, responsable, matrice.
 - **Assistant** (toujours sur clic) :
-  - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tâches, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
+  - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tickets, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
   - **Rapport d'avancement** : rédigé à partir des seules données du projet, avec une météo proposée.
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
-- **Accueil** : mes tâches, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
+- **Accueil** : mes tickets et ma to-do, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
 
-### 🧭 Jira
+### 🧭 Sprints
 
-Pour retrouver ses tickets et ses sprints **Jira Cloud** dans le hub, et préparer ou restituer un sprint.
+Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté).
 
-- **Connexion** (Paramétrage → Jira) : site, e-mail d'un compte (de service, idéalement) et jeton d'API. La connexion est testée avant l'enregistrement ; les champs « story points » et « Réf Ticket Desk » sont détectés automatiquement (choix manuel possible). Le jeton reste sur le serveur.
-- **Tableaux suivis** puis **Importer depuis Jira** : les sprints (en cours, à venir et les 6 derniers clos) avec l'historique de leurs tickets, et le backlog ouvert, sont importés. Les tickets sont en **lecture seule** (ils se modifient dans Jira) ; un nouvel import les remet à jour.
-- **Tickets** : filtres « mes tickets » (rapprochement par e-mail ou nom de la personne assignée), sprint, backlog, projet, recherche ; chaque ticket se **relie à un projet du hub** : **automatiquement** quand le **code du projet est la clé de son épopée** Jira (« TC-300 » : l'épopée, ses tickets et leurs sous-tâches), ou à la main, un par un ou par sélection. Un choix manuel (y compris « détaché ») l'emporte sur l'épopée et survit aux imports ; « Automatique (épopée) » revient au rattachement par l'épopée. Les tickets reliés apparaissent dans l'onglet Tâches du projet.
-- **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique Jira de chaque ticket :
-  - chiffres clés : tickets actifs, clôturés (avec et sans la recette), story points livrés, ajouts en cours de sprint, échéances dépassées ;
-  - graphiques : avancement, charge par personne, story points, périmètre et clôtures jour par jour, temps passé par statut ;
-  - tableau des tickets avec leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) et le **ticket Desk** lié (sujet repris du suivi TMA) ;
-  - **points d'attention** et **qualité des données Jira**.
-- **Préparation d'un sprint** (à venir ou en cours) : tickets prévus, story points comparés à la **vélocité** des derniers sprints, charge par personne, tickets sans estimation ou sans responsable, **reports probables** du sprint en cours, **backlog prioritaire**, points à clarifier.
-- **Documents rédigés par l'assistant** sur clic, à partir des seuls chiffres : **compte rendu** (message clé, faits marquants, risques, pistes) ou **préparation** (objectif proposé, périmètre et capacité, arbitrages, points à clarifier, ordre du jour de la planification). Modifiables, **téléchargeables en Word**, et ajoutés au **journal d'un projet** en un clic.
-- **Lecture seule** : le hub ne modifie jamais Jira et ne lit ni descriptions ni commentaires. En local, le site `demo` donne un projet Jira fictif pour essayer sans compte.
+- **Statuts** : À faire, En cours, En attente, En recette, Terminé. Ce sont les colonnes du tableau ; leurs libellés, leur ordre et leur visibilité se règlent dans **Paramétrage → Statuts**.
+- **Sprints** : nom (« Sprint 4 » par défaut), dates (deux semaines à la suite du précédent par défaut), objectif. Un seul sprint est **en cours** à la fois ; les autres sont à venir ou clos.
+- **Planification** : chaque sprint à venir liste ses tickets, et le **backlog** regroupe les tickets ouverts hors sprint de tous les projets ; un menu sur chaque ticket le planifie dans un sprint ou le remet au backlog. **Démarrer** lance le prochain sprint.
+- **Tableau du sprint en cours** : une colonne par statut, on **glisse** les tickets d'une colonne à l'autre (sur mobile : menu de statut sur la carte) ; filtres par projet et « seulement les miens ».
+- **Clôturer** le sprint : les tickets non terminés partent dans le sprint suivant (ou au backlog) ; les chiffres du sprint clos sont figés.
+- **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique des statuts et des sprints de chaque ticket :
+  - chiffres clés : tickets actifs, terminés (avec et sans la recette), ajouts en cours de sprint, échéances dépassées ;
+  - graphiques : avancement, charge par personne, périmètre et clôtures jour par jour, temps passé par statut ;
+  - tableau des tickets avec leur projet et leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) ;
+  - **points d'attention**.
+- **Préparation d'un sprint** (à venir ou en cours) : tickets prévus comparés au **rythme** des derniers sprints (tickets terminés par sprint), charge par personne, tickets sans responsable, **reports probables** du sprint en cours, **backlog** (échéances les plus proches), points à clarifier.
+- **Documents rédigés par l'assistant** sur clic, à partir des seuls chiffres : **compte rendu** (message clé, faits marquants, risques, pistes) ou **préparation** (objectif proposé, périmètre et capacité, arbitrages, points à clarifier, ordre du jour de la planification). Modifiables, **téléchargeables en Word**, et ajoutés au **journal d'un projet** en un clic. Les descriptions des tickets ne sont pas envoyées au modèle.
 
 ### 📄 Cahiers des charges (dans un projet)
 
@@ -90,12 +92,12 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 
 | Rôle | Droits |
 |---|---|
-| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l'équipe ; lit et traite les retours |
-| Responsable d'équipe | Voit les tâches de toute l'équipe et peut en attribuer à chacun |
-| Chargé de projet | Voit ses propres tâches et en crée pour lui-même |
+| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les to-do de toute l'équipe ; lit et traite les retours |
+| Responsable d'équipe | Voit les to-do de toute l'équipe et peut y ajouter des tâches pour chacun |
+| Chargé de projet | Voit sa propre to-do et y ajoute ses tâches |
 
-  Les projets, le lecteur de fichiers, le suivi TMA et le paramétrage restent ouverts à tous.
-- À la création d'un utilisateur, les tâches de projet qui le désignaient déjà en texte (nom ou adresse) lui sont rattachées ; un changement de nom se répercute dans les tâches.
+  Les projets, les tickets et les sprints, le lecteur de fichiers, le suivi TMA et le paramétrage restent ouverts à tous.
+- À la création d'un utilisateur, les tickets qui le désignaient déjà en texte (nom ou adresse) lui sont rattachés ; un changement de nom se répercute dans les tickets.
 - En local, pas de mot de passe : on se connecte avec une adresse e-mail (le premier compte devient administrateur).
 
 ### ⚙️ Paramétrage

@@ -42,7 +42,7 @@ describe('module Projets', () => {
     expect(stale.status).toBe(409);
   });
 
-  it('gère tâches, jalons, prestations, intervenants, liens et risques', async () => {
+  it('gère tickets, jalons, prestations, intervenants, liens et risques', async () => {
     const task = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Relancer le prestataire', assignee: 'alice', dueDate: yesterday() });
     expect(task.status).toBe(201);
     await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Préparer la recette', details: '- vérifier les **tables** de référence' });
@@ -82,24 +82,24 @@ describe('module Projets', () => {
     });
 
     // Modification partielle : seuls les champs fournis changent.
-    const done = await env.call('PATCH', `/projects/${id}/items/tasks/${task.json.id}`, { done: true });
+    const done = await env.call('PATCH', `/projects/${id}/items/tasks/${task.json.id}`, { status: 'termine' });
     expect(done.status).toBe(200);
-    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'Alice', assigneeId: 'alice@test', done: true });
+    expect(done.json).toMatchObject({ title: 'Relancer le prestataire', assignee: 'Alice', assigneeId: 'alice@test', status: 'termine', done: true, number: 1 });
     expect(done.json.doneAt).not.toBe('');
-    expect(done.json).not.toHaveProperty('status');
     const moved = await env.call('PATCH', `/projects/${id}/items/jalons/${jalon.json.id}`, { date: '2027-01-24' });
     expect(moved.json).toMatchObject({ date: '2027-01-24', initialDate: '2027-01-10' });
 
     const { json: p2 } = await env.call('GET', `/projects/${id}`);
     expect(p2.stats).toMatchObject({ openTasks: 1, overdueTasks: 0, doneTasks: 1 });
-    expect(p2.activity.map((a: any) => a.text)).toEqual(expect.arrayContaining(['a terminé la tâche « Relancer le prestataire »', 'a déplacé le jalon « Mise en production » au 2027-01-24']));
+    expect(p2.activity.map((a: any) => a.text)).toEqual(expect.arrayContaining(['a passé le ticket « T-1 Relancer le prestataire » au statut « Terminé »', 'a déplacé le jalon « Mise en production » au 2027-01-24']));
   });
 
-  it('décoche une tâche et lit les tâches enregistrées avant la simplification', async () => {
-    const t = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Tâche cochée par erreur', done: true });
-    const reopened = await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { done: false });
+  it('rouvre un ticket et lit les tâches enregistrées avant les sprints', async () => {
+    const t = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Ticket fermé par erreur', status: 'termine' });
+    expect(t.json).toMatchObject({ done: true, number: 3 });
+    const reopened = await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { status: 'a_faire' });
     expect(reopened.json).toMatchObject({ done: false, doneAt: '' });
-    expect((await env.call('GET', `/projects/${id}`)).json.activity[0].text).toBe('a rouvert la tâche « Tâche cochée par erreur »');
+    expect((await env.call('GET', `/projects/${id}`)).json.activity[0].text).toBe('a passé le ticket « T-3 Ticket fermé par erreur » au statut « À faire »');
     await env.call('DELETE', `/projects/${id}/items/tasks/${t.json.id}`);
 
     // Ancien format : statut « fait » et priorité.
@@ -110,17 +110,17 @@ describe('module Projets', () => {
       }),
     );
     const legacy = (await env.call('GET', `/projects/${id}`)).json.items.tasks.find((x: any) => x.id === 'ancienne');
-    expect(legacy).toMatchObject({ done: true, doneAt: '2026-01-02T00:00:00.000Z' });
-    expect(legacy).not.toHaveProperty('status');
+    expect(legacy).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4, sprintId: null });
+    expect(legacy).not.toHaveProperty('priority');
     const renamed = await env.call('PATCH', `/projects/${id}/items/tasks/ancienne`, { title: 'Ancienne tâche (renommée)' });
-    expect(renamed.json).toMatchObject({ done: true, doneAt: '2026-01-02T00:00:00.000Z' });
+    expect(renamed.json).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4 });
     await env.call('DELETE', `/projects/${id}/items/tasks/ancienne`);
   });
 
-  it('liste les tâches ouvertes de tous les projets et l’activité récente', async () => {
-    const { json: open } = await env.call('GET', '/tasks/open');
-    expect(open).toHaveLength(1);
-    expect(open[0]).toMatchObject({ title: 'Préparer la recette', projectId: id, projectName: 'Migration Coliéco' });
+  it('liste les tickets ouverts de tous les projets et l’activité récente', async () => {
+    const { json: open } = await env.call('GET', '/sprints');
+    expect(open.tickets).toHaveLength(1);
+    expect(open.tickets[0]).toMatchObject({ title: 'Préparer la recette', projectId: id, projectName: 'Migration Coliéco', number: 2 });
     const { json: activity } = await env.call('GET', '/activity');
     expect(activity.length).toBeGreaterThan(5);
     expect(activity[0].at >= activity[1].at).toBe(true);
@@ -231,8 +231,8 @@ describe('module Projets', () => {
     expect((await env.call('GET', `/projects/${id}`)).status).toBe(404);
     const { json: cdc } = await env.call('GET', `/cdcs/${legacy.json.id}`);
     expect(cdc.projectId).toBeNull();
-    const { json: open } = await env.call('GET', '/tasks/open');
-    expect(open).toHaveLength(0);
+    const { json: open } = await env.call('GET', '/sprints');
+    expect(open.tickets).toHaveLength(0);
   });
 });
 

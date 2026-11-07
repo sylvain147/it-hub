@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router';
 import { loadConfig } from './config';
 import { AuthGate, configureAuth } from './auth';
 import { Layout } from './components/Layout';
@@ -8,8 +8,8 @@ import { Home } from './pages/Home';
 import { CdcList } from './pages/CdcList';
 import { ProjectsList } from './projects/ProjectsList';
 import { ProjectPage } from './projects/ProjectPage';
-import { SprintPage } from './jira/SprintPage';
-import { JiraPage } from './jira/JiraPage';
+import { SprintPage } from './sprints/SprintPage';
+import { SprintsPage } from './sprints/SprintsPage';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
 import { FilesHome } from './files/FilesHome';
@@ -18,17 +18,12 @@ import { FileTypePage } from './files/FileTypePage';
 import { FileViewer } from './files/FileViewer';
 import { TmaHome } from './tma/TmaHome';
 import { SettingsPage } from './settings/SettingsPage';
-import { TasksPage } from './users/TasksPage';
+import { TodoPage } from './users/TodoPage';
 import { FeedbackPage } from './feedback/FeedbackPage';
 import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import './styles.css';
-
-function OldSprintRedirect() {
-  const { sprintId } = useParams();
-  return <Navigate to={`/jira/sprints/${sprintId}`} replace />;
-}
 
 const router = createBrowserRouter([
   {
@@ -38,8 +33,6 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'projets', element: <ProjectsList /> },
       { path: 'projets/:id', element: <ProjectPage /> },
-      // Ancienne adresse des revues de sprint (onglet « Sprints » des projets).
-      { path: 'projets/:id/sprints/:sprintId', element: <OldSprintRedirect /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
       { path: 'cdc/nouveau', element: <Navigate to="/projets" replace /> },
@@ -51,9 +44,12 @@ const router = createBrowserRouter([
       { path: 'tma', element: <TmaHome /> },
       { path: 'tma/mois/:month', element: <TmaMonthPage /> },
       { path: 'tma/themes', element: <TmaThemesPage /> },
-      { path: 'taches', element: <TasksPage /> },
-      { path: 'jira', element: <JiraPage /> },
-      { path: 'jira/sprints/:sprintId', element: <SprintPage /> },
+      { path: 'todo', element: <TodoPage /> },
+      // Anciennes adresses : « Tâches » est devenue la to-do, Jira a laissé place aux sprints du hub.
+      { path: 'taches', element: <Navigate to="/todo" replace /> },
+      { path: 'jira/*', element: <Navigate to="/sprints" replace /> },
+      { path: 'sprints', element: <SprintsPage /> },
+      { path: 'sprints/:sprintId', element: <SprintPage /> },
       { path: 'utilisateurs', element: <UsersPage /> },
       { path: 'parametrage', element: <SettingsPage /> },
       { path: 'retours', element: <FeedbackPage /> },

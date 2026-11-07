@@ -7,6 +7,8 @@ import {
   PROJECT_STATUS_LABELS,
   RISK_STATUSES,
   RISK_STATUS_LABELS,
+  TICKET_STATUSES,
+  TICKET_STATUS_LABELS,
 } from './project.js';
 
 /**
@@ -23,6 +25,7 @@ import {
 
 export const STATUS_LISTS = {
   project: { title: 'Projets', keys: PROJECT_STATUSES, labels: PROJECT_STATUS_LABELS as Record<string, string>, locked: ['cadrage'] },
+  ticket: { title: 'Tickets (colonnes du sprint)', keys: TICKET_STATUSES, labels: TICKET_STATUS_LABELS as Record<string, string>, locked: ['a_faire', 'termine'] },
   prestation: { title: 'Prestations', keys: PRESTA_STATUSES, labels: PRESTA_STATUS_LABELS as Record<string, string>, locked: ['a_chiffrer'] },
   risk: { title: 'Risques', keys: RISK_STATUSES, labels: RISK_STATUS_LABELS as Record<string, string>, locked: ['ouvert', 'clos'] },
   cdc: { title: 'Cahiers des charges', keys: CDC_STATUSES, labels: CDC_STATUS_LABELS as Record<string, string>, locked: ['brouillon'] },

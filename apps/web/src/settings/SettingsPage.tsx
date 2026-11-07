@@ -16,14 +16,12 @@ import {
 import { api } from '../api';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from './context';
-import { JiraSettings } from '../jira/JiraSettings';
 
-type Tab = 'prestataires' | 'statuts' | 'listes' | 'jira';
+type Tab = 'prestataires' | 'statuts' | 'listes';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'prestataires', label: 'Prestataires et contacts' },
   { id: 'statuts', label: 'Statuts' },
   { id: 'listes', label: 'Jalons et rôles' },
-  { id: 'jira', label: 'Jira' },
 ];
 
 export function SettingsPage() {
@@ -46,7 +44,6 @@ export function SettingsPage() {
         {tab === 'prestataires' && <PrestatairesTab />}
         {tab === 'statuts' && <StatusesTab />}
         {tab === 'listes' && <SuggestionsTab />}
-        {tab === 'jira' && <JiraSettings />}
       </div>
     </div>
   );
