@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
+  CARD_COLORS,
+  CARD_COLOR_LABELS,
+  CARD_RULE_DAYS,
+  CARD_RULE_KINDS,
+  CARD_RULE_LABELS,
+  CARD_RULE_VALUE,
+  MAX_CARD_RULES,
+  type CardRule,
+  type CardRuleKind,
   LOCKED_STATUS_HINT,
   STATUS_LISTS,
   STATUS_LIST_KEYS,
@@ -16,11 +25,14 @@ import {
 import { api } from '../api';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from './context';
+import { useLoad } from '../hooks';
+import { UserSelect } from '../users/context';
 
-type Tab = 'prestataires' | 'statuts' | 'listes';
+type Tab = 'prestataires' | 'statuts' | 'tableau' | 'listes';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'prestataires', label: 'Prestataires et contacts' },
   { id: 'statuts', label: 'Statuts' },
+  { id: 'tableau', label: 'Tableau des sprints' },
   { id: 'listes', label: 'Jalons et rôles' },
 ];
 
@@ -43,6 +55,7 @@ export function SettingsPage() {
       <div className="tab-content">
         {tab === 'prestataires' && <PrestatairesTab />}
         {tab === 'statuts' && <StatusesTab />}
+        {tab === 'tableau' && <CardRulesTab />}
         {tab === 'listes' && <SuggestionsTab />}
       </div>
     </div>
@@ -479,6 +492,68 @@ function StatusesTab() {
           );
         })}
       </div>
+      {bar}
+    </>
+  );
+}
+
+/** Fonds conditionnels des cartes du tableau de sprint : la première règle qui correspond donne la couleur. */
+function CardRulesTab() {
+  const { draft, setDraft, bar } = useListsDraft();
+  const projects = useLoad(() => api.listProjects(), []);
+  const rules = draft.cardRules;
+  const setRules = (cardRules: CardRule[]) => setDraft((d) => ({ ...d, cardRules }));
+  const update = (i: number, patch: Partial<CardRule>) => setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const changeKind = (i: number, kind: CardRuleKind) => update(i, { kind, value: '', days: kind === 'echeance' ? 3 : kind === 'immobile' ? 5 : 0 });
+  return (
+    <>
+      <p className="muted small">
+        Colorez le fond des cartes du tableau du sprint en cours selon une condition. Les règles s’appliquent dans l’ordre : la première qui correspond au ticket donne
+        la couleur. Elles valent pour toute l’équipe.
+      </p>
+      <section className="card">
+        {!rules.length && <p className="muted small">Aucune règle : les cartes restent blanches.</p>}
+        <div className="settings-list">
+          {rules.map((r, i) => (
+            <div key={i} className="card-rule-row">
+              <span className="order">
+                <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => setRules(move(rules, i, -1))}>↑</button>
+                <button className="btn-icon" title="Descendre" disabled={i === rules.length - 1} onClick={() => setRules(move(rules, i, 1))}>↓</button>
+              </span>
+              <select className="input input-sm input-auto" value={r.kind} onChange={(e) => changeKind(i, e.target.value as CardRuleKind)} aria-label="Condition">
+                {CARD_RULE_KINDS.map((k) => <option key={k} value={k}>{CARD_RULE_LABELS[k]}</option>)}
+              </select>
+              {CARD_RULE_DAYS.includes(r.kind) && (
+                <label className="small card-rule-days">
+                  N =
+                  <input className="input input-sm" type="number" min={0} max={365} value={r.days} onChange={(e) => update(i, { days: Math.max(0, Math.min(365, Number(e.target.value) || 0)) })} />
+                  jour(s)
+                </label>
+              )}
+              {r.kind === 'projet' && (
+                <select className="input input-sm input-auto" value={r.value} onChange={(e) => update(i, { value: e.target.value })} aria-label="Projet">
+                  <option value="">Choisir un projet…</option>
+                  {(projects.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+              {r.kind === 'responsable' && <UserSelect className="input input-sm input-auto" value={r.value} onChange={(v) => update(i, { value: v })} allowEmpty emptyLabel="Choisir une personne…" />}
+              <span className="tb-flex" />
+              <select className={`input input-sm input-auto card-bg-${r.color}`} value={r.color} onChange={(e) => update(i, { color: e.target.value as CardRule['color'] })} aria-label="Couleur">
+                {CARD_COLORS.map((c) => <option key={c} value={c}>{CARD_COLOR_LABELS[c]}</option>)}
+              </select>
+              <button className="btn-icon" title="Supprimer la règle" onClick={() => setRules(rules.filter((_, j) => j !== i))}>✕</button>
+              {CARD_RULE_VALUE.includes(r.kind) && !r.value && <span className="small danger-text">Règle ignorée tant que le choix n’est pas fait.</span>}
+            </div>
+          ))}
+        </div>
+        <button
+          className="btn btn-sm mt"
+          disabled={rules.length >= MAX_CARD_RULES}
+          onClick={() => setRules([...rules, { kind: 'retard', value: '', days: 0, color: CARD_COLORS[rules.length % CARD_COLORS.length]! }])}
+        >
+          + Ajouter une règle
+        </button>
+      </section>
       {bar}
     </>
   );

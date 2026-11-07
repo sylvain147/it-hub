@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { initials, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
+import { cardColor, describeCardRule, initials, isCardRuleComplete, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { useUsers } from '../users/context';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, toast } from '../components/ui';
 import { DueLabel, ItemModal } from '../projects/common';
@@ -143,7 +144,10 @@ function ActiveSprint({
   onClose: () => void;
 }) {
   const { email } = useAuth();
-  const { options, label } = useSettings();
+  const { options, label, lists } = useSettings();
+  const { name } = useUsers();
+  const today = new Date().toISOString().slice(0, 10);
+  const rules = lists.cardRules.filter(isCardRuleComplete);
   const [mine, setMine] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [dragging, setDragging] = useState<string | null>(null);
@@ -188,6 +192,16 @@ function ActiveSprint({
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Seulement les miens
         </label>
       </div>
+      {rules.length > 0 && all.length > 0 && (
+        <div className="viz-legend card-legend" title="Paramétrage → Tableau des sprints">
+          {rules.map((r, i) => (
+            <span key={i} className="viz-legend-item">
+              <span className={`sw card-bg-${r.color}`} aria-hidden /> {describeCardRule(r, { project: (id) => projects.find(([x]) => x === id)?.[1] ?? 'projet sans ticket ici', user: name })}
+            </span>
+          ))}
+          <Link to="/parametrage?onglet=tableau" className="small">Couleurs…</Link>
+        </div>
+      )}
       {!all.length ? (
         <EmptyState>Aucun ticket dans ce sprint. Planifiez-en depuis le backlog ci-dessous.</EmptyState>
       ) : (
@@ -216,10 +230,12 @@ function ActiveSprint({
                   <Swatch group={status} /> {label('ticket', status)} <span className="muted">{col.length}</span>
                   <button className="btn-icon" title="Ajouter un ticket dans cette colonne" onClick={() => onAdd(status)}>＋</button>
                 </div>
-                {col.map((t) => (
+                {col.map((t) => {
+                  const bg = cardColor(rules, t, today);
+                  return (
                   <div
                     key={t.id}
-                    className={dragging === t.id ? 'board-card dragging' : 'board-card'}
+                    className={`board-card${bg ? ` card-bg-${bg}` : ''}${dragging === t.id ? ' dragging' : ''}`}
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.effectAllowed = 'move';
@@ -242,7 +258,8 @@ function ActiveSprint({
                       {columns.map((s) => <option key={s} value={s}>{label('ticket', s)}</option>)}
                     </select>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })}

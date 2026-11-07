@@ -45,6 +45,28 @@ describe('paramétrage : statuts, jalons et rôles', () => {
     expect(statusOptions(res.json, 'risk', 'surveille').map((o) => o.key)).toContain('surveille');
   });
 
+  it('enregistre les fonds conditionnels des cartes du tableau de sprint', async () => {
+    const { json: s } = await env.call('GET', '/settings');
+    expect(s.lists.cardRules).toEqual([]);
+    const cardRules = [
+      { kind: 'retard', color: 'rouge' },
+      { kind: 'echeance', days: 3, color: 'orange' },
+      { kind: 'projet', value: projectId, color: 'bleu' },
+    ];
+    const res = await env.call('PUT', '/settings/lists', { ...s.lists, cardRules });
+    expect(res.status).toBe(200);
+    expect(res.json.cardRules).toEqual([
+      { kind: 'retard', value: '', days: 0, color: 'rouge' },
+      { kind: 'echeance', value: '', days: 3, color: 'orange' },
+      { kind: 'projet', value: projectId, days: 0, color: 'bleu' },
+    ]);
+    expect((await env.call('GET', '/settings')).json.lists.cardRules).toHaveLength(3);
+    expect((await env.call('PUT', '/settings/lists', { ...s.lists, cardRules: [{ kind: 'retard', color: 'fuchsia' }] })).status).toBe(400);
+    expect((await env.call('PUT', '/settings/lists', { ...s.lists, cardRules: [{ kind: 'meteo', color: 'rouge' }] })).status).toBe(400);
+    // Un paramétrage enregistré avant les règles se lit sans règle.
+    expect(normalizeListSettings({ jalonLabels: [] } as any).cardRules).toEqual([]);
+  });
+
   it('utilise les libellés paramétrés dans l’historique du projet', async () => {
     const acme = (await env.call('POST', '/settings/prestataires', { name: 'ACME' })).json;
     const p = await env.call('POST', `/projects/${projectId}/items/prestations`, { prestataireId: acme.id, objet: 'Brancher PayPal' });

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSprintPreparation,
   buildSprintReport,
+  cardColor,
+  describeCardRule,
+  type CardRule,
   movementLabel,
   normalizeTaskRecord,
   sprintPreparationToMarkdown,
@@ -157,5 +160,41 @@ describe('tickets enregistrés avant les sprints', () => {
     expect(normalizeTaskRecord({ title: 'c', status: 'bloque', priority: 'haute' })).toMatchObject({ status: 'attente', done: false });
     expect(normalizeTaskRecord({ title: 'c', status: 'fait' })).not.toHaveProperty('priority');
     expect(normalizeTaskRecord({ title: 'd', status: 'recette', sprintId: 4, number: 9 })).toMatchObject({ status: 'recette', sprintId: 4, number: 9 });
+  });
+});
+
+describe('fonds conditionnels des cartes', () => {
+  const today = '2026-10-10';
+  const rules: CardRule[] = [
+    { kind: 'retard', value: '', days: 0, color: 'rouge' },
+    { kind: 'echeance', value: '', days: 3, color: 'orange' },
+    { kind: 'immobile', value: '', days: 5, color: 'gris' },
+    { kind: 'responsable', value: '', days: 0, color: 'vert' }, // incomplète : ignorée
+    { kind: 'projet', value: 'p2', days: 0, color: 'bleu' },
+    { kind: 'sans_responsable', value: '', days: 0, color: 'violet' },
+  ];
+  const base = ticket({ projectId: 'p1', statusChanges: [{ at: '2026-10-08T08:00:00.000Z', from: 'a_faire', to: 'en_cours' }] });
+
+  it('applique la première règle qui correspond', () => {
+    expect(cardColor(rules, { ...base, dueDate: '2026-10-09' }, today)).toBe('rouge');
+    expect(cardColor(rules, { ...base, dueDate: '2026-10-13' }, today)).toBe('orange');
+    expect(cardColor(rules, { ...base, dueDate: '2026-10-14' }, today)).toBeNull();
+    expect(cardColor(rules, { ...base, statusChanges: [{ at: '2026-10-04T08:00:00.000Z', from: 'a_faire', to: 'en_cours' }] }, today)).toBe('gris');
+    expect(cardColor(rules, { ...base, projectId: 'p2' }, today)).toBe('bleu');
+    expect(cardColor(rules, { ...base, assigneeId: '' }, today)).toBe('violet');
+    // Un ticket terminé n'est jamais « en retard ».
+    expect(cardColor(rules.slice(0, 1), { ...base, done: true, status: 'termine', dueDate: '2026-10-01' }, today)).toBeNull();
+  });
+
+  it('décrit les règles pour la légende', () => {
+    const names = { project: () => 'Paie', user: () => 'Alice' };
+    expect(rules.map((r) => describeCardRule(r, names))).toEqual([
+      'Échéance dépassée',
+      'Échéance dans les 3 jours',
+      'Même statut depuis plus de 5 jours',
+      'Responsable : ?',
+      'Projet : Paie',
+      'Sans responsable du hub (personne extérieure)',
+    ]);
   });
 });
