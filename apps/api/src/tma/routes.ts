@@ -5,8 +5,12 @@ import {
   classifyBody,
   importDeskBody,
   importTmaBody,
+  deskKey,
   MONTH_RE,
   previousMonth,
+  ticketKey,
+  type DeskTicketInfo,
+  type HubTicketRef,
   type TmaMonthDetail,
   type TmaThemesResponse,
 } from '@samm/shared';
@@ -15,6 +19,7 @@ import { HttpError } from '../lib/util.js';
 import { body } from '../lib/http.js';
 import { startJob } from '../jobs/runner.js';
 import * as tma from './repo.js';
+import * as pr from '../projects/repo.js';
 
 function monthParam(c: Context): string {
   const m = c.req.param('month') ?? '';
@@ -22,10 +27,23 @@ function monthParam(c: Context): string {
   return m;
 }
 
+/** Tickets du hub par ticket Desk cité (clé : `deskKey`). */
+async function hubTicketsByDesk(): Promise<Map<string, HubTicketRef[]>> {
+  const map = new Map<string, HubTicketRef[]>();
+  for (const t of await pr.listTickets()) {
+    if (!t.deskId) continue;
+    const k = deskKey(t.deskId);
+    map.set(k, [...(map.get(k) ?? []), { id: t.id, key: ticketKey(t), title: t.title, projectId: t.projectId, projectName: t.projectName }]);
+  }
+  return map;
+}
+
 async function monthDetail(month: string): Promise<TmaMonthDetail> {
-  const [m, tickets, prevEntries] = await Promise.all([tma.getMonth(month), tma.listTickets(), tma.getMonthEntries(previousMonth(month))]);
+  const [m, tickets, prevEntries, hub] = await Promise.all([tma.getMonth(month), tma.listTickets(), tma.getMonthEntries(previousMonth(month)), hubTicketsByDesk()]);
+  const cited = new Set(m.entries.flatMap((e) => e.tickets.map((t) => deskKey(t.id))));
   return {
     ...m,
+    hubTickets: Object.fromEntries([...hub].filter(([k]) => cited.has(k))),
     report: buildMonthReport(month, m.entries, tickets, prevEntries ? { month: previousMonth(month), entries: prevEntries } : null),
   };
 }
@@ -49,6 +67,27 @@ export function tmaRoutes() {
     if (!tickets.length) throw new HttpError(400, 'Importez d’abord un export de tickets Desk.');
     if (!b.all && tickets.every((t) => t.theme)) throw new HttpError(400, 'Tous les tickets sont déjà classés.');
     return c.json(await startJob('tma_classify', tma.DESK_TARGET, userName(c), { all: b.all }), 202);
+  });
+
+  /** Ticket Desk vu du hub : fiche importée, temps passé d'après les relevés, tickets du hub qui le citent. */
+  r.get('/desk/tickets/:id', async (c) => {
+    const id = deskKey(c.req.param('id'));
+    if (!/^\d{1,9}$/.test(id)) throw new HttpError(400, 'Numéro de ticket Desk invalide');
+    const [tickets, months, hub] = await Promise.all([tma.listTickets(), tma.listMonths(), hubTicketsByDesk()]);
+    const perMonth: DeskTicketInfo['months'] = [];
+    for (const m of months) {
+      const hours = ((await tma.getMonthEntries(m.month)) ?? []).flatMap((e) => e.tickets).filter((t) => deskKey(t.id) === id).reduce((n, t) => n + t.hours, 0);
+      if (hours) perMonth.push({ month: m.month, hours: Math.round(hours * 100) / 100 });
+    }
+    perMonth.sort((a, b) => a.month.localeCompare(b.month));
+    const res: DeskTicketInfo = {
+      id,
+      ticket: tickets.find((t) => deskKey(t.id) === id) ?? null,
+      hours: Math.round(perMonth.reduce((n, m) => n + m.hours, 0) * 100) / 100,
+      months: perMonth,
+      hubTickets: hub.get(id) ?? [],
+    };
+    return c.json(res);
   });
 
   r.get('/themes', async (c) => {

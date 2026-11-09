@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { markdownToDoc, monthLabel, writeXlsx, type TmaMonthDetail } from '@samm/shared';
+import { deskKey, markdownToDoc, monthLabel, writeXlsx, type TmaMonthDetail } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling } from '../hooks';
 import { ErrorBox, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { RichEditor } from '../editor/RichEditor';
 import { Bar, BreakdownTable, delta, fmtH, fmtN } from './common';
+import { ticketPath } from '../sprints/tickets';
 
 const TOP_TICKETS = 20;
 
@@ -178,7 +179,14 @@ export function TmaMonthPage() {
             <tbody>
               {tickets.map((t) => (
                 <tr key={t.id}>
-                  <td className="mono">#{t.id}</td>
+                  <td className="mono">
+                    #{t.id}
+                    {(detail.hubTickets?.[deskKey(t.id)] ?? []).map((h) => (
+                      <div key={h.id} className="small">
+                        <Link to={ticketPath(h)} title={`${h.title} (${h.projectName})`}>{h.key}</Link>
+                      </div>
+                    ))}
+                  </td>
                   <td>
                     {t.ticket ? t.ticket.subject : <span className="muted">Inconnu des exports Desk</span>}
                     {t.ticket && <div className="muted small">{t.ticket.category} · créé le {formatDate(t.ticket.createdAt.slice(0, 10))}</div>}

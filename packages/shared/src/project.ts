@@ -191,7 +191,17 @@ export const taskInputSchema = z.object({
   /** Nom du responsable, recopié de l'annuaire par le serveur quand `assigneeId` est renseigné. */
   assignee: z.string().max(200).default(''),
   dueDate: isoDate.default(''),
+  /** Numéro du ticket Desk du prestataire (chiffres, sans « # ») ; vide : aucun. */
+  deskId: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/^#/, ''))
+    .pipe(z.string().regex(/^\d{0,9}$/, 'Le numéro Desk ne contient que des chiffres (ex. 48213).'))
+    .default(''),
 });
+
+/** Clé de comparaison d'un numéro Desk (sans « # » ni zéros en tête). */
+export const deskKey = (id: string) => id.trim().replace(/^#/, '').replace(/^0+(?=\d)/, '');
 
 /**
  * Tickets sans projet : rangés sous cet identifiant réservé, qui n'a pas de fiche projet (ni indicateurs, ni historique).
@@ -392,7 +402,7 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId'> {
   const { priority: _p, ...rest } = raw as T & { priority?: unknown };
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
@@ -404,6 +414,7 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     number: typeof raw.number === 'number' ? raw.number : 0,
     statusChanges: Array.isArray(raw.statusChanges) ? (raw.statusChanges as StatusChange[]) : [],
     sprintChanges: Array.isArray(raw.sprintChanges) ? (raw.sprintChanges as SprintChange[]) : [],
+    deskId: typeof raw.deskId === 'string' ? raw.deskId : '',
   };
 }
 

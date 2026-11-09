@@ -48,6 +48,7 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté).
 
 - **Tickets** : rattachés à un projet ou **hors projet** (choix « Hors projet » dans la fiche du ticket). Changer le projet d'un ticket le déplace, ou le sort de tout projet, en gardant son numéro et son historique.
+- **N° ticket Desk** : un ticket du hub se rattache au ticket Desk du prestataire. La fiche affiche alors ce que le suivi TMA en sait (sujet, statut, catégorie, thème, **temps passé par le prestataire** d'après les relevés, mois par mois) et les autres tickets du hub qui le citent ; le badge « Desk #… » apparaît sur les listes et le tableau. Dans le relevé TMA du mois, chaque ticket Desk mène au ticket du hub rattaché.
 
 - **Statuts** : À faire, En cours, En attente, En recette, Terminé. Ce sont les colonnes du tableau ; leurs libellés, leur ordre et leur visibilité se règlent dans **Paramétrage → Statuts**.
 - **Sprints** : nom (« Sprint 4 » par défaut), dates (deux semaines à la suite du précédent par défaut), objectif. Un seul sprint est **en cours** à la fois ; les autres sont à venir ou clos.

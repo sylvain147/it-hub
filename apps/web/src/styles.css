@@ -855,3 +855,8 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 @media (max-width: 640px) {
   .note-quick { flex-direction: column; align-items: stretch; }
 }
+
+/* Ticket Desk du prestataire rattaché à un ticket */
+.badge-desk { background: #f4f3ff; color: #5925dc; }
+.input-desk { max-width: 220px; }
+.desk-info { margin-top: 6px; padding: 8px 10px; background: #f9fafb; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 3px; }
