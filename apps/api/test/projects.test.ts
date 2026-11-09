@@ -61,15 +61,22 @@ describe('module Projets', () => {
     const { json: p } = await env.call('GET', `/projects/${id}`);
     expect(p.followers).toEqual([]);
     // Texte qui ne désigne aucun utilisateur : refusé.
-    const unknown = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: '', chefDeProjet: 'Quelqu’un' } });
+    const unknown = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetIds: [], chefDeProjet: 'Quelqu’un' } });
     expect(unknown.status).toBe(400);
-    const notUser = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: 'inconnu@test' } });
+    const notUser = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetIds: ['bob@test', 'inconnu@test'] } });
     expect(notUser.status).toBe(400);
-    const ok = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: 'bob@test', chefDeProjet: '' } });
+    const solo = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetIds: ['bob@test'], chefDeProjet: '' } });
+    expect(solo.status).toBe(200);
+    expect(solo.json.chefDeProjetIds).toEqual(['bob@test']);
+    expect(solo.json.chefDeProjet).toBeTruthy();
+    expect(solo.json.activity[0].text).toContain('le chef de projet');
+    // Plusieurs chefs de projet (ex. ERP et Web), dans l'ordre choisi, sans doublon ; noms recopiés.
+    const ok = await env.call('PUT', `/projects/${id}`, { rev: solo.json.rev, fields: { ...pick(solo.json), chefDeProjetIds: ['bob@test', 'alice@test', 'bob@test'] } });
     expect(ok.status).toBe(200);
-    expect(ok.json.chefDeProjetId).toBe('bob@test');
-    expect(ok.json.chefDeProjet).toBeTruthy();
-    expect(ok.json.activity[0].text).toContain('le chef de projet');
+    expect(ok.json.chefDeProjetIds).toEqual(['bob@test', 'alice@test']);
+    expect(ok.json.chefDeProjet.split(', ')).toHaveLength(2);
+    expect(ok.json.activity[0].text).toContain('les chefs de projet');
+    // Chacun le compte parmi « mes projets » : le bouton Suivre n'est pas nécessaire.
 
     // Suivre / ne plus suivre, sans toucher à la révision de la fiche.
     const follow = await env.call('PUT', `/projects/${id}/suivi`, { follow: true });
@@ -80,7 +87,7 @@ describe('module Projets', () => {
     expect(list.find((x: any) => x.id === id)).toMatchObject({ followers: ['alice@test', 'bob@test'], rev: ok.json.rev });
     await env.call('PUT', `/projects/${id}/suivi`, { follow: false }, 'bob@test');
     const { json: planning } = await env.call('GET', '/projects/jalons');
-    expect(planning.find((x: any) => x.id === id)).toMatchObject({ chefDeProjetId: 'bob@test', followers: ['alice@test'] });
+    expect(planning.find((x: any) => x.id === id)).toMatchObject({ chefDeProjetIds: ['bob@test', 'alice@test'], followers: ['alice@test'] });
     expect((await env.call('PUT', '/projects/inconnu/suivi', { follow: true })).status).toBe(404);
   });
 
@@ -90,15 +97,32 @@ describe('module Projets', () => {
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-1'), ...base, id: 'ancien-1', name: 'Ancien 1', chefDeProjet: 'bob' } }));
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-2'), ...base, id: 'ancien-2', name: 'Ancien 2', chefDeProjet: 'Prestataire externe' } }));
     const { json: list } = await env.call('GET', '/projects');
-    expect(list.find((x: any) => x.id === 'ancien-1')).toMatchObject({ chefDeProjetId: 'bob@test', followers: [] });
+    expect(list.find((x: any) => x.id === 'ancien-1')).toMatchObject({ chefDeProjetIds: ['bob@test'], followers: [] });
     const old = list.find((x: any) => x.id === 'ancien-2');
-    expect(old).toMatchObject({ chefDeProjetId: '', chefDeProjet: 'Prestataire externe' });
+    expect(old).toMatchObject({ chefDeProjetIds: [], chefDeProjet: 'Prestataire externe' });
     // Le texte d'origine reste accepté tant qu'on n'y touche pas.
     const keep = await env.call('PUT', '/projects/ancien-2', { rev: 1, fields: { ...pick(old), status: 'en_cours' } });
     expect(keep.status).toBe(200);
     expect(keep.json.chefDeProjet).toBe('Prestataire externe');
     await env.call('DELETE', '/projects/ancien-1');
     await env.call('DELETE', '/projects/ancien-2');
+  });
+
+  it('reprend l’ancien chef de projet unique dans la liste des chefs', async () => {
+    const now = new Date().toISOString();
+    const item = { ...projectKeys.meta('ancien-4'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-4', name: 'Ancien 4', code: '', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjetId: 'bob@test', chefDeProjet: 'Bob', demandeur: '', startDate: '', targetDate: '', description: '', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: item }));
+    const { json: p } = await env.call('GET', '/projects/ancien-4');
+    expect(p.chefDeProjetIds).toEqual(['bob@test']);
+    expect(p).not.toHaveProperty('chefDeProjetId');
+    const mine = (await env.call('GET', '/projects', undefined, 'bob@test')).json.find((x: any) => x.id === 'ancien-4');
+    expect(mine.chefDeProjetIds).toEqual(['bob@test']);
+    // Au premier enregistrement, l'ancien champ disparaît.
+    const saved = await env.call('PUT', '/projects/ancien-4', { rev: 1, fields: { ...pick(p), chefDeProjetIds: ['bob@test', 'alice@test'] } });
+    expect(saved.json.chefDeProjetIds).toEqual(['bob@test', 'alice@test']);
+    const { Item } = await ddb().send(new GetCommand({ TableName: config.tableName, Key: projectKeys.meta('ancien-4') }));
+    expect(Item).not.toHaveProperty('chefDeProjetId');
+    await env.call('DELETE', '/projects/ancien-4');
   });
 
   it('reprend les anciens champs objectifs et hors périmètre en sections', async () => {
@@ -327,6 +351,6 @@ describe('module Projets', () => {
 });
 
 function pick(p: any) {
-  const { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags } = p;
-  return { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags };
+  const { name, code, status, priority, health, healthComment, chefDeProjetIds, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags } = p;
+  return { name, code, status, priority, health, healthComment, chefDeProjetIds, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags };
 }

@@ -165,6 +165,8 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
   });
 
   it('modifie et désactive les utilisateurs en gardant un administrateur', async () => {
+    const chefs = await env.call('POST', '/projects', { name: 'Factures', chefDeProjetIds: [ADMIN, RESP] }, ADMIN);
+    expect(chefs.json.chefDeProjet).toBe('Alice Martin, Bruno Petit');
     expect((await env.call('PUT', `/users/${ADMIN}`, { name: 'Alice Martin', role: 'membre', active: true }, ADMIN)).status).toBe(400);
     expect((await env.call('PUT', `/users/${ADMIN}`, { name: 'Alice Martin', role: 'admin', active: false }, ADMIN)).status).toBe(400);
     const renamed = await env.call('PUT', `/users/${RESP}`, { name: 'Bruno Petit-Durand', role: 'admin', active: true }, ADMIN);
@@ -173,6 +175,8 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     const tasks = (await env.call('GET', `/projects/${projectId}`, undefined, ADMIN)).json.items.tasks.filter((t: any) => t.assigneeId === RESP);
     expect(tasks.length).toBeGreaterThan(0);
     expect(tasks.every((t: any) => t.assignee === 'Bruno Petit-Durand')).toBe(true);
+    // … et parmi les chefs de projet.
+    expect((await env.call('GET', `/projects/${chefs.json.id}`, undefined, ADMIN)).json.chefDeProjet).toBe('Alice Martin, Bruno Petit-Durand');
     // Deux administrateurs : Alice peut redevenir chargée de projet.
     expect((await env.call('PUT', `/users/${ADMIN}`, { name: 'Alice Martin', role: 'membre', active: true }, RESP)).status).toBe(200);
 

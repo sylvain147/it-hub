@@ -65,3 +65,21 @@ export function UserSelect({
     </select>
   );
 }
+
+/** Choix de plusieurs utilisateurs (ex. les chefs de projet), dans l'ordre où on les coche. */
+export function UserChoices({ value, onChange }: { value: string[]; onChange: (emails: string[]) => void }) {
+  const { users, active } = useUsers();
+  // Les utilisateurs désactivés déjà choisis restent affichés (pour pouvoir les retirer).
+  const shown = [...active, ...users.filter((u) => !u.active && value.includes(u.email))];
+  const toggle = (email: string) => onChange(value.includes(email) ? value.filter((e) => e !== email) : [...value, email]);
+  return (
+    <div className="user-choices">
+      {shown.map((u) => (
+        <label key={u.email} className={value.includes(u.email) ? 'choice-chip on' : 'choice-chip'}>
+          <input type="checkbox" checked={value.includes(u.email)} onChange={() => toggle(u.email)} /> {u.name}
+          {!u.active && <span className="muted small">(désactivé)</span>}
+        </label>
+      ))}
+    </div>
+  );
+}

@@ -880,7 +880,7 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 
 /* Fiche utilisateur : périmètres */
 .badge-perimeter { background: #ecfdf3; color: #067647; }
-.perimeter-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.perimeter-choices, .user-choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .choice-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #d0d5dd; border-radius: 999px; cursor: pointer; font-size: 13px; background: #fff; }
 .choice-chip.on { border-color: var(--blue); background: var(--blue-50); color: var(--blue); font-weight: 600; }
 .choice-chip input { accent-color: var(--blue); }

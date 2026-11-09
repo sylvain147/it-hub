@@ -284,11 +284,11 @@ export function DataList({ id, values }: { id: string; values: string[] }) {
   );
 }
 
-/** Personnes connues du projet : intervenants, chef de projet, responsables déjà saisis. */
+/** Personnes connues du projet : intervenants, chefs de projet, responsables déjà saisis. */
 export function knownPeople(p: ProjectDetail, me: string): string[] {
   return [
     shortUser(me),
-    p.chefDeProjet,
+    ...p.chefDeProjet.split(', '),
     ...p.items.contacts.map((c) => c.name),
     ...p.items.tasks.map((t) => t.assignee),
     ...p.items.risks.map((r) => r.owner),

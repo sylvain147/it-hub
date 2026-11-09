@@ -31,7 +31,7 @@ import { startJob } from '../jobs/runner.js';
 import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
 import { projectContextMarkdown } from './ai.js';
-import { linkLegacyChefs, resolveProjectChef, resolveTaskAssignee } from '../users/routes.js';
+import { linkLegacyChefs, resolveProjectChefs, resolveTaskAssignee } from '../users/routes.js';
 import * as users from '../users/repo.js';
 import { listNotes, putNote } from '../notes/routes.js';
 import { listIdeas, putIdea } from '../ideas/routes.js';
@@ -108,13 +108,13 @@ export function projectRoutes() {
       const dated = todos
         .filter((t) => t.projectId === p.id && t.dueDate)
         .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }));
-      out.push({ id: p.id, chefDeProjetId: p.chefDeProjetId, followers: p.followers, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
+      out.push({ id: p.id, chefDeProjetIds: p.chefDeProjetIds, followers: p.followers, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
     }
     return c.json(out);
   });
 
   r.post('/', async (c) => {
-    const b = await resolveProjectChef(await body(c, createProjectBody), null);
+    const b = await resolveProjectChefs(await body(c, createProjectBody), null);
     const id = await pr.createProject(b, userName(c));
     return c.json(await projectDetail(id), 201);
   });
@@ -124,7 +124,7 @@ export function projectRoutes() {
   r.put('/:id', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, updateProjectBody);
-    const fields = await resolveProjectChef(b.fields, await pr.requireProject(id));
+    const fields = await resolveProjectChefs(b.fields, await pr.requireProject(id));
     await pr.updateProject(id, b.rev, fields, userName(c));
     return c.json(await projectDetail(id));
   });
