@@ -48,6 +48,20 @@ describe('notes en vrac et frise des jalons', () => {
     expect((await env.call('DELETE', `/notes/${n.id}`, undefined, MEMBRE)).status).toBe(204);
   });
 
+  it('change la taille d’un post-it sans compter comme une modification', async () => {
+    const n = (await env.call('POST', '/notes', { content: 'Une longue note à lire sans l’ouvrir' }, MEMBRE)).json;
+    expect(n).toMatchObject({ width: 1, height: 180 });
+    expect((await env.call('PATCH', `/notes/${n.id}`, { width: 4 }, MEMBRE)).status).toBe(400);
+    expect((await env.call('PATCH', `/notes/${n.id}`, { height: 20 }, MEMBRE)).status).toBe(400);
+    const big = await env.call('PATCH', `/notes/${n.id}`, { width: 2, height: 0 }, MEMBRE);
+    expect(big.json).toMatchObject({ width: 2, height: 0, content: 'Une longue note à lire sans l’ouvrir', updatedAt: n.updatedAt });
+    // Une vraie modification garde la taille choisie et compte comme une modification.
+    const edited = await env.call('PATCH', `/notes/${n.id}`, { title: 'À lire', height: 320 }, MEMBRE);
+    expect(edited.json).toMatchObject({ width: 2, height: 320, title: 'À lire' });
+    expect(edited.json.updatedAt > n.updatedAt).toBe(true);
+    expect((await env.call('DELETE', `/notes/${n.id}`, undefined, MEMBRE)).status).toBe(204);
+  });
+
   it('garde les notes privées, sauf pour les administrateurs qui voient et ajoutent celles de tous', async () => {
     const RESP = 'bruno.petit@exemple.fr';
     await env.call('POST', '/users', { email: RESP, name: 'Bruno Petit', role: 'responsable' }, ADMIN);

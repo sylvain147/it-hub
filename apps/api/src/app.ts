@@ -31,6 +31,7 @@ import { sprintRoutes } from './sprints/routes.js';
 import { meHandler, meRoutes, todoRoutes, userRoutes } from './users/routes.js';
 import { feedbackRoutes } from './feedback/routes.js';
 import { noteRoutes } from './notes/routes.js';
+import { assistantRoutes } from './assistant/routes.js';
 import { boutonRougeRoutes } from './bouton/routes.js';
 import { ideaRoutes } from './ideas/routes.js';
 import * as pr from './projects/repo.js';
@@ -295,6 +296,7 @@ export function createApp() {
   api.route('/users', userRoutes());
   api.route('/todos', todoRoutes());
   api.route('/notes', noteRoutes());
+  api.route('/assistant', assistantRoutes());
   api.route('/feedback', feedbackRoutes());
   api.route('/bouton-rouge', boutonRougeRoutes());
   api.route('/idees', ideaRoutes());

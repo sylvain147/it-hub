@@ -92,11 +92,12 @@ export async function touchLastSeen(u: HubUser): Promise<void> {
 type TodoItem = PersonalTask & { pk: string; sk: string };
 /**
  * Les tâches enregistrées avant la simplification portent un statut (« fait ») au lieu de `done` ; d'autres pointaient
- * un ticket (`ticketId`), lien abandonné depuis que la to-do est séparée des tickets.
+ * un ticket (`ticketId`), lien abandonné depuis que la to-do est séparée des tickets. Les plus anciennes n'ont pas de
+ * sous-tâches.
  */
 function stripTodo({ pk: _pk, sk: _sk, ...t }: TodoItem): PersonalTask {
   const { status, priority: _p, ticketId: _t, ...rest } = t as PersonalTask & { status?: string; priority?: string; ticketId?: string };
-  return { ...rest, done: typeof t.done === 'boolean' ? t.done : status === 'fait', projectId: t.projectId ?? '' };
+  return { ...rest, done: typeof t.done === 'boolean' ? t.done : status === 'fait', projectId: t.projectId ?? '', subtasks: t.subtasks ?? [] };
 }
 
 export async function listTodos(): Promise<PersonalTask[]> {

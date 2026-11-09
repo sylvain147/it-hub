@@ -5,6 +5,7 @@ import { api, TODOS_CHANGED } from '../api';
 import { useAuth } from '../auth';
 import { toast } from '../components/ui';
 import { DueLabel } from '../projects/common';
+import { SubtaskProgress } from './tasks';
 
 /** Rafraîchissement de la pastille (en plus de chaque changement de page). */
 const REFRESH_MS = 60_000;
@@ -106,6 +107,7 @@ export function TodoButton() {
                   <li key={t.id} className={isDueOrLate(t, today) ? 'due' : undefined}>
                     <input type="checkbox" checked={false} onChange={() => void check(t)} aria-label={`Cocher « ${t.title} »`} />
                     <Link to={t.projectId ? `/projets/${t.projectId}?onglet=todo&tache=${encodeURIComponent(t.id)}` : `/todo?tache=${encodeURIComponent(t.id)}`}>{t.title}</Link>
+                    <span className="small"><SubtaskProgress task={t} /></span>
                     {t.dueDate && <span className="small"><DueLabel date={t.dueDate} /></span>}
                   </li>
                 ))}

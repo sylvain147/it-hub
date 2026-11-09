@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import type { ItemBase } from './project.js';
 
+/** Taille d'un post-it : largeur en colonnes de la grille, hauteur visible du texte en pixels (0 : tout le texte). */
+export const NOTE_MAX_WIDTH = 3;
+export const NOTE_MIN_HEIGHT = 60;
+export const NOTE_MAX_HEIGHT = 2000;
+export const NOTE_DEFAULT_HEIGHT = 180;
+
 /**
  * Notes en vrac : le bloc-notes personnel de chaque utilisateur. Une note appartient à son titulaire (`ownerId`) :
  * lui seul la voit, avec les administrateurs (droit `manageAllNotes`), qui peuvent aussi lui en ajouter (`createdBy`
@@ -18,6 +24,16 @@ export const personalNoteInputSchema = z
     pinned: z.boolean().default(false),
     /** Archivée : rangée à part, hors de la liste courante. */
     archived: z.boolean().default(false),
+    /** Largeur du post-it, en colonnes (1 à 3). */
+    width: z.number().int().min(1).max(NOTE_MAX_WIDTH).default(1),
+    /** Hauteur visible du texte, en pixels ; 0 : la note entière, sans la tronquer. */
+    height: z
+      .number()
+      .int()
+      .min(0)
+      .max(NOTE_MAX_HEIGHT)
+      .refine((h) => h === 0 || h >= NOTE_MIN_HEIGHT, { message: `Hauteur minimale : ${NOTE_MIN_HEIGHT} px.` })
+      .default(NOTE_DEFAULT_HEIGHT),
   })
   .refine((n) => n.title || n.content.trim(), { message: 'La note est vide.' });
 export type PersonalNoteInput = z.input<typeof personalNoteInputSchema>;
@@ -26,3 +42,6 @@ export type PersonalNote = z.infer<typeof personalNoteInputSchema> & ItemBase & 
 
 /** Tri : épinglées d'abord, puis la plus récemment modifiée. */
 export const byPinnedThenRecent = (a: PersonalNote, b: PersonalNote) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt);
+
+/** Champs de mise en page : les changer ne compte pas comme une modification de la note. */
+export const NOTE_LAYOUT_FIELDS = ['width', 'height'] as const;

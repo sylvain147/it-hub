@@ -8,6 +8,7 @@ import type { SpecPatch } from '../filetypes/ai-schemas.js';
 import type { SynthesisOutput, ThemesOutput } from '../tma/ai-schemas.js';
 import type { SprintDocOutput } from '../sprints/ai-schemas.js';
 import type { Digest, Report } from '../projects/ai.js';
+import type { AssistantOutput } from '../assistant/routes.js';
 
 const tokens = (s: string) => Math.ceil(s.length / 4);
 
@@ -57,6 +58,8 @@ export class MockProvider implements LlmProvider {
         return this.themes(call.input);
       case 'tma_synthese':
         return this.tmaSynthesis(call.input);
+      case 'assistant':
+        return this.assistant(call.context ?? '', call.input);
       case 'sprint_compte_rendu':
         return this.sprintReview(call.input);
       case 'sprint_preparation':
@@ -64,6 +67,26 @@ export class MockProvider implements LlmProvider {
       default:
         return this.update(call.input, call.operation);
     }
+  }
+
+  /** Réponse simulée : reprend les lignes du contexte utiles à la question (to-do, tickets, jalons, projets cités). */
+  private assistant(context: string, input: string): AssistantOutput {
+    const question = between(input, 'question').trim();
+    const part = (title: string) => {
+      const m = new RegExp(`## ${title}[^\\n]*\\n([\\s\\S]*?)(\\n## |$)`).exec(context);
+      return (m?.[1] ?? '').split('\n').filter((l) => l.startsWith('- ')).slice(0, 5);
+    };
+    const focus = [...between(input, 'projets_detailles').matchAll(/^# Projet (.+) \((\/projets\/[^)]+)\)$/gm)].map((m) => `- [${m[1]}](${m[2]})`);
+    const blocks = [
+      focus.length && `Projets cités :\n${focus.join('\n')}`,
+      part('Ma to-do').length && `**Ma to-do**\n${part('Ma to-do').join('\n')}`,
+      part('Mes tickets ouverts').length && `**Mes tickets**\n${part('Mes tickets ouverts').join('\n')}`,
+      part('Jalons non atteints').length && `**Échéances**\n${part('Jalons non atteints').join('\n')}`,
+    ].filter(Boolean);
+    return {
+      answer: `*Réponse simulée (aucun appel IA) à : « ${question.slice(0, 200)} »*\n\n${blocks.join('\n\n') || 'Rien à signaler dans les données du hub.'}`,
+      followUps: ['Quels projets sont en retard ?', 'Où en est le sprint en cours ?'],
+    };
   }
 
   private extraction(input: string): Extraction {

@@ -29,6 +29,8 @@ export interface StructuredCall<T> {
   schema: z.ZodType<T>;
   maxTokens: number;
   effort: Effort;
+  /** Délai maximal de la réponse (ms), sans nouvelle tentative : appels synchrones de l'API. */
+  timeoutMs?: number;
   ctx: { user: string; cdcId: string };
 }
 

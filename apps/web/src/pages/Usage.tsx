@@ -6,6 +6,7 @@ import { ErrorBox, Spinner, formatDateTime, shortUser } from '../components/ui';
 
 const OPERATION_LABELS: Record<string, string> = {
   extraction: 'Tri des transcriptions',
+  assistant: 'Assistant (questions)',
   redaction: 'Rédaction initiale',
   nouvelle_transcription: 'Intégration de transcriptions',
   integration_reponses: 'Intégration des réponses',
