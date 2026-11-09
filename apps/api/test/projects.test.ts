@@ -42,6 +42,51 @@ describe('module Projets', () => {
     expect(stale.status).toBe(409);
   });
 
+  it('rattache le chef de projet à un utilisateur et gère le suivi', async () => {
+    await env.call('GET', '/me', undefined, 'bob@test');
+    const { json: p } = await env.call('GET', `/projects/${id}`);
+    expect(p.followers).toEqual([]);
+    // Texte qui ne désigne aucun utilisateur : refusé.
+    const unknown = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: '', chefDeProjet: 'Quelqu’un' } });
+    expect(unknown.status).toBe(400);
+    const notUser = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: 'inconnu@test' } });
+    expect(notUser.status).toBe(400);
+    const ok = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), chefDeProjetId: 'bob@test', chefDeProjet: '' } });
+    expect(ok.status).toBe(200);
+    expect(ok.json.chefDeProjetId).toBe('bob@test');
+    expect(ok.json.chefDeProjet).toBeTruthy();
+    expect(ok.json.activity[0].text).toContain('le chef de projet');
+
+    // Suivre / ne plus suivre, sans toucher à la révision de la fiche.
+    const follow = await env.call('PUT', `/projects/${id}/suivi`, { follow: true });
+    expect(follow.json.followers).toEqual(['alice@test']);
+    await env.call('PUT', `/projects/${id}/suivi`, { follow: true });
+    await env.call('PUT', `/projects/${id}/suivi`, { follow: true }, 'bob@test');
+    const { json: list } = await env.call('GET', '/projects');
+    expect(list.find((x: any) => x.id === id)).toMatchObject({ followers: ['alice@test', 'bob@test'], rev: ok.json.rev });
+    await env.call('PUT', `/projects/${id}/suivi`, { follow: false }, 'bob@test');
+    const { json: planning } = await env.call('GET', '/projects/jalons');
+    expect(planning.find((x: any) => x.id === id)).toMatchObject({ chefDeProjetId: 'bob@test', followers: ['alice@test'] });
+    expect((await env.call('PUT', '/projects/inconnu/suivi', { follow: true })).status).toBe(404);
+  });
+
+  it('rattache les anciens chefs de projet saisis en texte', async () => {
+    const now = new Date().toISOString();
+    const base = { gsi1pk: 'PROJ', gsi1sk: now, status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', demandeur: '', startDate: '', targetDate: '', description: '', objectifs: '', horsPerimetre: '', budgetPrevu: null, tags: [], code: '', rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-1'), ...base, id: 'ancien-1', name: 'Ancien 1', chefDeProjet: 'bob' } }));
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-2'), ...base, id: 'ancien-2', name: 'Ancien 2', chefDeProjet: 'Prestataire externe' } }));
+    const { json: list } = await env.call('GET', '/projects');
+    expect(list.find((x: any) => x.id === 'ancien-1')).toMatchObject({ chefDeProjetId: 'bob@test', followers: [] });
+    const old = list.find((x: any) => x.id === 'ancien-2');
+    expect(old).toMatchObject({ chefDeProjetId: '', chefDeProjet: 'Prestataire externe' });
+    // Le texte d'origine reste accepté tant qu'on n'y touche pas.
+    const keep = await env.call('PUT', '/projects/ancien-2', { rev: 1, fields: { ...pick(old), status: 'en_cours' } });
+    expect(keep.status).toBe(200);
+    expect(keep.json.chefDeProjet).toBe('Prestataire externe');
+    await env.call('DELETE', '/projects/ancien-1');
+    await env.call('DELETE', '/projects/ancien-2');
+  });
+
   it('gère tickets, jalons, prestations, intervenants, liens et risques', async () => {
     const task = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Relancer le prestataire', assignee: 'alice', dueDate: yesterday() });
     expect(task.status).toBe(201);
@@ -237,6 +282,6 @@ describe('module Projets', () => {
 });
 
 function pick(p: any) {
-  const { name, code, status, priority, health, healthComment, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags } = p;
-  return { name, code, status, priority, health, healthComment, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags };
+  const { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags } = p;
+  return { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags };
 }

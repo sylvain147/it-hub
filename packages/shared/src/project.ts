@@ -123,7 +123,9 @@ export const projectFieldsSchema = z.object({
   priority: z.enum(PRIORITIES).default('normale'),
   health: z.enum(HEALTHS).default('vert'),
   healthComment: z.string().max(1000).default(''),
-  /** Chef de projet côté IT. */
+  /** Chef de projet côté IT : utilisateur du hub (e-mail). Vide : aucun (ou ancien projet saisi en texte). */
+  chefDeProjetId: z.string().trim().toLowerCase().max(200).default(''),
+  /** Nom du chef de projet, recopié de l'annuaire par le serveur quand `chefDeProjetId` est renseigné. */
   chefDeProjet: z.string().max(200).default(''),
   /** Direction ou service demandeur. */
   demandeur: z.string().max(200).default(''),
@@ -166,6 +168,8 @@ export interface ProjectSummary extends ProjectFields {
   rev: number;
   stats: ProjectStats;
   cdcCount: number;
+  /** Utilisateurs qui suivent le projet (e-mails), hors fiche versionnée : `PUT /api/projects/:id/suivi`. */
+  followers: string[];
   activeJobId: string | null;
   createdAt: string;
   createdBy: string;
@@ -444,6 +448,8 @@ export function isTaskOverdue(t: Pick<Task, 'done' | 'dueDate'>, today = todayIs
 /** Frise globale : chaque projet avec ses jalons (`GET /api/projects/jalons`). */
 export interface PlanningProject {
   id: string;
+  chefDeProjetId: string;
+  followers: string[];
   name: string;
   code: string;
   status: ProjectStatus;
@@ -520,6 +526,15 @@ export const updateProjectBody = z.object({
   fields: projectFieldsSchema,
 });
 export type UpdateProjectBody = z.input<typeof updateProjectBody>;
+
+export const followProjectBody = z.object({ follow: z.boolean() });
+export type FollowProjectBody = z.infer<typeof followProjectBody>;
+
+/** « Mes projets » : ceux dont je suis le chef de projet ou que je suis. */
+export function isMyProject(p: Pick<ProjectSummary, 'chefDeProjetId' | 'followers'>, email: string): boolean {
+  const me = email.toLowerCase();
+  return p.chefDeProjetId === me || (p.followers ?? []).includes(me);
+}
 
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;
 export const createProjectFileBody = fileInputSchema.extend({

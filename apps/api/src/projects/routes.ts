@@ -6,6 +6,7 @@ import {
   createProjectBody,
   createProjectCdcBody,
   createProjectFileBody,
+  followProjectBody,
   digestMeetingBody,
   emptyDoc,
   PROJECT_ITEM_KINDS,
@@ -30,7 +31,7 @@ import { startJob } from '../jobs/runner.js';
 import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
 import { projectContextMarkdown } from './ai.js';
-import { resolveTaskAssignee } from '../users/routes.js';
+import { linkLegacyChefs, resolveProjectChef, resolveTaskAssignee } from '../users/routes.js';
 import * as users from '../users/repo.js';
 import { listNotes, putNote } from '../notes/routes.js';
 import { assertPlannable } from '../sprints/repo.js';
@@ -92,24 +93,27 @@ export function projectRoutes() {
 
   r.get('/', async (c) => {
     const counts = new Map([...(await cdcsByProject())].map(([k, v]) => [k, v.length]));
-    return c.json(await pr.listProjects(counts));
+    const projects = await pr.listProjects(counts);
+    await linkLegacyChefs(projects);
+    return c.json(projects);
   });
 
   /** Frise globale : les jalons et la to-do datée de tous les projets (avant `/:id`). */
   r.get('/jalons', async (c) => {
     const [projects, todos] = await Promise.all([pr.listProjects(), users.listTodos()]);
+    await linkLegacyChefs(projects);
     const out: PlanningProject[] = [];
     for (const p of projects) {
       const dated = todos
         .filter((t) => t.projectId === p.id && t.dueDate)
         .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }));
-      out.push({ id: p.id, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
+      out.push({ id: p.id, chefDeProjetId: p.chefDeProjetId, followers: p.followers, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
     }
     return c.json(out);
   });
 
   r.post('/', async (c) => {
-    const b = await body(c, createProjectBody);
+    const b = await resolveProjectChef(await body(c, createProjectBody), null);
     const id = await pr.createProject(b, userName(c));
     return c.json(await projectDetail(id), 201);
   });
@@ -119,8 +123,15 @@ export function projectRoutes() {
   r.put('/:id', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, updateProjectBody);
-    await pr.updateProject(id, b.rev, b.fields, userName(c));
+    const fields = await resolveProjectChef(b.fields, await pr.requireProject(id));
+    await pr.updateProject(id, b.rev, fields, userName(c));
     return c.json(await projectDetail(id));
+  });
+
+  /** Suivre un projet (ou ne plus le suivre) : il compte alors parmi « mes projets ». */
+  r.put('/:id/suivi', async (c) => {
+    const b = await body(c, followProjectBody);
+    return c.json({ followers: await pr.setFollower(c.req.param('id'), userName(c), b.follow) });
   });
 
   r.delete('/:id', async (c) => {

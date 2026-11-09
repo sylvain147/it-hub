@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import {
   CLOSED_PROJECT_STATUSES,
   HEALTHS,
+  isMyProject,
   HEALTH_LABELS,
   PRIORITIES,
   PRIORITY_LABELS,
@@ -14,8 +15,10 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, shortUser } from '../components/ui';
-import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge, euros, isMine } from './common';
+import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge, euros } from './common';
 import { StatusOptions, useSettings } from '../settings/context';
+import { UserSelect } from '../users/context';
+import { FollowButton, MyProjectsCheck, useMyProjectsFilter } from './mine';
 
 type StatusFilter = ProjectStatus | 'actifs' | 'tous';
 type Sort = 'recent' | 'echeance' | 'priorite' | 'nom';
@@ -23,10 +26,10 @@ type Sort = 'recent' | 'echeance' | 'priorite' | 'nom';
 export function ProjectsList() {
   const { lists } = useSettings();
   const { email } = useAuth();
-  const { data, error, loading } = useLoad(() => api.listProjects(), []);
+  const { data, setData, error, loading } = useLoad(() => api.listProjects(), []);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<StatusFilter>('actifs');
-  const [mine, setMine] = useState(false);
+  const [mine, setMine] = useMyProjectsFilter();
   const [sort, setSort] = useState<Sort>('recent');
   const [creating, setCreating] = useState(false);
 
@@ -35,7 +38,7 @@ export function ProjectsList() {
     const list = (data ?? []).filter((p) => {
       if (status === 'actifs' && CLOSED_PROJECT_STATUSES.includes(p.status)) return false;
       if (status !== 'actifs' && status !== 'tous' && p.status !== status) return false;
-      if (mine && !isMine(p.chefDeProjet, email) && p.createdBy !== email) return false;
+      if (mine && !isMyProject(p, email)) return false;
       if (!needle) return true;
       return [p.name, p.code, p.demandeur, p.chefDeProjet, ...p.stats.prestataires, ...p.tags].some((s) => s.toLowerCase().includes(needle));
     });
@@ -93,9 +96,7 @@ export function ProjectsList() {
           <option value="priorite">Priorité</option>
           <option value="nom">Nom</option>
         </select>
-        <label className="check">
-          <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Mes projets
-        </label>
+        <MyProjectsCheck mine={mine} setMine={setMine} />
       </div>
       <ErrorBox error={error} />
       {loading && !data ? (
@@ -126,6 +127,7 @@ export function ProjectsList() {
                 <th className="num">Budget</th>
                 <th className="num">CDC</th>
                 <th>Modifié</th>
+                <th aria-label="Suivi" />
               </tr>
             </thead>
             <tbody>
@@ -156,6 +158,9 @@ export function ProjectsList() {
                   <td className="num">{p.stats.montantPrevu ? euros(p.stats.montantPrevu) : p.budgetPrevu != null ? euros(p.budgetPrevu) : <span className="muted">—</span>}</td>
                   <td className="num">{p.cdcCount || <span className="muted">0</span>}</td>
                   <td className="small">{formatDate(p.updatedAt.slice(0, 10))}<div className="muted">{shortUser(p.updatedBy)}</div></td>
+                  <td>
+                    <FollowButton small project={p} onChange={(followers) => setData((d) => d && d.map((x) => (x.id === p.id ? { ...x, followers } : x)))} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -174,7 +179,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('cadrage');
   const [priority, setPriority] = useState<Priority>('normale');
-  const [chef, setChef] = useState(shortUser(email));
+  const [chef, setChef] = useState(email);
   const [demandeur, setDemandeur] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [description, setDescription] = useState('');
@@ -185,7 +190,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const p = await api.createProject({ name, code, status, priority, chefDeProjet: chef, demandeur, targetDate, description });
+      const p = await api.createProject({ name, code, status, priority, chefDeProjetId: chef, demandeur, targetDate, description });
       navigate(`/projets/${p.id}`);
     } catch (e) {
       setError(e);
@@ -234,7 +239,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
         </label>
         <label className="field">
           <span>Chef de projet</span>
-          <input className="input" value={chef} onChange={(e) => setChef(e.target.value)} />
+          <UserSelect value={chef} onChange={setChef} allowEmpty emptyLabel="— Aucun —" />
         </label>
         <label className="field">
           <span>Demandeur (direction, service)</span>

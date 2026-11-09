@@ -59,12 +59,51 @@ export async function resolveTaskAssignee(raw: Record<string, unknown>, before: 
   return { ...raw, assigneeId: current, assignee: me?.name ?? current };
 }
 
+/**
+ * Rattache le chef de projet à un utilisateur du hub et recopie son nom. Un ancien chef de projet saisi en texte
+ * qui ne correspond à personne reste tel quel tant qu'on n'y touche pas.
+ */
+export async function resolveProjectChef<T extends { chefDeProjetId: string; chefDeProjet: string }>(fields: T, before: { chefDeProjetId?: string; chefDeProjet: string } | null): Promise<T> {
+  const all = await users.listUsers();
+  const id = fields.chefDeProjetId;
+  if (id) {
+    const u = all.find((x) => x.email === id);
+    if (!u) throw new HttpError(400, 'Chef de projet inconnu : choisissez un utilisateur du hub.');
+    if (!u.active && id !== (before?.chefDeProjetId ?? '')) throw new HttpError(400, `${u.name} est désactivé : choisissez un autre chef de projet.`);
+    return { ...fields, chefDeProjet: u.name };
+  }
+  const text = fields.chefDeProjet.trim();
+  if (!text) return { ...fields, chefDeProjet: '' };
+  const u = all.find((x) => x.active && designates(text, x));
+  if (u) return { ...fields, chefDeProjetId: u.email, chefDeProjet: u.name };
+  if (before && !before.chefDeProjetId && text === before.chefDeProjet.trim()) return fields;
+  throw new HttpError(400, 'Le chef de projet doit être un utilisateur du hub.');
+}
+
+/** Rattache aux utilisateurs les anciens projets dont le chef de projet est saisi en texte. */
+export async function linkLegacyChefs(projects: { id: string; chefDeProjetId: string; chefDeProjet: string }[]): Promise<void> {
+  const legacy = projects.filter((p) => !p.chefDeProjetId && p.chefDeProjet.trim());
+  if (!legacy.length) return;
+  const all = (await users.listUsers()).filter((x) => x.active);
+  for (const p of legacy) {
+    const u = all.find((x) => designates(p.chefDeProjet, x));
+    if (!u) continue;
+    await pr.setChef(p.id, u.email, u.name);
+    Object.assign(p, { chefDeProjetId: u.email, chefDeProjet: u.name });
+  }
+}
+
 /** Rattache à l'utilisateur les tickets qui le désignent en texte, et recopie son nom dans ceux qui lui sont attribués. */
 async function syncUserTasks(u: HubUser, by: string): Promise<number> {
   const tasks = (await pr.listItemsAllProjects('tasks')).filter(
     ({ item }) => (item.assigneeId === u.email && item.assignee !== u.name) || (!item.assigneeId && designates(item.assignee, u)),
   );
   await pr.syncItems('tasks', tasks.map((x) => ({ projectId: x.projectId, itemId: x.item.id, fields: { assigneeId: u.email, assignee: u.name } })), by);
+  // Projets dont il est le chef : nom recopié, ou ancien texte qui le désigne.
+  const projects = await pr.listProjects();
+  for (const p of projects) {
+    if ((p.chefDeProjetId === u.email && p.chefDeProjet !== u.name) || (!p.chefDeProjetId && designates(p.chefDeProjet, u))) await pr.setChef(p.id, u.email, u.name);
+  }
   return tasks.length;
 }
 

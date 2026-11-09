@@ -194,6 +194,7 @@ export const api = {
   createProject: (b: CreateProjectBody) => request<ProjectDetail>('POST', '/projects', b),
   updateProject: (id: string, rev: number, fields: ProjectFields) => request<ProjectDetail>('PUT', `/projects/${id}`, { rev, fields }),
   deleteProject: (id: string) => request<null>('DELETE', `/projects/${id}`),
+  followProject: (id: string, follow: boolean) => request<{ followers: string[] }>('PUT', `/projects/${id}/suivi`, { follow }),
   createItem: <K extends ProjectItemKind>(id: string, kind: K, data: Record<string, unknown>) =>
     request<ProjectItem<K>>('POST', `/projects/${id}/items/${kind}`, data),
   updateItem: <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) =>

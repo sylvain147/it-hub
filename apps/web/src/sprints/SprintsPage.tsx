@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api } from '../api';
@@ -9,6 +9,7 @@ import { EmptyState, ErrorBox, Modal, Spinner, toast } from '../components/ui';
 import { DueLabel, ItemModal, PriorityTag } from '../projects/common';
 import { useSettings } from '../settings/context';
 import { Swatch } from './charts';
+import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
 import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, type TicketRow } from './tickets';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
@@ -35,10 +36,15 @@ async function attempt(fn: () => Promise<unknown>, done?: string) {
 /** Sprints : tableau du sprint en cours, planification des sprints à venir depuis le backlog, sprints clos. */
 export function SprintsPage() {
   const data = useLoad(() => api.sprints(), []);
+  const { email } = useAuth();
+  const projects = useLoad(() => api.listProjects(), []);
+  const [mine, setMine] = useMyProjectsFilter();
+  const mineIds = useMemo(() => myProjectIds(projects.data, email), [projects.data, email]);
   const [editing, setEditing] = useState<{ ticket: TicketRow | null; sprintId?: number | null; status?: TicketStatus } | null>(null);
   const [sprintForm, setSprintForm] = useState<Sprint | 'new' | null>(null);
   const [closing, setClosing] = useState<{ sprint: SprintListItem; past: boolean } | null>(null);
-  const o = data.data;
+  // « Mes projets » : seuls les tickets de mes projets (chef de projet ou suivis) sont affichés.
+  const o = useMemo(() => (data.data && mine ? { ...data.data, tickets: data.data.tickets.filter((t) => mineIds.has(t.projectId)) } : data.data), [data.data, mine, mineIds]);
   const reload = async () => {
     await data.reload();
   };
@@ -66,6 +72,10 @@ export function SprintsPage() {
           <button className="btn" onClick={() => setSprintForm('new')}>+ Nouveau sprint</button>
           <button className="btn btn-primary" onClick={() => setEditing({ ticket: null, sprintId: null })}>+ Nouveau ticket</button>
         </div>
+      </div>
+      <div className="filters">
+        <MyProjectsCheck mine={mine} setMine={setMine} />
+        {mine && <span className="muted small">Seuls les tickets des projets dont vous êtes chef de projet ou que vous suivez sont affichés.</span>}
       </div>
       <ErrorBox error={data.error} />
       {!o && !data.error && <Spinner />}
@@ -339,7 +349,7 @@ function PlannedSprint({
   const tickets = o.tickets.filter((t) => t.sprintId === sprint.id).sort(byTicketPriority);
   const [busy, setBusy] = useState(false);
   async function start() {
-    if (!confirm(`Démarrer « ${sprint.name} » avec ${tickets.length} ticket${tickets.length > 1 ? 's' : ''} ?`)) return;
+    if (!confirm(`Démarrer « ${sprint.name} » avec ${sprint.ticketCount} ticket${sprint.ticketCount > 1 ? 's' : ''} ?`)) return;
     setBusy(true);
     await attempt(async () => {
       await api.startSprint(sprint.id);
