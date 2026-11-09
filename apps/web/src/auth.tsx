@@ -6,6 +6,7 @@ import { DEV_USER_KEY, runtimeConfig } from './config';
 import { api, ApiError } from './api';
 import { LoginPage } from './auth/LoginPage';
 import { Spinner } from './components/ui';
+import { applyTheme } from './theme';
 
 interface AuthState {
   email: string;
@@ -56,7 +57,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   const loadMe = useCallback(async () => {
     try {
-      setMe(await api.me());
+      const loaded = await api.me();
+      applyTheme(loaded.theme);
+      setMe(loaded);
       setError(null);
       setState('connecte');
     } catch (e) {
@@ -86,7 +89,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="auth-logo"><span className="brand-logo">IT</span> Hub IT</div>
+          <div className="auth-logo"><img className="brand-logo" src="/hobbit.svg" alt="" /> Hobbit</div>
           <div className="alert alert-error">{error ?? 'Session invalide.'}</div>
           <button className="btn btn-block" onClick={() => void signOut()}>Se déconnecter</button>
         </div>

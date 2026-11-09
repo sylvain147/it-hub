@@ -8,7 +8,7 @@
  * L'équipe compte quelques personnes : une partition par entité suffit, lue en entier.
  */
 import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { HubUser, PersonalTask } from '@samm/shared';
+import { themeOrDefault, type HubUser, type PersonalTask } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
 import { notFound, nowIso } from '../lib/util.js';
@@ -23,8 +23,8 @@ export const userKeys = {
 };
 
 type UserItem = HubUser & { pk: string; sk: string };
-/** Les utilisateurs créés avant la fiche (poste, backup, périmètres) n'ont pas ces champs. */
-const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => ({ ...u, jobTitle: u.jobTitle ?? '', backupId: u.backupId ?? '', perimeters: u.perimeters ?? [] });
+/** Les utilisateurs créés avant la fiche (poste, backup, périmètres) ou le choix du thème n'ont pas ces champs. */
+const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => ({ ...u, jobTitle: u.jobTitle ?? '', backupId: u.backupId ?? '', perimeters: u.perimeters ?? [], theme: themeOrDefault(u.theme) });
 
 /** L'annuaire sert à chaque requête (contrôle d'accès) : courte mise en cache dans le processus. */
 let cache: { at: number; users: HubUser[] } | null = null;
@@ -61,6 +61,14 @@ export async function createUser(u: HubUser): Promise<boolean> {
     if ((e as { name?: string }).name === 'ConditionalCheckFailedException') return false;
     throw e;
   }
+}
+
+/** Préférences personnelles (thème) : mise à jour ciblée, sans toucher au reste de la fiche. */
+export async function setUserTheme(email: string, theme: HubUser['theme']): Promise<void> {
+  await ddb().send(
+    new UpdateCommand({ TableName: T(), Key: userKeys.user(email), UpdateExpression: 'SET theme = :t', ConditionExpression: 'attribute_exists(pk)', ExpressionAttributeValues: { ':t': theme } }),
+  );
+  clearUserCache();
 }
 
 export async function putUser(u: HubUser): Promise<HubUser> {

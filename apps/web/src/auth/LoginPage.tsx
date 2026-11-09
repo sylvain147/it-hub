@@ -13,7 +13,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-logo">
-          <span className="brand-logo">IT</span> Hub IT
+          <img className="brand-logo" src="/hobbit.svg" alt="" /> Hobbit
         </div>
         {runtimeConfig().authMode === 'cognito' ? <CognitoLogin onSignedIn={onSignedIn} /> : <DevLogin onSignedIn={onSignedIn} />}
       </div>
@@ -133,7 +133,7 @@ function CognitoLogin({ onSignedIn }: { onSignedIn: () => void }) {
         setStep({ kind: 'nouveau_mdp' });
         return;
       case 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP':
-        setStep({ kind: 'totp_setup', uri: s.totpSetupDetails.getSetupUri('Hub IT', email).toString(), secret: s.totpSetupDetails.sharedSecret });
+        setStep({ kind: 'totp_setup', uri: s.totpSetupDetails.getSetupUri('Hobbit', email).toString(), secret: s.totpSetupDetails.sharedSecret });
         return;
       case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
         setStep({ kind: 'totp' });

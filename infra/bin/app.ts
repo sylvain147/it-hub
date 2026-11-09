@@ -12,7 +12,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 new HubStack(app, 'HubIt', {
   env,
-  description: 'Hub IT – générateur de cahiers des charges et futurs modules',
+  description: 'Hobbit – générateur de cahiers des charges et futurs modules',
   repoRoot,
   llmProvider: ctx('llmProvider', 'bedrock') === 'mock' ? 'mock' : 'bedrock',
   bedrockRegion: ctx('bedrockRegion', env.region),

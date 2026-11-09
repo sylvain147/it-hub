@@ -80,7 +80,7 @@ export async function renderMarkdownDocx(title: string, subtitle: string, markdo
 
 async function pack(title: string, footer: (string | (typeof PageNumber)[keyof typeof PageNumber])[], children: Block[]): Promise<Buffer> {
   const document = new Document({
-    creator: 'Hub IT',
+    creator: 'Hobbit',
     title,
     styles: {
       default: {

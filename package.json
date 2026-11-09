@@ -1,7 +1,7 @@
 {
   "name": "samm",
   "private": true,
-  "description": "Hub de l'équipe IT – modules métier (générateur de cahiers des charges, …)",
+  "description": "Hobbit, le hub de l'équipe IT – modules métier (générateur de cahiers des charges, …)",
   "packageManager": "pnpm@10.18.0",
   "engines": {
     "node": ">=22"

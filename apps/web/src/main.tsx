@@ -28,6 +28,7 @@ import { TmaThemesPage } from './tma/TmaThemesPage';
 import { MurDeLaHonte } from './bouton/BoutonRouge';
 import { IdeasPage } from './ideas/IdeasPage';
 import { MeetingPage } from './meetings/MeetingPage';
+import { applyStoredTheme } from './theme';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -69,6 +70,8 @@ const router = createBrowserRouter([
     ],
   },
 ]);
+
+applyStoredTheme();
 
 void loadConfig().then(() => {
   configureAuth();

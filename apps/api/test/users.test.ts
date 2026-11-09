@@ -46,6 +46,19 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('POST', `/users/${MEMBRE}/invitation`, {}, ADMIN)).status).toBe(400); // pas de Cognito en local
   });
 
+  it('laisse chacun choisir son thème de couleur, conservé quand un administrateur modifie sa fiche', async () => {
+    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('marine');
+    const r = await env.call('PUT', '/me/preferences', { theme: 'comte' }, MEMBRE);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ email: MEMBRE, theme: 'comte', permissions: { manageUsers: false } });
+    expect((await env.call('PUT', '/me/preferences', { theme: 'fluo' }, MEMBRE)).status).toBe(400);
+    // Le thème des autres ne bouge pas.
+    expect((await env.call('GET', '/me', undefined, ADMIN)).json.theme).toBe('marine');
+    const profile = { name: 'Chloé Durand', role: 'membre', active: true, jobTitle: '', backupId: '', perimeters: [] };
+    expect((await env.call('PUT', `/users/${MEMBRE}`, profile, ADMIN)).json.theme).toBe('comte');
+    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('comte');
+  });
+
   it('renseigne le poste, le backup et le périmètre d’un utilisateur', async () => {
     const legacy = (await env.call('GET', '/users', undefined, ADMIN)).json.find((u: any) => u.email === RESP);
     expect(legacy).toMatchObject({ jobTitle: '', backupId: '', perimeters: [] });

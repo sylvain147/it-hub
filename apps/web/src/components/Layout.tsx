@@ -7,6 +7,7 @@ import { ToastHost } from './ui';
 import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
 import { FeedbackModal } from '../feedback/FeedbackModal';
+import { ThemeModal } from '../users/ThemeModal';
 import { BoutonRouge } from '../bouton/BoutonRouge';
 import { TodoButton } from '../tasks/TodoButton';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
@@ -30,15 +31,15 @@ export function Layout() {
           <span />
         </button>
         <NavLink to="/" className="brand brand-mobile">
-          <span className="brand-logo">IT</span>
-          <span>Hub IT</span>
+          <img className="brand-logo" src="/hobbit.svg" alt="" />
+          <span>Hobbit</span>
         </NavLink>
       </header>
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
         <NavLink to="/" className="brand">
-          <span className="brand-logo">IT</span>
-          <span>Hub IT</span>
+          <img className="brand-logo" src="/hobbit.svg" alt="" />
+          <span>Hobbit</span>
         </NavLink>
         <SideNav />
         <UserMenu name={me.name} email={me.email} role={ROLE_LABELS[me.role]} admin={ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission])} onSignOut={() => void signOut()} />
@@ -104,10 +105,11 @@ function SideNav() {
   );
 }
 
-/** Bas du menu : l'utilisateur ; un clic ouvre l'administration, « Faire un retour » et la déconnexion. */
+/** Bas du menu : l'utilisateur ; un clic ouvre l'administration, le thème de couleur, « Faire un retour » et la déconnexion. */
 function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email: string; role: string; admin: typeof ADMIN_LINKS; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  const [theme, setTheme] = useState(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   useEffect(() => setOpen(false), [pathname]);
@@ -122,7 +124,10 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
               <span className="nav-icon">{l.icon}</span> {l.title}
             </button>
           ))}
-          <hr />
+          {admin.length > 0 && <hr />}
+          <button role="menuitem" onClick={() => { setOpen(false); setTheme(true); }}>
+            <span className="nav-icon">🎨</span> Thème de couleur
+          </button>
           <button role="menuitem" onClick={() => { setOpen(false); setFeedback(true); }}>
             <span className="nav-icon">💬</span> Faire un retour
           </button>
@@ -140,6 +145,7 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
         <span className="nav-caret">⚙️</span>
       </button>
       {feedback && <FeedbackModal onClose={() => setFeedback(false)} />}
+      {theme && <ThemeModal onClose={() => setTheme(false)} />}
     </div>
   );
 }

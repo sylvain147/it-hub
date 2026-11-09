@@ -5,7 +5,7 @@
  *    seuls les comptes créés par un administrateur peuvent se connecter : l'inscription libre est fermée) ;
  *  - un utilisateur désactivé est refusé.
  */
-import type { HubUser } from '@samm/shared';
+import { DEFAULT_THEME, type HubUser } from '@samm/shared';
 import { HttpError, nowIso } from '../lib/util.js';
 import * as users from './repo.js';
 
@@ -34,6 +34,7 @@ export async function currentHubUser(email: string, displayName = ''): Promise<H
         jobTitle: '',
         backupId: '',
         perimeters: [],
+        theme: DEFAULT_THEME,
         createdAt: now,
         createdBy: key,
         updatedAt: now,
@@ -44,7 +45,7 @@ export async function currentHubUser(email: string, displayName = ''): Promise<H
       u = (await users.createUser(created)) ? created : await users.getUser(key);
     }
   }
-  if (!u.active) throw new HttpError(403, 'Votre accès au Hub IT a été désactivé. Contactez un administrateur.');
+  if (!u.active) throw new HttpError(403, 'Votre accès à Hobbit a été désactivé. Contactez un administrateur.');
   await users.touchLastSeen(u);
   return u;
 }

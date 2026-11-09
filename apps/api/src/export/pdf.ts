@@ -56,7 +56,7 @@ export async function renderPdf(doc: CdcDocument, versionLabel: string, lang: La
   const def = {
     pageSize: 'A4',
     pageMargins: [55, 50, 55, 50],
-    info: { title: doc.meta.title, creator: 'Hub IT' },
+    info: { title: doc.meta.title, creator: 'Hobbit' },
     defaultStyle: { font: 'Times', fontSize: 11, lineHeight: 1.15 },
     styles: {
       h1: { fontSize: 16, color: hex(COLORS.h1), margin: [0, 16, 0, 6] },

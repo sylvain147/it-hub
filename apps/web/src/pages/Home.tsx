@@ -39,7 +39,7 @@ export function Home() {
   return (
     <div className="page page-wide">
       <h1>Bonjour {me.name.split(' ')[0]} 👋</h1>
-      <p className="muted">Le hub de l’équipe IT.</p>
+      <p className="muted">Hobbit, le hub de l’équipe IT.</p>
       <div className="module-grid">
         {MODULES.filter((m) => m.home !== false).map((m) => (
           <Link key={m.id} to={m.path} className="module-card">

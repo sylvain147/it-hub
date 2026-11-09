@@ -28,7 +28,7 @@ export interface HubStackProps extends StackProps {
 }
 
 /**
- * Hub IT — architecture 100 % serverless (coût quasi nul au repos) :
+ * Hobbit (hub de l'équipe IT) — architecture 100 % serverless (coût quasi nul au repos) :
  *   CloudFront ─┬─ /*      → S3 (front React)
  *               └─ /api/*  → API Gateway HTTP (JWT Cognito) → Lambda API ──(asynchrone)──→ Lambda worker → Bedrock
  *   DynamoDB (données) · S3 (versions, transcriptions, images, exports) · Cognito (MFA TOTP obligatoire)
@@ -80,9 +80,9 @@ export class HubStack extends Stack {
       passwordPolicy: { minLength: 12, requireLowercase: true, requireUppercase: true, requireDigits: true, requireSymbols: false },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       userInvitation: {
-        emailSubject: 'Votre accès au Hub IT',
+        emailSubject: 'Votre accès à Hobbit',
         emailBody:
-          'Bonjour,<br><br>Un accès au Hub IT a été créé pour vous.<br>Identifiant : {username}<br>Mot de passe temporaire : {####}<br><br>À la première connexion, vous choisirez un mot de passe puis configurerez Google Authenticator (ou une application équivalente).',
+          'Bonjour,<br><br>Un accès à Hobbit, le hub de l’équipe IT, a été créé pour vous.<br>Identifiant : {username}<br>Mot de passe temporaire : {####}<br><br>À la première connexion, vous choisirez un mot de passe puis configurerez Google Authenticator (ou une application équivalente).',
       },
       removalPolicy: RemovalPolicy.RETAIN,
     });
@@ -141,7 +141,7 @@ export class HubStack extends Stack {
 
     const worker = new NodejsFunction(this, 'WorkerFn', {
       ...common,
-      description: 'Hub IT – tâches IA (génération, intégration, traduction)',
+      description: 'Hobbit – tâches IA (génération, intégration, traduction)',
       entry: join(root, 'apps/api/src/worker.ts'),
       memorySize: 1024,
       // Maximum Lambda : une création de fiche de lecture peut enchaîner deux à trois appels longs.
@@ -153,7 +153,7 @@ export class HubStack extends Stack {
 
     const api = new NodejsFunction(this, 'ApiFn', {
       ...common,
-      description: 'Hub IT – API',
+      description: 'Hobbit – API',
       entry: join(root, 'apps/api/src/lambda.ts'),
       memorySize: 1024,
       timeout: Duration.seconds(29),
@@ -220,7 +220,7 @@ export class HubStack extends Stack {
       },
     });
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
-      comment: 'Hub IT',
+      comment: 'Hobbit',
       defaultRootObject: 'index.html',
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
@@ -271,7 +271,7 @@ export class HubStack extends Stack {
       memoryLimit: 512,
     });
 
-    new CfnOutput(this, 'Url', { value: `https://${distribution.distributionDomainName}`, description: 'Adresse du Hub IT' });
+    new CfnOutput(this, 'Url', { value: `https://${distribution.distributionDomainName}`, description: 'Adresse de Hobbit' });
     new CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, 'TableName', { value: table.tableName });
