@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
-import { byDue, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
+import { byPosition, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
 import { useUsers } from './context';
 
 /** To-do d'une personne (ou de l'équipe) : ses tâches à cocher, rattachées ou non à un projet. Les tickets sont à part (sprints). */
@@ -15,14 +15,17 @@ export function TodoPage() {
   const scope = me.permissions.seeAllTodos ? (params.get('qui') ?? me.email) : me.email;
   const data = useLoad(() => api.todos(scope), [scope]);
   const projects = useProjectRefs();
+  // Lien depuis le planning : `?tache=` met la tâche en évidence.
+  const focusId = params.get('tache');
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<TaskRow | 'new' | null>(null);
   const team = scope === 'all';
 
   const rows = (data.data?.personal ?? []).map((t) => todoRow(t, name, projects));
-  const open = rows.filter((t) => !t.done).sort(byDue);
+  const open = rows.filter((t) => !t.done).sort(byPosition);
   const done = rows.filter((t) => t.done).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
   const today = new Date().toISOString().slice(0, 10);
+  const showDoneList = showDone || done.some((t) => t.id === focusId);
   const late = open.filter((t) => t.dueDate && t.dueDate < today).length;
   const reload = async () => {
     await data.reload();
@@ -72,13 +75,14 @@ export function TodoPage() {
         <ErrorBox error={data.error} />
         {data.loading && !data.data && <Spinner />}
         {data.data && !open.length && <EmptyState>Rien à faire. 🎉</EmptyState>}
-        {open.length > 0 && <TaskChecklist rows={open} onChanged={reload} onEdit={setEditing} showAssignee={team || scope !== me.email} />}
+        {open.length > 1 && <p className="muted small">Glissez une tâche par sa poignée ⠿ pour la ranger où vous voulez.</p>}
+        {open.length > 0 && <TaskChecklist rows={open} onChanged={reload} onEdit={setEditing} showAssignee={team || scope !== me.email} reorderable focusId={focusId} />}
         {done.length > 0 && (
           <>
-            <button className="btn btn-link mt" onClick={() => setShowDone((v) => !v)}>
-              {showDone ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
+            <button className="btn btn-link mt" onClick={() => setShowDone(!showDoneList)}>
+              {showDoneList ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
             </button>
-            {showDone && <TaskChecklist rows={done} onChanged={reload} onEdit={setEditing} showAssignee={team} />}
+            {showDoneList && <TaskChecklist rows={done} onChanged={reload} onEdit={setEditing} showAssignee={team} focusId={focusId} />}
           </>
         )}
       </section>

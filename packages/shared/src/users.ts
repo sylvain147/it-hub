@@ -123,7 +123,16 @@ export const todoInputSchema = taskInputSchema.pick({ title: true, details: true
 });
 export type TodoInput = z.input<typeof todoInputSchema>;
 
-export type PersonalTask = z.infer<typeof todoInputSchema> & ItemBase & { doneAt: string };
+export type PersonalTask = z.infer<typeof todoInputSchema> &
+  ItemBase & {
+    doneAt: string;
+    /** Rang choisi par glisser-déposer (le plus petit en tête) ; absent : après les tâches classées, par échéance. */
+    position?: number;
+  };
+
+/** Nouvel ordre de la to-do : les tâches, de la première à la dernière. */
+export const todoOrderBody = z.object({ ids: z.array(z.string().min(1).max(40)).min(1).max(500) });
+export type TodoOrderBody = z.input<typeof todoOrderBody>;
 
 /** To-do d'une personne, de toute l'équipe ou d'un projet. */
 export interface TodosResponse {

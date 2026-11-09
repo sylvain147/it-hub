@@ -62,9 +62,10 @@ export function NoteGrid({
 }) {
   const { me } = useAuth();
   const { name } = useUsers();
-  async function pin(n: PersonalNote) {
+  async function update(n: PersonalNote, patch: Partial<Pick<PersonalNote, 'pinned' | 'archived'>>) {
     try {
-      await api.updateNote(n, { pinned: !n.pinned });
+      await api.updateNote(n, patch);
+      if (patch.archived !== undefined) toast(patch.archived ? 'Note archivée.' : 'Note sortie des archives.');
       await onChanged();
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -75,12 +76,17 @@ export function NoteGrid({
       {notes.map((n) => {
         const project = n.projectId ? projects.find((p) => p.id === n.projectId) : null;
         return (
-          <article key={n.id} className={n.pinned ? 'note-card pinned' : 'note-card'}>
+          <article key={n.id} className={['note-card', n.pinned && !n.archived && 'pinned', n.archived && 'archived'].filter(Boolean).join(' ')}>
             <div className="note-head">
               <button className="note-open" onClick={() => onOpen(n)} title="Ouvrir la note">
                 {n.title || <span className="muted">Sans titre</span>}
               </button>
-              <button className={n.pinned ? 'btn-icon note-pin on' : 'btn-icon note-pin'} title={n.pinned ? 'Désépingler' : 'Épingler en tête'} onClick={() => void pin(n)}>📌</button>
+              <span className="note-tools">
+                {!n.archived && (
+                  <button className={n.pinned ? 'btn-icon note-pin on' : 'btn-icon note-pin'} title={n.pinned ? 'Désépingler' : 'Épingler en tête'} onClick={() => void update(n, { pinned: !n.pinned })}>📌</button>
+                )}
+                <button className="btn-icon note-pin" title={n.archived ? 'Sortir des archives' : 'Archiver'} onClick={() => void update(n, { archived: !n.archived })}>{n.archived ? '↩' : '🗄'}</button>
+              </span>
             </div>
             <div className="note-body" onClick={() => onOpen(n)}>
               <MarkdownView markdown={n.content} />
@@ -117,6 +123,7 @@ export function NoteModal({
     content: note?.content ?? '',
     projectId: note ? note.projectId : (defaults?.projectId ?? ''),
     pinned: note?.pinned ?? false,
+    archived: note?.archived ?? false,
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const { me } = useAuth();
@@ -127,6 +134,18 @@ export function NoteModal({
     if (note) await api.updateNote(note, f);
     else await api.createNote({ ...f, ownerId });
     await onSaved();
+  }
+
+  async function archive() {
+    if (!note) return;
+    try {
+      await api.updateNote(note, { ...f, archived: !f.archived });
+      toast(f.archived ? 'Note sortie des archives.' : 'Note archivée.');
+      onClose();
+      await onSaved();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
   }
 
   async function remove() {
@@ -152,6 +171,7 @@ export function NoteModal({
         note && (
           <>
             <button className="btn btn-danger-ghost" onClick={() => void remove()}>Supprimer</button>
+            <button className="btn btn-ghost" onClick={() => void archive()}>{f.archived ? '↩ Sortir des archives' : '🗄 Archiver'}</button>
             <span className="muted small">
               Créée le {formatDate(note.createdAt.slice(0, 10))}
               {note.createdBy !== note.ownerId && ` par ${name(note.createdBy)}`}

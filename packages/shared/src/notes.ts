@@ -16,6 +16,8 @@ export const personalNoteInputSchema = z
     projectId: z.string().max(40).default(''),
     /** Épinglée en tête de liste. */
     pinned: z.boolean().default(false),
+    /** Archivée : rangée à part, hors de la liste courante. */
+    archived: z.boolean().default(false),
   })
   .refine((n) => n.title || n.content.trim(), { message: 'La note est vide.' });
 export type PersonalNoteInput = z.input<typeof personalNoteInputSchema>;
