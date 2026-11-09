@@ -4,18 +4,8 @@ import { FEEDBACK_KINDS, FEEDBACK_KIND_ICONS, FEEDBACK_KIND_LABELS, type Feedbac
 import { api } from '../api';
 import { ErrorBox, Modal, Spinner, toast } from '../components/ui';
 
-/** Bouton « Faire un retour », présent sur toutes les pages (menu latéral). */
-export function FeedbackButton() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button className="btn btn-ghost btn-sm feedback-btn" onClick={() => setOpen(true)}>💬 Faire un retour</button>
-      {open && <FeedbackModal onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-function FeedbackModal({ onClose }: { onClose: () => void }) {
+/** « Faire un retour » (menu de l'utilisateur, en bas du menu latéral) : bug, idée ou remarque, avec la page d'origine. */
+export function FeedbackModal({ onClose }: { onClose: () => void }) {
   const location = useLocation();
   const [kind, setKind] = useState<FeedbackKind>('remarque');
   const [message, setMessage] = useState('');
