@@ -1,9 +1,7 @@
 import { Hono } from 'hono';
 import {
   can,
-  moveTaskBody,
   nameKey,
-  PROJECT_ITEM_SCHEMAS,
   todoInputSchema,
   userInputSchema,
   userUpdateSchema,
@@ -23,7 +21,7 @@ import * as users from './repo.js';
 import { inviteUser, resendInvitation, setUserEnabled, updateUserName } from './identity.js';
 
 // ---------------------------------------------------------------------------
-// Responsable des tâches de projet
+// Responsable des tickets
 // ---------------------------------------------------------------------------
 
 /** Le texte saisi désigne-t-il cet utilisateur (e-mail, identifiant ou nom) ? */
@@ -35,8 +33,8 @@ function designates(text: string, u: HubUser): boolean {
 }
 
 /**
- * Rattache le responsable d'une tâche de projet à un utilisateur du hub et recopie son nom.
- * Sans responsable à la création : la personne qui crée la tâche. Un texte qui ne correspond à aucun
+ * Rattache le responsable d'un ticket à un utilisateur du hub et recopie son nom.
+ * Sans responsable à la création : la personne qui crée le ticket. Un texte qui ne correspond à aucun
  * utilisateur reste tel quel (personne extérieure : prestataire, métier…).
  */
 export async function resolveTaskAssignee(raw: Record<string, unknown>, before: Record<string, unknown> | null, current: string): Promise<Record<string, unknown>> {
@@ -55,12 +53,12 @@ export async function resolveTaskAssignee(raw: Record<string, unknown>, before: 
     const u = all.find((x) => x.active && designates(text, x));
     return u ? { ...raw, assigneeId: u.email, assignee: u.name } : { ...raw, assigneeId: '', assignee: text };
   }
-  if (before) throw new HttpError(400, 'Une tâche doit avoir un responsable.');
+  if (before) throw new HttpError(400, 'Un ticket doit avoir un responsable.');
   const me = all.find((x) => x.email === current);
   return { ...raw, assigneeId: current, assignee: me?.name ?? current };
 }
 
-/** Rattache à l'utilisateur les tâches qui le désignent en texte, et recopie son nom dans celles qui lui sont attribuées. */
+/** Rattache à l'utilisateur les tickets qui le désignent en texte, et recopie son nom dans ceux qui lui sont attribués. */
 async function syncUserTasks(u: HubUser, by: string): Promise<number> {
   const tasks = (await pr.listItemsAllProjects('tasks')).filter(
     ({ item }) => (item.assigneeId === u.email && item.assignee !== u.name) || (!item.assigneeId && designates(item.assignee, u)),
@@ -132,7 +130,7 @@ export async function meHandler(email: string): Promise<Me> {
 }
 
 // ---------------------------------------------------------------------------
-// Tâches (personnelles et de projet)
+// To-do (tâches personnelles)
 // ---------------------------------------------------------------------------
 
 async function assertAssignable(assigneeId: string, current: string, role: HubUser['role']) {
@@ -146,7 +144,12 @@ function canEdit(t: PersonalTask, current: string, role: HubUser['role']) {
   return t.assigneeId === current || t.createdBy === current || can(role, 'seeAllTodos');
 }
 
-/** Routes des tâches (montées sous /api/todos). */
+/** Le ticket lié à une tâche de la to-do doit exister. */
+async function assertTicket(ticketId: string) {
+  if (ticketId && !(await pr.listTickets()).some((t) => t.id === ticketId)) throw new HttpError(400, 'Ticket introuvable : il a peut-être été supprimé.');
+}
+
+/** Routes de la to-do (montées sous /api/todos). */
 export function todoRoutes() {
   const r = new Hono();
 
@@ -154,14 +157,16 @@ export function todoRoutes() {
   r.get('/', async (c) => {
     const current = userName(c);
     const scope = (c.req.query('user') || current).toLowerCase();
-    if (scope !== current) requirePermission(c, 'seeAllTodos', 'voir les tâches des autres');
+    if (scope !== current) requirePermission(c, 'seeAllTodos', 'voir la to-do des autres');
     const keep = (assigneeId: string) => scope === 'all' || assigneeId === scope;
-    const [personal, project] = await Promise.all([users.listTodos(), pr.listOpenTasks()]);
+    const [todos, tickets] = await Promise.all([users.listTodos(), pr.listTickets()]);
+    // Les tâches qu'on a confiées à quelqu'un restent visibles par leur auteur.
+    const personal = todos.filter((t) => keep(t.assigneeId) || (scope === current && t.createdBy === current));
+    const linked = new Set(personal.map((t) => t.ticketId).filter(Boolean));
     const res: TodosResponse = {
       scope,
-      // Les tâches qu'on a confiées à quelqu'un restent visibles par leur auteur.
-      personal: personal.filter((t) => keep(t.assigneeId) || (scope === current && t.createdBy === current)),
-      project: project.filter((t) => keep(t.assigneeId)),
+      personal,
+      tickets: tickets.filter((t) => (!t.done && keep(t.assigneeId)) || linked.has(t.id)).sort((a, b) => a.number - b.number),
     };
     return c.json(res);
   });
@@ -171,6 +176,7 @@ export function todoRoutes() {
     const b = await body(c, todoInputSchema);
     const assigneeId = b.assigneeId || current;
     await assertAssignable(assigneeId, current, c.get('user').role);
+    await assertTicket(b.ticketId);
     const now = nowIso();
     const t: PersonalTask = { ...b, assigneeId, id: newId(), createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: b.done ? now : '' };
     return c.json(await users.putTodo(t), 201);
@@ -193,41 +199,11 @@ export function todoRoutes() {
       if (!fields.assigneeId) throw new HttpError(400, 'Une tâche doit avoir un responsable.');
       await assertAssignable(String(fields.assigneeId), current, role);
     }
+    if (fields.ticketId && fields.ticketId !== before.ticketId) await assertTicket(String(fields.ticketId));
     const merged = parseBody(todoInputSchema, { ...before, ...fields });
     const now = nowIso();
     const doneAt = merged.done ? before.doneAt || now : '';
     return c.json(await users.putTodo({ ...before, ...merged, updatedAt: now, updatedBy: current, doneAt }));
-  });
-
-  /** Rattache une tâche à un projet, la rend personnelle ou la change de projet (même identifiant). */
-  r.post('/move', async (c) => {
-    const current = userName(c);
-    const role = c.get('user').role;
-    const b = await body(c, moveTaskBody);
-    if (b.fromProjectId === b.toProjectId) throw new HttpError(400, 'La tâche est déjà à cet endroit.');
-    let src: { title: string; details: string; done: boolean; dueDate: string; assigneeId: string; assignee?: string; doneAt: string };
-    if (b.fromProjectId) {
-      src = await pr.getItem(b.fromProjectId, 'tasks', b.id);
-    } else {
-      const todo = await users.getTodo(b.id);
-      if (!canEdit(todo, current, role)) throw new HttpError(403, 'Cette tâche ne vous concerne pas.');
-      src = todo;
-    }
-    const fields = { title: src.title, details: src.details, done: src.done, dueDate: src.dueDate };
-    let task: unknown;
-    if (b.toProjectId) {
-      const who = await resolveTaskAssignee({ assigneeId: src.assigneeId, assignee: src.assigneeId ? '' : (src.assignee ?? '') }, null, current);
-      task = await pr.createItem(b.toProjectId, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { ...fields, ...who }), current, { itemId: b.id });
-    } else {
-      // Une tâche personnelle revient toujours à un utilisateur du hub.
-      const assigneeId = src.assigneeId || current;
-      await assertAssignable(assigneeId, current, role);
-      const now = nowIso();
-      task = await users.putTodo({ ...fields, assigneeId, id: b.id, createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: src.done ? src.doneAt || now : '' });
-    }
-    if (b.fromProjectId) await pr.deleteItem(b.fromProjectId, 'tasks', b.id, current);
-    else await users.deleteTodo(b.id);
-    return c.json({ projectId: b.toProjectId, task });
   });
 
   r.delete('/:id', async (c) => {

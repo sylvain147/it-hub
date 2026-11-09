@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { taskInputSchema, type ItemBase, type OpenTask } from './project.js';
+import { taskInputSchema, type ItemBase, type TicketView } from './project.js';
 
 /**
  * Utilisateurs du hub et rôles.
@@ -16,18 +16,18 @@ export const ROLE_LABELS: Record<Role, string> = {
   membre: 'Chargé de projet',
 };
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les tâches de toute l’équipe ; lit les retours sur l’application.',
-  responsable: 'Voit les tâches de toute l’équipe et peut en attribuer à chacun.',
-  membre: 'Voit ses propres tâches et en crée pour lui-même. Les projets restent partagés par toute l’équipe.',
+  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do de toute l’équipe ; lit les retours sur l’application.',
+  responsable: 'Voit les to-do de toute l’équipe et peut en attribuer à chacun.',
+  membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets, les tickets et les sprints restent partagés par toute l’équipe.',
 };
 
 /** Droits portés par les rôles (le code teste un droit, jamais un rôle). */
 export const PERMISSIONS = {
   /** Créer, modifier et désactiver des utilisateurs. */
   manageUsers: ['admin'],
-  /** Voir les tâches (personnelles et de projet) des autres utilisateurs. */
+  /** Voir la to-do (et les tickets ouverts) des autres utilisateurs. */
   seeAllTodos: ['admin', 'responsable'],
-  /** Créer ou réattribuer une tâche personnelle pour quelqu'un d'autre. */
+  /** Ajouter ou réattribuer une tâche de to-do à quelqu'un d'autre. */
   assignOthers: ['admin', 'responsable'],
   /** Lire et traiter les retours des utilisateurs sur l'application. */
   manageFeedback: ['admin'],
@@ -87,33 +87,28 @@ export function initials(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Tâches personnelles (hors projet)
+// To-do : tâches personnelles à cocher
 // ---------------------------------------------------------------------------
 
-export const todoInputSchema = taskInputSchema.pick({ title: true, details: true, done: true, dueDate: true }).extend({
+/**
+ * Tâche de la to-do d'une personne : une simple chose à faire que l'on coche, liée ou non à un ticket
+ * (`ticketId` : identifiant du ticket, quel que soit son projet).
+ */
+export const todoInputSchema = taskInputSchema.pick({ title: true, details: true, dueDate: true }).extend({
+  done: z.boolean().default(false),
   /** Utilisateur responsable (e-mail) ; par défaut, celui qui crée la tâche. */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
+  ticketId: z.string().max(40).default(''),
 });
 export type TodoInput = z.input<typeof todoInputSchema>;
 
 export type PersonalTask = z.infer<typeof todoInputSchema> & ItemBase & { doneAt: string };
 
-/**
- * Déplacement d'une tâche entre un projet et la liste personnelle (ou d'un projet à un autre).
- * `fromProjectId` / `toProjectId` vides : tâche personnelle.
- */
-export const moveTaskBody = z.object({
-  id: z.string().min(1).max(40),
-  fromProjectId: z.string().max(40).default(''),
-  toProjectId: z.string().max(40).default(''),
-});
-export type MoveTaskBody = z.input<typeof moveTaskBody>;
-
-/** Tâches d'une personne (ou de toute l'équipe) : personnelles et de projet. */
+/** To-do d'une personne (ou de toute l'équipe), et ses tickets. */
 export interface TodosResponse {
   /** E-mail de la personne, ou « all » pour toute l'équipe. */
   scope: string;
   personal: PersonalTask[];
-  /** Tâches de projet ouvertes. */
-  project: OpenTask[];
+  /** Tickets ouverts attribués à la personne, et tickets liés aux tâches de la to-do (même terminés). */
+  tickets: TicketView[];
 }

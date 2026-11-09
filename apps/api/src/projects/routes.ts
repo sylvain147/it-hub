@@ -30,6 +30,15 @@ import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
 import { projectContextMarkdown } from './ai.js';
 import { resolveTaskAssignee } from '../users/routes.js';
+import { assertPlannable } from '../sprints/repo.js';
+
+/** Ticket : responsable rattaché à l'annuaire, sprint en cours ou à venir (s'il change). */
+async function resolveTicket(raw: Record<string, unknown>, before: Record<string, unknown> | null, user: string): Promise<Record<string, unknown>> {
+  const out = await resolveTaskAssignee(raw, before, user);
+  const sprintId = out.sprintId;
+  if (typeof sprintId === 'number' && sprintId !== (before?.sprintId ?? null)) await assertPlannable(sprintId);
+  return out;
+}
 
 /** Phase affichée dans l'en-tête du CDC, déduite du statut du projet. */
 const PHASE_OF_STATUS: Partial<Record<ProjectStatus, ProjectPhase>> = {
@@ -114,7 +123,7 @@ export function projectRoutes() {
     const kind = kindParam(c.req.param('kind'));
     if (kind === 'files') throw new HttpError(400, 'Utilisez l’envoi de fichier pour ajouter un document.');
     let raw = await resolveProjectRefs(kind, await rawBody(c), null);
-    if (kind === 'tasks') raw = await resolveTaskAssignee(raw, null, userName(c));
+    if (kind === 'tasks') raw = await resolveTicket(raw, null, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind], raw);
     return c.json(await pr.createItem(c.req.param('id'), kind, b as Record<string, unknown>, userName(c)), 201);
   });
@@ -123,7 +132,7 @@ export function projectRoutes() {
     const kind = kindParam(c.req.param('kind'));
     const before = await pr.getItem(c.req.param('id'), kind, c.req.param('itemId'));
     let raw = await resolveProjectRefs(kind, await rawBody(c), before as unknown as Record<string, unknown>);
-    if (kind === 'tasks') raw = await resolveTaskAssignee(raw, before as unknown as Record<string, unknown>, userName(c));
+    if (kind === 'tasks') raw = await resolveTicket(raw, before as unknown as Record<string, unknown>, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind].partial(), raw);
     // Les valeurs par défaut du schéma ne doivent pas écraser les champs absents de la requête.
     const patch = Object.fromEntries(Object.entries(b as Record<string, unknown>).filter(([k]) => k in raw));
@@ -201,7 +210,7 @@ export function projectRoutes() {
     const tasks = await decide(s.tasks, b.tasks, async (t) => {
       const who = await resolveTaskAssignee({ assignee: t.assignee }, null, user);
       await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
-      created.push('tâche');
+      created.push('ticket');
     });
     const jalons = await decide(s.jalons, b.jalons, async (j) => {
       // Un jalon existant du même nom est déplacé plutôt que dupliqué.

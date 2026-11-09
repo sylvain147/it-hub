@@ -13,8 +13,11 @@ const OPERATION_LABELS: Record<string, string> = {
   traduction: 'Traductions',
   tma_themes: 'Classement des tickets TMA',
   tma_synthese: 'Synthèses TMA',
-  jira_compte_rendu: 'Comptes rendus de sprint',
-  jira_preparation: 'Préparations de sprint',
+  sprint_compte_rendu: 'Comptes rendus de sprint',
+  sprint_preparation: 'Préparations de sprint',
+  // Avant les sprints du hub (import Jira).
+  jira_compte_rendu: 'Comptes rendus de sprint (Jira)',
+  jira_preparation: 'Préparations de sprint (Jira)',
 };
 
 const usd = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 })} $`;

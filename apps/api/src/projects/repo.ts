@@ -3,7 +3,7 @@
  *
  *  pk              sk                       contenu
  *  PROJ#<id>       META                     fiche + indicateurs calculés (+ GSI1 « PROJ » pour la liste)
- *  PROJ#<id>       TASK#<id>                tâche à cocher (+ GSI1 « TASK_OPEN » tant qu'elle n'est pas faite : vue transverse)
+ *  PROJ#<id>       TASK#<id>                ticket (+ GSI1 « TICKET » : tous les tickets, pour les sprints et la to-do)
  *  PROJ#<id>       JALON#<id>               jalon du planning
  *  PROJ#<id>       PRESTA#<id>              prestation (devis, commande…)
  *  PROJ#<id>       CONTACT#<id>             intervenant
@@ -14,6 +14,9 @@
  *  PROJ#<id>       ACT#<date>#<aléa>        historique (+ GSI1 « ACT » : activité récente tous projets ; TTL 1 an)
  *  bucket : projects/<id>/files/<fileId>    pièces jointes
  *  bucket : projects/<id>/notes/<noteId>.txt transcription brute d'un compte rendu analysé
+ *
+ * Les tickets enregistrés avant les sprints (tâches à cocher, GSI1 « TASK_OPEN » pour les tâches ouvertes) reçoivent
+ * un numéro et l'index « TICKET » à leur première lecture (`listTickets`, `getProjectDetail`).
  */
 import { randomBytes } from 'node:crypto';
 import { BatchWriteCommand, DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
@@ -25,7 +28,6 @@ import {
   statusLabel,
   type ActivityEntry,
   type ItemBase,
-  type OpenTask,
   type ProjectDetail,
   type ProjectFields,
   type ProjectItem,
@@ -35,16 +37,23 @@ import {
   type ProjectSummary,
   type ListSettings,
   type Task,
+  type TicketView,
+  MAX_TICKET_HISTORY,
+  ticketKey,
 } from '@samm/shared';
 import { config } from '../config.js';
-import { ddb, isConditionFailed, queryAll } from '../db/client.js';
+import { ddb, isConditionFailed, nextCounter, queryAll } from '../db/client.js';
 import { GSI1, ttlInDays } from '../db/schema.js';
 import { HttpError, newId, notFound, nowIso } from '../lib/util.js';
 import { getLists } from '../settings/repo.js';
+import { getSprintItem } from '../sprints/repo.js';
 
 const T = () => config.tableName;
 const LIST_PK = 'PROJ';
-const OPEN_TASKS_PK = 'TASK_OPEN';
+const TICKET_PK = 'TICKET';
+/** Index des tâches ouvertes d'avant les sprints. */
+const LEGACY_OPEN_TASKS_PK = 'TASK_OPEN';
+const TICKET_COUNTER = 'TICKET';
 const ACTIVITY_PK = 'ACT';
 
 const SK_PREFIX: Record<ProjectItemKind, string> = {
@@ -70,7 +79,7 @@ export const projectBlobKeys = {
 
 /** Libellés utilisés dans l'historique. */
 const KIND_LABELS: Record<ProjectItemKind, { one: string }> = {
-  tasks: { one: 'la tâche' },
+  tasks: { one: 'le ticket' },
   jalons: { one: 'le jalon' },
   prestations: { one: 'la prestation' },
   contacts: { one: 'l’intervenant' },
@@ -83,6 +92,7 @@ const KIND_LABELS: Record<ProjectItemKind, { one: string }> = {
 export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): string {
   switch (kind) {
     case 'tasks':
+      return typeof it.number === 'number' && it.number ? `${ticketKey({ number: it.number })} ${String(it.title)}` : String(it.title);
     case 'notes':
     case 'risks':
       return String(it.title);
@@ -223,6 +233,7 @@ export async function getProjectDetail(id: string, cdcs: ProjectDetail['cdcs']):
   });
   const meta = all.find((it) => it.sk === 'META') as MetaItem | undefined;
   if (!meta) throw notFound('Projet');
+  await numberLegacyTickets(all.filter((it) => it.sk.startsWith(SK_PREFIX.tasks) && typeof it.number !== 'number'));
   const items = partition(all);
   const activity = all
     .filter((it) => it.sk.startsWith('ACT#'))
@@ -237,7 +248,7 @@ function partition(all: (Record<string, unknown> & { sk: string })[]): ProjectIt
   for (const [kind, prefix] of Object.entries(SK_PREFIX) as [ProjectItemKind, string][]) {
     (items[kind] as unknown[]) = all.filter((it) => it.sk.startsWith(prefix)).map((it) => stripItem(kind === 'tasks' ? normalizeTaskRecord(it) : it));
   }
-  items.tasks.sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.createdAt.localeCompare(b.createdAt));
+  items.tasks.sort((a, b) => a.number - b.number || a.createdAt.localeCompare(b.createdAt));
   items.jalons.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
   items.notes.sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.date || b.createdAt).localeCompare(a.date || a.createdAt) || b.createdAt.localeCompare(a.createdAt));
   for (const k of ['prestations', 'contacts', 'links', 'files', 'risks'] as const) (items[k] as ItemBase[]).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -289,10 +300,23 @@ export async function getItem<K extends ProjectItemKind>(id: string, kind: K, it
 function derived(kind: ProjectItemKind, data: Record<string, unknown>, before: Stored | null): Record<string, unknown> {
   switch (kind) {
     case 'tasks': {
-      const done = data.done === true;
+      const done = data.status === 'termine';
       const doneAt = done ? (before?.done === true && before.doneAt ? (before.doneAt as string) : nowIso()) : '';
-      // Index transverse des tâches ouvertes (accueil, « mes tâches »).
-      return done ? { doneAt } : { doneAt, gsi1pk: OPEN_TASKS_PK, gsi1sk: `${(data.dueDate as string) || '9999-12-31'}#${data.id as string}` };
+      // Historique des statuts et des sprints : revue de sprint.
+      const at = String(data.updatedAt);
+      const statusChanges = [...((before?.statusChanges as unknown[]) ?? [])];
+      if (before && before.status !== data.status) statusChanges.push({ at, from: before.status, to: data.status });
+      const sprintChanges = [...((before?.sprintChanges as unknown[]) ?? [])];
+      if (before && (before.sprintId ?? null) !== data.sprintId) sprintChanges.push({ at, from: before.sprintId ?? null, to: data.sprintId });
+      return {
+        number: (data.number as number) || (before?.number as number) || 0,
+        done,
+        doneAt,
+        statusChanges: statusChanges.slice(-MAX_TICKET_HISTORY),
+        sprintChanges: sprintChanges.slice(-MAX_TICKET_HISTORY),
+        gsi1pk: TICKET_PK,
+        gsi1sk: data.id as string,
+      };
     }
     case 'jalons':
       // La date initiale permet de mesurer le glissement du planning.
@@ -322,7 +346,8 @@ export async function createItem<K extends ProjectItemKind>(
   const data = PROJECT_ITEM_SCHEMAS[kind].parse(input) as Record<string, unknown>;
   const now = nowIso();
   const itemId = opts.itemId ?? newId();
-  const base = { ...data, ...opts.extra, id: itemId, createdAt: now, createdBy: user, updatedAt: now, updatedBy: user };
+  const extra = kind === 'tasks' ? { ...opts.extra, number: await nextCounter(TICKET_COUNTER) } : opts.extra;
+  const base = { ...data, ...extra, id: itemId, createdAt: now, createdBy: user, updatedAt: now, updatedBy: user };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...base, ...derived(kind, base, null) };
   await ddb().send(new PutCommand({ TableName: T(), Item: item }));
   if (!opts.silent) {
@@ -344,19 +369,25 @@ export async function updateItem<K extends ProjectItemKind>(
   const project = await requireProject(id);
   const before = await getStored(id, kind, itemId);
   if (!before) throw notFound('Élément');
+  if (kind === 'tasks' && !before.number) extra = { ...extra, number: await nextCounter(TICKET_COUNTER) };
   const data = PROJECT_ITEM_SCHEMAS[kind].parse({ ...stripItem<Record<string, unknown>>(before), ...patch }) as Record<string, unknown>;
   const base = { ...data, ...extra, id: itemId, createdAt: before.createdAt, createdBy: before.createdBy, updatedAt: nowIso(), updatedBy: user };
   const merged = { ...base, ...derived(kind, base, { ...before, ...extra }) };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...merged };
   await ddb().send(new PutCommand({ TableName: T(), Item: item }));
-  await logActivity(id, project.name, user, activityForUpdate(kind, before, merged, await getLists()));
+  await logActivity(id, project.name, user, await activityForUpdate(kind, before, merged, await getLists()));
   await refreshStats(id, user);
   return stripItem(item);
 }
 
-function activityForUpdate(kind: ProjectItemKind, before: Record<string, unknown>, after: Record<string, unknown>, lists: ListSettings): string {
+async function activityForUpdate(kind: ProjectItemKind, before: Record<string, unknown>, after: Record<string, unknown>, lists: ListSettings): Promise<string> {
   const title = `« ${itemTitle(kind, after)} »`;
-  if (kind === 'tasks' && before.done !== after.done) return after.done ? `a terminé la tâche ${title}` : `a rouvert la tâche ${title}`;
+  if (kind === 'tasks' && before.status !== after.status) return `a passé le ticket ${title} au statut « ${statusLabel(lists, 'ticket', String(after.status))} »`;
+  if (kind === 'tasks' && (before.sprintId ?? null) !== after.sprintId) {
+    if (after.sprintId === null) return `a remis le ticket ${title} au backlog`;
+    const sprint = await getSprintItem(after.sprintId as number);
+    return `a planifié le ticket ${title} dans le sprint « ${sprint?.name ?? after.sprintId} »`;
+  }
   if (kind === 'jalons' && !before.done && after.done) return `a marqué le jalon ${title} comme atteint`;
   if (kind === 'jalons' && before.date !== after.date) return `a déplacé le jalon ${title} au ${String(after.date) || '(date à définir)'}`;
   if (kind === 'risks' && before.status !== after.status && after.status === 'clos') return `a clos le risque ${title}`;
@@ -403,17 +434,39 @@ export async function listItems<K extends ProjectItemKind>(id: string, kind: K):
   return partition(all)[kind];
 }
 
-/** Tâches non terminées de tous les projets, par échéance. */
-export async function listOpenTasks(): Promise<OpenTask[]> {
-  const [tasks, projects] = await Promise.all([
-    queryAll<Record<string, unknown>>({ IndexName: GSI1, KeyConditionExpression: 'gsi1pk = :p', ExpressionAttributeValues: { ':p': OPEN_TASKS_PK } }),
+/** Tickets de tous les projets (projet supprimé : ignorés). */
+export async function listTickets(): Promise<TicketView[]> {
+  const [tickets, legacy, projects] = await Promise.all([
+    queryAll<Record<string, unknown>>({ IndexName: GSI1, KeyConditionExpression: 'gsi1pk = :p', ExpressionAttributeValues: { ':p': TICKET_PK } }),
+    queryAll<Record<string, unknown>>({ IndexName: GSI1, KeyConditionExpression: 'gsi1pk = :p', ExpressionAttributeValues: { ':p': LEGACY_OPEN_TASKS_PK } }),
     listProjects(),
   ]);
+  const all = [...tickets, ...(await numberLegacyTickets(legacy))];
   const names = new Map(projects.map((p) => [p.id, p.name]));
-  return tasks
+  return all
     .filter((t) => names.has(String(t.projectId)))
-    .map((t) => ({ ...stripItem<Task>(normalizeTaskRecord(t)), projectId: String(t.projectId), projectName: names.get(String(t.projectId))! }))
-    .filter((t) => !t.done);
+    .map((t) => ({ ...stripItem<Task>(normalizeTaskRecord(t)), projectId: String(t.projectId), projectName: names.get(String(t.projectId))! }));
+}
+
+/** Tickets d'avant les sprints : numéro (dans l'ordre de création) et index « TICKET ». Renvoie les enregistrements à jour. */
+async function numberLegacyTickets(items: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
+  if (!items.length) return [];
+  const sorted = [...items].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  const last = await nextCounter(TICKET_COUNTER, sorted.length);
+  const out: Record<string, unknown>[] = [];
+  for (const [i, raw] of sorted.entries()) {
+    const it = normalizeTaskRecord(raw);
+    const item = { ...it, number: last - sorted.length + 1 + i, gsi1pk: TICKET_PK, gsi1sk: String(it.id) };
+    await ddb().send(new PutCommand({ TableName: T(), Item: item }));
+    Object.assign(raw, item);
+    out.push(item);
+  }
+  return out;
+}
+
+/** Tickets actuellement dans un sprint. */
+export async function ticketsOfSprint(sprintId: number): Promise<TicketView[]> {
+  return (await listTickets()).filter((t) => t.sprintId === sprintId);
 }
 
 // ---------------------------------------------------------------------------

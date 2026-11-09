@@ -27,7 +27,7 @@ import { fileTypeRoutes } from './filetypes/routes.js';
 import { tmaRoutes } from './tma/routes.js';
 import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
-import { jiraRoutes } from './jira/routes.js';
+import { sprintRoutes } from './sprints/routes.js';
 import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
 import { feedbackRoutes } from './feedback/routes.js';
 import * as pr from './projects/repo.js';
@@ -287,18 +287,12 @@ export function createApp() {
   api.route('/tma', tmaRoutes());
   api.route('/settings', settingsRoutes());
   api.route('/projects', projectRoutes());
-  api.route('/jira', jiraRoutes());
+  api.route('/sprints', sprintRoutes());
   api.route('/users', userRoutes());
   api.route('/todos', todoRoutes());
   api.route('/feedback', feedbackRoutes());
 
-  // Vues transverses des projets (accueil).
-  // Tâches ouvertes de tous les projets : les siennes seulement, sauf si le rôle permet de voir celles de l'équipe.
-  api.get('/tasks/open', async (c) => {
-    const tasks = await pr.listOpenTasks();
-    const u = c.get('user');
-    return c.json(can(u.role, 'seeAllTodos') ? tasks : tasks.filter((t) => t.assigneeId === u.email));
-  });
+  // Activité récente des projets (accueil).
   api.get('/activity', async (c) => c.json(await pr.recentActivity(Math.min(Number(c.req.query('limit') ?? 30) || 30, 100))));
 
   app.route('/api', api);

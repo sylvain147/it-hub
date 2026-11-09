@@ -7,7 +7,10 @@ import {
   PROJECT_STATUS_LABELS,
   RISK_STATUSES,
   RISK_STATUS_LABELS,
+  TICKET_STATUSES,
+  TICKET_STATUS_LABELS,
 } from './project.js';
+import { cardRuleSchema, MAX_CARD_RULES } from './sprints/cards.js';
 
 /**
  * Paramétrage du hub : référentiel des prestataires (et de leurs contacts), libellés et ordre des statuts,
@@ -23,6 +26,7 @@ import {
 
 export const STATUS_LISTS = {
   project: { title: 'Projets', keys: PROJECT_STATUSES, labels: PROJECT_STATUS_LABELS as Record<string, string>, locked: ['cadrage'] },
+  ticket: { title: 'Tickets (colonnes du sprint)', keys: TICKET_STATUSES, labels: TICKET_STATUS_LABELS as Record<string, string>, locked: ['a_faire', 'termine'] },
   prestation: { title: 'Prestations', keys: PRESTA_STATUSES, labels: PRESTA_STATUS_LABELS as Record<string, string>, locked: ['a_chiffrer'] },
   risk: { title: 'Risques', keys: RISK_STATUSES, labels: RISK_STATUS_LABELS as Record<string, string>, locked: ['ouvert', 'clos'] },
   cdc: { title: 'Cahiers des charges', keys: CDC_STATUSES, labels: CDC_STATUS_LABELS as Record<string, string>, locked: ['brouillon'] },
@@ -69,6 +73,8 @@ export const listSettingsSchema = z.object({
   statuses: z.object(Object.fromEntries(STATUS_LIST_KEYS.map((k) => [k, z.array(statusSettingSchema).max(50)])) as Record<StatusListKey, z.ZodArray<typeof statusSettingSchema>>),
   jalonLabels: suggestions,
   contactRoles: suggestions,
+  /** Fonds conditionnels des cartes du tableau de sprint, dans l'ordre d'évaluation. */
+  cardRules: z.array(cardRuleSchema).max(MAX_CARD_RULES, `${MAX_CARD_RULES} règles au maximum`).default([]),
 });
 export type ListSettings = z.infer<typeof listSettingsSchema>;
 
@@ -77,6 +83,7 @@ export function defaultListSettings(): ListSettings {
     statuses: Object.fromEntries(STATUS_LIST_KEYS.map((k) => [k, STATUS_LISTS[k].keys.map((key) => ({ key, label: STATUS_LISTS[k].labels[key]!, hidden: false }))])) as ListSettings['statuses'],
     jalonLabels: [...DEFAULT_JALON_LABELS],
     contactRoles: [...DEFAULT_CONTACT_ROLES],
+    cardRules: [],
   };
 }
 
@@ -101,7 +108,11 @@ export function normalizeListSettings(raw: Partial<ListSettings> | null | undefi
     statuses[k] = list;
   }
   const clean = (xs: string[] | undefined, fallback: string[]) => (xs ? [...new Set(xs.map((x) => x.trim()).filter(Boolean))] : fallback);
-  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles) };
+  const cardRules = (raw?.cardRules ?? []).flatMap((r) => {
+    const ok = cardRuleSchema.safeParse(r);
+    return ok.success ? [ok.data] : [];
+  });
+  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles), cardRules };
 }
 
 export function statusLabel(lists: ListSettings, list: StatusListKey, key: string): string {

@@ -88,51 +88,47 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 
 ## Module « Projets »
 
-- **Modèle** (`packages/shared/src/project.ts`) : la fiche (`projectFieldsSchema`) et huit types d'éléments rattachés (`PROJECT_ITEM_SCHEMAS` : tâches, jalons, prestations, intervenants, liens, documents, notes du journal, risques), chacun avec son schéma zod. Les indicateurs (`computeStats` : tâches ouvertes / en retard, prochain jalon, budget prévu / engagé, risques…) sont recalculés côté serveur après chaque modification et stockés sur la fiche pour la liste.
+- **Modèle** (`packages/shared/src/project.ts`) : la fiche (`projectFieldsSchema`) et huit types d'éléments rattachés (`PROJECT_ITEM_SCHEMAS` : tickets, jalons, prestations, intervenants, liens, documents, notes du journal, risques), chacun avec son schéma zod. Les indicateurs (`computeStats` : tickets ouverts / en retard, prochain jalon, budget prévu / engagé, risques…) sont recalculés côté serveur après chaque modification et stockés sur la fiche pour la liste.
 - **API** (`apps/api/src/projects/`) : routes génériques `POST/PATCH/DELETE /api/projects/:id/items/:kind[/:itemId]` (PATCH partiel, revalidé entièrement), fiche avec verrouillage optimiste (`rev`), pièces jointes par URL pré-signée (création → envoi direct depuis le navigateur → confirmation), vues transverses `/api/tasks/open` et `/api/activity`. Chaque modification alimente l'historique.
 - **Cahiers des charges** : un CDC porte un `projectId` (attribut de la fiche, hors document versionné). `POST /api/projects/:id/cdcs` crée le CDC pré-rempli (projet, prestataire et charge de la prestation, jalons non atteints, phase déduite du statut) et, si demandé, lance la génération avec un **contexte projet** en Markdown compact (`projectContextMarkdown`), éventuellement complété d'une transcription triée par le modèle rapide.
-- **IA** (`projects/ai.ts`, `projects/jobs.ts`) : jobs `project_digest` (modèle rapide : compte rendu + propositions de tâches, jalons et risques stockées sur la note, validées une à une par l'utilisateur) et `project_report` (modèle de rédaction, effort faible : rapport à partir des seules données du projet, 30 derniers jours). Le job réserve le projet (une tâche IA à la fois) mais n'empêche pas l'édition : il ne fait qu'ajouter une note.
+- **IA** (`projects/ai.ts`, `projects/jobs.ts`) : jobs `project_digest` (modèle rapide : compte rendu + propositions de tickets, jalons et risques stockées sur la note, validées une à une par l'utilisateur) et `project_report` (modèle de rédaction, effort faible : rapport à partir des seules données du projet, 30 derniers jours). Le job réserve le projet (une tâche IA à la fois) mais n'empêche pas l'édition : il ne fait qu'ajouter une note.
 
 | pk | sk | Contenu |
 |---|---|---|
 | `PROJ#<id>` | `META` | Fiche + indicateurs + révision (index `gsi1` « PROJ » pour la liste) |
-| `PROJ#<id>` | `TASK#<id>` | Tâche à cocher : `done`, détails en Markdown (index `gsi1` « TASK_OPEN » tant qu'elle n'est pas faite : « mes tâches » sur l'accueil) |
+| `PROJ#<id>` | `TASK#<id>` | Ticket : numéro, statut, sprint (`sprintId`, null = backlog), historique des statuts et des sprints, description en Markdown (index `gsi1` « TICKET » : tous les tickets, pour les sprints et la to-do) |
+| `COUNTER` | `TICKET`, `SPRINT` | Derniers numéros attribués (compteurs atomiques `nextCounter`) |
 | `PROJ#<id>` | `JALON#`, `PRESTA#`, `CONTACT#`, `LINK#`, `FILE#`, `NOTE#`, `RISK#` | Éléments rattachés |
 | `PROJ#<id>` | `ACT#<date>#<aléa>` | Historique (index `gsi1` « ACT » : activité récente ; expire après 1 an) |
 | (S3) `projects/<id>/files/<fileId>` | | Pièce jointe |
 | (S3) `projects/<id>/notes/<noteId>.txt` | | Transcription d'origine d'un compte rendu analysé |
 
-## Jira
+## Sprints
 
-- **Connexion** (`apps/api/src/jira/client.ts`) : Jira Cloud uniquement (`https://<site>.atlassian.net`, `normalizeJiraSite`), e-mail + jeton d'API en authentification Basic, appels depuis l'API (le jeton ne quitte pas le serveur). Lecture seule. Le site `demo` (`jira/demo.ts`) imite l'API Jira pour le développement local et les tests ; il est refusé sur AWS.
-- **Import** (`jira/sync.ts`, `importBoards`) : pour chaque tableau Scrum suivi, sprints en cours, à venir et les `JIRA_CLOSED_SPRINTS_KEPT` derniers clos ; une recherche JQL ramène leurs tickets **et les tickets retirés** (rapport de sprint du tableau, sinon tickets du projet modifiés depuis le lancement) avec leur historique (`expand=changelog`, complété ticket par ticket si tronqué) ; une seconde recherche, sans historique, ramène le backlog ouvert (`sprint is EMPTY`). Seuls les champs utiles sont gardés (pas de description ni de commentaire). Résultat : la liste des tickets (`JiraTask`, lecture seule), les sprints et leur bilan, la vélocité par tableau, et un instantané par sprint (`SprintSnapshot`).
-- **Rattachement** : calculé à la lecture (`taskViews`). Un choix manuel (`JIRA#LINK`, `projectId` null = détaché) l'emporte ; sinon `projectsByEpic` rattache le ticket au projet dont le code est la clé de son épopée (le ticket lui-même, son parent ou un ancêtre importé ; résumé de l'épopée égal au code accepté). `projectId: "auto"` efface le choix manuel. Un rattachement vers un projet supprimé est ignoré.
-- **Calculs** (`packages/shared/src/jira/`) : `buildSprintReport` rejoue l'historique pour connaître, à tout instant, les sprints et le statut de chaque ticket (statuts regroupés : terminé selon la catégorie Jira ; recette et attente reconnues au nom ; à faire ; en cours ; jours à l'heure de Paris). `buildSprintPreparation` calcule la préparation d'un sprint à venir ou en cours (tickets prévus, charge, vélocité, reports probables, backlog prioritaire, points à clarifier).
-- **IA** (`jira/jobs.ts`) : jobs `jira_sprint_review` (entrée `sprintReportToMarkdown`) et `jira_sprint_preparation` (entrée `sprintPreparationToMarkdown`), modèle de rédaction, quelques Ko. Export Word par `renderMarkdownDocx`. Pour les tests, `GET /api/jira/sprints/:id/documents/:kind/prompt` renvoie la requête exacte qui serait envoyée à Bedrock (`captureBedrockRequest` : même SDK et mêmes paramètres que l'appel réel — `sprintDocCall` —, requête interceptée avant l'envoi, sans coût), à rejouer sur une IA locale.
+- **Tickets** : éléments `tasks` des projets (`taskInputSchema`), modifiés par les routes génériques des projets (`PATCH /api/projects/:id/items/tasks/:itemId`). Le serveur attribue le numéro (`nextCounter('TICKET')`, clé « T-12 »), calcule `done` (statut `termine`) et ajoute à chaque changement une entrée à `statusChanges` / `sprintChanges` (200 au plus). Un ticket ne se planifie que dans un sprint en cours ou à venir (`assertPlannable`). Les tâches à cocher d'avant les sprints (`done`, index « TASK_OPEN ») sont lues par `normalizeTaskRecord`, puis numérotées et indexées « TICKET » à leur première lecture (`listTickets`, `getProjectDetail`).
+- **Statuts** : codes fixes (`TICKET_STATUSES` : `a_faire`, `en_cours`, `attente`, `recette`, `termine`) ; libellés, ordre et visibilité dans le paramétrage (liste `ticket`). Les colonnes du tableau suivent cet ordre.
+- **Sprints** (`apps/api/src/sprints/`) : numérotés (`nextCounter('SPRINT')`), états `future` → `active` → `closed`. Un seul sprint en cours (`POST /:id/start`). La clôture (`POST /:id/close`, `moveTo` : sprint à venir ou null pour le backlog) enregistre `completedAt` **avant** de déplacer les tickets non terminés : les chiffres du sprint clos s'arrêtent à la clôture. Seul un sprint à venir se supprime (ses tickets reviennent au backlog).
+- **Fonds des cartes** (`sprints/cards.ts`) : règles `cardRules` du paramétrage des listes (`cardRuleSchema`, 20 au plus), évaluées dans le navigateur par `cardColor` (première règle complète qui correspond). Couleurs fixes (`CARD_COLORS`), classes `card-bg-*`.
+- **Calculs** (`packages/shared/src/sprints/`) : `buildSprintReport` rejoue l'historique de chaque ticket pour connaître, à tout instant, son sprint et son statut (jours à l'heure de Paris) : périmètre au lancement, ajouts, retraits, reports, clôtures jour par jour, temps par statut, points d'attention. `buildSprintPreparation` calcule la préparation d'un sprint à venir ou en cours (tickets prévus, charge, rythme des 3 derniers sprints clos, reports probables, backlog par échéance, points à clarifier). Les libellés des statuts viennent du paramétrage.
+- **IA** (`sprints/jobs.ts`) : jobs `sprint_review` (entrée `sprintReportToMarkdown`) et `sprint_preparation` (entrée `sprintPreparationToMarkdown`), modèle de rédaction, quelques Ko ; ni description ni détail des tickets. Export Word par `renderMarkdownDocx`. Pour les tests, `GET /api/sprints/:id/documents/:kind/prompt` renvoie la requête exacte qui serait envoyée à Bedrock (`captureBedrockRequest` : même SDK et mêmes paramètres que l'appel réel — `sprintDocCall` —, requête interceptée avant l'envoi, sans coût), à rejouer sur une IA locale.
 
 | pk | sk | Contenu |
 |---|---|---|
-| `JIRA#CONF` | `CONF` | Connexion (site, compte, jeton), champs retenus (story points, réf. Desk, sprint), tableaux suivis |
-| `JIRA#IMPORT` | `META` | Dernier import (date, auteur, nombre de tickets) |
-| `JIRA#SPRINT#<id>` | `META` | Sprint importé, documents (`compteRendu`, `preparation`), job actif |
-| `JIRA#LINK` | `L#<clé>` | Rattachement manuel d'un ticket (projet, ou null = détaché) |
-| (S3) `jira/import.json` | | Dernier import : tickets, sprints, vélocité |
-| (S3) `jira/sprints/<id>.json` | | Instantané du sprint (tickets et historique) |
+| `SPRINT` | `S#<n° sur 6 chiffres>` | Sprint (nom, objectif, dates, état, lancement, clôture), documents (`compteRendu`, `preparation`), job actif |
 
-## Utilisateurs, rôles et tâches personnelles
+## Utilisateurs, rôles et to-do
 
 - **Identité** : l'adresse e-mail (identifiant Cognito ; en local, en-tête `x-dev-user`). À chaque requête, `authMiddleware` lit l'utilisateur du hub (`users/access.ts`, annuaire en cache 10 s) : le premier utilisateur devient administrateur, une personne authentifiée inconnue est ajoutée comme chargé de projet, un utilisateur désactivé est refusé (403).
 - **Droits** (`packages/shared/src/users.ts`) : le code teste un droit (`can(role, 'seeAllTodos')`, `requirePermission`), jamais un rôle. `manageUsers` (administrateur), `seeAllTodos` et `assignOthers` (administrateur, responsable d'équipe).
 - **Comptes de connexion** (`users/identity.ts`) : création (invitation), renvoi, désactivation (+ fermeture des sessions), nom — via l'API d'administration Cognito ; sans effet en local.
 - **Connexion** (`apps/web/src/auth/LoginPage.tsx`) : écran propre au hub sur l'API `aws-amplify/auth` (`signIn` / `confirmSignIn`) : mot de passe temporaire, configuration TOTP (QR code généré dans le navigateur), code TOTP, mot de passe oublié.
-- **Tâches de projet** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, la tâche revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
-- **Tâches personnelles** : hors projet, une partition `TODO`. `GET /api/todos?user=` réunit tâches personnelles et tâches de projet ouvertes d'une personne (ou `all`) selon les droits. `POST /api/todos/move` rattache une tâche à un projet, la rend personnelle ou la change de projet (même identifiant).
-- **Tâches simplifiées** : plus de statut ni de priorité, seulement `done`. Les tâches enregistrées avant portent encore `status` : `normalizeTaskRecord` les convertit à la lecture (`status === 'fait'`), et elles sont réécrites au format actuel à la modification suivante.
+- **Responsable des tickets** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, le ticket revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
+- **To-do** : tâches personnelles à cocher (`done`), une partition `TODO`, liées ou non à un ticket (`ticketId`). `GET /api/todos?user=` renvoie la to-do d'une personne (ou `all`) selon les droits, avec ses tickets ouverts et les tickets liés à ses tâches. Les tâches d'avant la simplification (`status: 'fait'`) sont converties à la lecture.
 
 | pk | sk | Contenu |
 |---|---|---|
 | `USER` | `U#<e-mail>` | Utilisateur : nom, rôle, actif, invitation, dernière activité |
-| `TODO` | `T#<id>` | Tâche personnelle (responsable `assigneeId`, auteur `createdBy`) |
+| `TODO` | `T#<id>` | Tâche de la to-do (responsable `assigneeId`, auteur `createdBy`, ticket lié `ticketId`) |
 
 ## Ajouter un module au hub
 

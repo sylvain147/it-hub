@@ -6,7 +6,8 @@
  * en texte (légendes avec effectifs, étiquettes de fin de barre) et le tableau des tickets sert de vue détaillée.
  */
 import { useState } from 'react';
-import { SPRINT_GROUPS, SPRINT_GROUP_LABELS, shortDay, type SprintGroup, type SprintReport } from '@samm/shared';
+import { SPRINT_GROUPS, shortDay, type SprintGroup, type SprintReport } from '@samm/shared';
+import { useSettings } from '../settings/context';
 
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 
@@ -14,13 +15,20 @@ export function Swatch({ group }: { group: SprintGroup | 'sorti' }) {
   return <span className={`sw sw-${group}`} aria-hidden />;
 }
 
+/** Libellé d'un statut de ticket (paramétrage). */
+export function useTicketLabel(): (s: SprintGroup) => string {
+  const { label } = useSettings();
+  return (s) => label('ticket', s);
+}
+
 /** Légende des groupes présents, avec leur effectif. */
 export function GroupLegend({ counts, unit = '' }: { counts: Partial<Record<SprintGroup, number>>; unit?: string }) {
+  const label = useTicketLabel();
   return (
     <div className="viz-legend">
       {SPRINT_GROUPS.filter((g) => counts[g]).map((g) => (
         <span key={g} className="viz-legend-item">
-          <Swatch group={g} /> {SPRINT_GROUP_LABELS[g]} <strong>{fmt(counts[g]!)}{unit}</strong>
+          <Swatch group={g} /> {label(g)} <strong>{fmt(counts[g]!)}{unit}</strong>
         </span>
       ))}
     </div>
@@ -42,6 +50,7 @@ function StackBar({ parts, max, title }: { parts: { group: SprintGroup; value: n
 }
 
 export function ProgressChart({ r }: { r: SprintReport }) {
+  const label = useTicketLabel();
   const total = r.counts.active;
   const pct = total ? Math.round((r.counts.done / total) * 100) : 0;
   return (
@@ -50,16 +59,17 @@ export function ProgressChart({ r }: { r: SprintReport }) {
         <strong>{pct} %</strong> <span className="muted">des tickets actifs clôturés</span>
       </div>
       <StackBar
-        parts={r.byGroup.map((g) => ({ group: g.group, value: g.count }))}
+        parts={r.byStatus.map((g) => ({ group: g.status, value: g.count }))}
         max={Math.max(1, total)}
-        title={(g, v) => `${SPRINT_GROUP_LABELS[g]} : ${v} ticket(s) — ${r.byGroup.find((x) => x.group === g)!.statuses.join(', ')}`}
+        title={(g, v) => `${label(g)} : ${v} ticket(s)`}
       />
-      <GroupLegend counts={Object.fromEntries(r.byGroup.map((g) => [g.group, g.count]))} />
+      <GroupLegend counts={Object.fromEntries(r.byStatus.map((g) => [g.status, g.count]))} />
     </div>
   );
 }
 
 export function PeopleChart({ r }: { r: SprintReport }) {
+  const label = useTicketLabel();
   const max = Math.max(1, ...r.byAssignee.map((p) => p.total));
   return (
     <div className="viz-rows">
@@ -71,11 +81,11 @@ export function PeopleChart({ r }: { r: SprintReport }) {
               <StackBar
                 parts={SPRINT_GROUPS.map((g) => ({ group: g, value: p.groups[g] }))}
                 max={p.total}
-                title={(g, v) => `${p.assignee} — ${SPRINT_GROUP_LABELS[g]} : ${v} ticket(s)`}
+                title={(g, v) => `${p.assignee} — ${label(g)} : ${v} ticket(s)`}
               />
             </div>
           </div>
-          <span className="viz-row-value">{p.total} <span className="muted small">· {fmt(p.points)} SP</span></span>
+          <span className="viz-row-value">{p.total}</span>
         </div>
       ))}
       <GroupLegend counts={Object.fromEntries(SPRINT_GROUPS.map((g) => [g, r.byAssignee.reduce((n, p) => n + p.groups[g], 0)]))} />
@@ -101,18 +111,11 @@ function GroupBars({ rows, unit }: { rows: { key: string; group: SprintGroup | '
   );
 }
 
-export function PointsChart({ r }: { r: SprintReport }) {
-  const rows: { key: string; group: SprintGroup | 'sorti'; label: string; value: number; title: string }[] = r.byGroup
-    .filter((g) => g.count)
-    .map((g) => ({ key: g.group, group: g.group, label: SPRINT_GROUP_LABELS[g.group], value: g.points, title: `${SPRINT_GROUP_LABELS[g.group]} : ${fmt(g.points)} SP sur ${g.count} ticket(s)` }));
-  if (r.points.removed) rows.push({ key: 'sorti', group: 'sorti', label: 'Sorti du sprint', value: r.points.removed, title: `${fmt(r.points.removed)} SP retirés du sprint` });
-  return <GroupBars rows={rows} unit=" SP" />;
-}
-
 export function TimeChart({ r }: { r: SprintReport }) {
+  const label = useTicketLabel();
   return (
     <GroupBars
-      rows={r.timeByGroup.map((t) => ({ key: t.group, group: t.group, label: SPRINT_GROUP_LABELS[t.group], value: t.share, title: `${SPRINT_GROUP_LABELS[t.group]} : ${t.share} % (${fmt(t.days)} jours-ticket)` }))}
+      rows={r.timeByGroup.map((t) => ({ key: t.group, group: t.group, label: label(t.group), value: t.share, title: `${label(t.group)} : ${t.share} % (${fmt(t.days)} jours-ticket)` }))}
       unit=" %"
     />
   );
