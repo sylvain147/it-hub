@@ -6,11 +6,22 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ### ✅ To-do
 
-- **Ma liste de choses à faire**, personnelle : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, triées par échéance avec les retards en évidence. On ajoute une tâche en une ligne.
-- Une tâche peut être **liée à un ticket** (« relancer le prestataire sur T-12 ») : la clé du ticket s'affiche et mène au projet.
-- En dessous, **mes tickets ouverts** (tous projets, avec leur sprint et leur statut).
+- **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, triées par échéance avec les retards en évidence. On ajoute une tâche en une ligne.
+- La to-do est **séparée des tickets** : une tâche n'a ni statut ni sprint, et ne se planifie pas. Le travail à planifier se crée en ticket (module Sprints).
+- Une tâche se **rattache à un projet** ou reste personnelle. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
 - **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
-- L'accueil reprend « Mes tickets et ma to-do » (et « Toute l'équipe » pour les rôles qui le permettent).
+- L'accueil reprend « Ma to-do » et, à côté, « Mes tickets ouverts » (et « Toute l'équipe » pour les rôles qui le permettent).
+
+### 📝 Notes
+
+- **Un bloc-notes personnel**, en vrac : titre facultatif, texte mis en forme, rattaché ou non à un projet. Saisie rapide en une zone de texte (Ctrl + Entrée).
+- Les notes sont **privées** : seul leur auteur les voit (pas même un administrateur). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
+- **Épingler** une note la garde en tête ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
+
+### 🗓️ Planning
+
+- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints) et la date du jour. Sur 6 mois, 12 mois ou toute la durée ; projets clos et jalons atteints masquables.
+- En dessous, **les jalons de la période mois par mois**, avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
 
 ### 📁 Projets
 
@@ -19,7 +30,8 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
 - **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description, statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
-- **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement.
+- **To-do et notes** : la to-do du projet (partagée) et mes notes sur le projet (personnelles).
+- **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement. Le module Planning les rassemble pour tous les projets.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
 - **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (outils de tickets externes, SharePoint, Git, environnements…).
@@ -29,11 +41,13 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
   - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tickets, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
   - **Rapport d'avancement** : rédigé à partir des seules données du projet, avec une météo proposée.
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
-- **Accueil** : mes tickets et ma to-do, échéances des 30 prochains jours tous projets confondus, projets à surveiller, activité récente.
+- **Accueil** : ma to-do, mes tickets ouverts, échéances des 30 prochains jours tous projets confondus (lien vers la frise), projets à surveiller, activité récente.
 
 ### 🧭 Sprints
 
 Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté).
+
+- **Tickets** : rattachés à un projet ou **hors projet** (choix « Hors projet » dans la fiche du ticket). Changer le projet d'un ticket le déplace, ou le sort de tout projet, en gardant son numéro et son historique.
 
 - **Statuts** : À faire, En cours, En attente, En recette, Terminé. Ce sont les colonnes du tableau ; leurs libellés, leur ordre et leur visibilité se règlent dans **Paramétrage → Statuts**.
 - **Sprints** : nom (« Sprint 4 » par défaut), dates (deux semaines à la suite du précédent par défaut), objectif. Un seul sprint est **en cours** à la fois ; les autres sont à venir ou clos.

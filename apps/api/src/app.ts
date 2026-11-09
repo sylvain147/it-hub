@@ -30,6 +30,7 @@ import { projectRoutes } from './projects/routes.js';
 import { sprintRoutes } from './sprints/routes.js';
 import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
 import { feedbackRoutes } from './feedback/routes.js';
+import { noteRoutes } from './notes/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -290,6 +291,7 @@ export function createApp() {
   api.route('/sprints', sprintRoutes());
   api.route('/users', userRoutes());
   api.route('/todos', todoRoutes());
+  api.route('/notes', noteRoutes());
   api.route('/feedback', feedbackRoutes());
 
   // Activité récente des projets (accueil).

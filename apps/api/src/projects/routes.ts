@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import {
+  type PlanningProject,
   applySuggestionsBody,
   cdcMetaSchema,
   createProjectBody,
@@ -30,6 +31,8 @@ import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
 import { projectContextMarkdown } from './ai.js';
 import { resolveTaskAssignee } from '../users/routes.js';
+import * as users from '../users/repo.js';
+import { listNotes, putNote } from '../notes/routes.js';
 import { assertPlannable } from '../sprints/repo.js';
 
 /** Ticket : responsable rattaché à l'annuaire, sprint en cours ou à venir (s'il change). */
@@ -92,6 +95,16 @@ export function projectRoutes() {
     return c.json(await pr.listProjects(counts));
   });
 
+  /** Frise globale : les jalons de tous les projets (avant `/:id`). */
+  r.get('/jalons', async (c) => {
+    const projects = await pr.listProjects();
+    const out: PlanningProject[] = [];
+    for (const p of projects) {
+      out.push({ id: p.id, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons') });
+    }
+    return c.json(out);
+  });
+
   r.post('/', async (c) => {
     const b = await body(c, createProjectBody);
     const id = await pr.createProject(b, userName(c));
@@ -113,6 +126,11 @@ export function projectRoutes() {
     if (p.activeJobId) throw new HttpError(409, 'Une tâche IA est en cours sur ce projet.');
     // Les cahiers des charges ne sont pas supprimés : ils sont simplement détachés.
     for (const cdc of (await cdcsByProject()).get(id) ?? []) await repo.setCdcProject(cdc.id, null);
+    // Ni la to-do ni les notes rattachées : elles restent, hors projet.
+    for (const t of (await users.listTodos()).filter((t) => t.projectId === id)) await users.putTodo({ ...t, projectId: '' });
+    for (const u of await users.listUsers()) {
+      for (const n of (await listNotes(u.email)).filter((n) => n.projectId === id)) await putNote({ ...n, projectId: '' });
+    }
     await pr.deleteProject(id);
     return c.body(null, 204);
   });
@@ -130,13 +148,22 @@ export function projectRoutes() {
 
   r.patch('/:id/items/:kind/:itemId', async (c) => {
     const kind = kindParam(c.req.param('kind'));
-    const before = await pr.getItem(c.req.param('id'), kind, c.req.param('itemId'));
-    let raw = await resolveProjectRefs(kind, await rawBody(c), before as unknown as Record<string, unknown>);
+    const id = c.req.param('id');
+    const input = await rawBody(c);
+    // Un ticket change de projet (ou sort de tout projet) par `projectId`.
+    const target = kind === 'tasks' && typeof input.projectId === 'string' && input.projectId ? input.projectId : id;
+    delete input.projectId;
+    const before = await pr.getItem(id, kind, c.req.param('itemId'));
+    let raw = await resolveProjectRefs(kind, input, before as unknown as Record<string, unknown>);
     if (kind === 'tasks') raw = await resolveTicket(raw, before as unknown as Record<string, unknown>, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind].partial(), raw);
     // Les valeurs par défaut du schéma ne doivent pas écraser les champs absents de la requête.
     const patch = Object.fromEntries(Object.entries(b as Record<string, unknown>).filter(([k]) => k in raw));
-    return c.json(await pr.updateItem(c.req.param('id'), kind, c.req.param('itemId'), patch, userName(c)));
+    if (target !== id) {
+      await pr.moveTicket(id, c.req.param('itemId'), target, userName(c));
+      if (!Object.keys(patch).length) return c.json(await pr.getItem(target, kind, c.req.param('itemId')));
+    }
+    return c.json(await pr.updateItem(target, kind, c.req.param('itemId'), patch, userName(c)));
   });
 
   r.delete('/:id/items/:kind/:itemId', async (c) => {

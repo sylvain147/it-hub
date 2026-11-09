@@ -225,4 +225,37 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect((await env.call('PATCH', `/projects/${p2}/items/tasks/old1`, { status: 'en_cours' })).json.statusChanges).toHaveLength(1);
     expect((await env.call('GET', '/sprints')).json.tickets.filter((t: any) => t.id === 'old1')).toHaveLength(1);
   });
+
+  it('crée des tickets hors projet, puis les rattache à un projet en gardant leur historique', async () => {
+    const free = await ticket('hors-projet', 'Mettre à jour la doc d’exploitation', { sprintId: null });
+    expect(free).toMatchObject({ number: 8, status: 'a_faire' });
+    const listed = (await env.call('GET', '/sprints')).json.tickets.find((t: any) => t.id === free.id);
+    expect(listed).toMatchObject({ projectId: 'hors-projet', projectName: 'Hors projet' });
+    await tick();
+    expect((await patch('hors-projet', 'Mettre à jour la doc d’exploitation', { status: 'en_cours' })).json.statusChanges).toHaveLength(1);
+    // Pas de fiche projet, ni d'autre élément hors projet.
+    expect((await env.call('GET', '/projects/hors-projet')).status).toBe(404);
+    expect((await env.call('POST', '/projects/hors-projet/items/risks', { title: 'X' })).status).toBe(400);
+    expect((await env.call('GET', '/projects')).json.some((p: any) => p.id === 'hors-projet')).toBe(false);
+
+    // Une modification invalide ne déplace rien.
+    expect((await patch('hors-projet', 'Mettre à jour la doc d’exploitation', { projectId: p2, status: 'inconnu' })).status).toBe(400);
+    expect((await env.call('GET', `/projects/${p2}`)).json.items.tasks.some((t: any) => t.id === free.id)).toBe(false);
+    // Rattaché au projet Paie : même numéro, même historique, et modifié dans la foulée.
+    await tick();
+    const moved = await patch('hors-projet', 'Mettre à jour la doc d’exploitation', { projectId: p2, status: 'recette' });
+    expect(moved.status).toBe(200);
+    expect(moved.json).toMatchObject({ number: 8, status: 'recette' });
+    expect(moved.json.statusChanges).toHaveLength(2);
+    const inP2 = (await env.call('GET', `/projects/${p2}`)).json;
+    expect(inP2.items.tasks.some((t: any) => t.id === free.id)).toBe(true);
+    expect(inP2.activity.some((a: any) => /rattaché le ticket/.test(a.text))).toBe(true);
+    expect((await env.call('GET', '/sprints')).json.tickets.filter((t: any) => t.id === free.id).map((t: any) => t.projectId)).toEqual([p2]);
+    // … puis de nouveau sorti de tout projet.
+    const back = await patch(p2, 'Mettre à jour la doc d’exploitation', { projectId: 'hors-projet' });
+    expect(back.json.number).toBe(8);
+    expect((await env.call('GET', `/projects/${p2}`)).json.items.tasks.some((t: any) => t.id === free.id)).toBe(false);
+    expect((await patch('hors-projet', 'Mettre à jour la doc d’exploitation', { projectId: 'inconnu' })).status).toBe(404);
+    expect((await env.call('DELETE', `/projects/hors-projet/items/tasks/${free.id}`)).status).toBe(204);
+  });
 });

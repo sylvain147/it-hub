@@ -1,0 +1,170 @@
+import { useState } from 'react';
+import { Link } from 'react-router';
+import type { PersonalNote } from '@samm/shared';
+import { api } from '../api';
+import { formatDate, formatDateTime, toast } from '../components/ui';
+import { ItemModal, MarkdownField, MarkdownView } from '../projects/common';
+import { ProjectSelect, type ProjectRef } from '../tasks/tasks';
+
+/**
+ * Notes en vrac : le bloc-notes personnel (privé) de chacun, rattaché ou non à un projet.
+ * Les comptes rendus et décisions partagés avec l'équipe vont, eux, dans le journal du projet.
+ */
+
+/** Saisie rapide : on écrit, Ctrl/⌘ + Entrée pour enregistrer. */
+export function NoteQuickAdd({ projectId = '', onAdded }: { projectId?: string; onAdded: () => Promise<void> | void }) {
+  const [v, setV] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function add() {
+    if (!v.trim() || busy) return;
+    setBusy(true);
+    try {
+      await api.createNote({ content: v.trim(), projectId });
+      setV('');
+      await onAdded();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="note-quick">
+      <textarea
+        className="input"
+        rows={2}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && void add()}
+        placeholder="Noter quelque chose… (Ctrl + Entrée)"
+      />
+      <button className="btn" disabled={!v.trim() || busy} onClick={() => void add()}>Ajouter</button>
+    </div>
+  );
+}
+
+/** Notes en cartes : épinglées d'abord. Un clic ouvre la note. */
+export function NoteGrid({
+  notes,
+  projects,
+  showProject = true,
+  onOpen,
+  onChanged,
+}: {
+  notes: PersonalNote[];
+  projects: ProjectRef[];
+  showProject?: boolean;
+  onOpen: (n: PersonalNote) => void;
+  onChanged: () => Promise<void> | void;
+}) {
+  async function pin(n: PersonalNote) {
+    try {
+      await api.updateNote(n.id, { pinned: !n.pinned });
+      await onChanged();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }
+  return (
+    <div className="note-grid">
+      {notes.map((n) => {
+        const project = n.projectId ? projects.find((p) => p.id === n.projectId) : null;
+        return (
+          <article key={n.id} className={n.pinned ? 'note-card pinned' : 'note-card'}>
+            <div className="note-head">
+              <button className="note-open" onClick={() => onOpen(n)} title="Ouvrir la note">
+                {n.title || <span className="muted">Sans titre</span>}
+              </button>
+              <button className={n.pinned ? 'btn-icon note-pin on' : 'btn-icon note-pin'} title={n.pinned ? 'Désépingler' : 'Épingler en tête'} onClick={() => void pin(n)}>📌</button>
+            </div>
+            <div className="note-body" onClick={() => onOpen(n)}>
+              <MarkdownView markdown={n.content} />
+            </div>
+            <div className="note-foot muted small">
+              {showProject && project && <Link to={`/projets/${project.id}?onglet=todo`}>📁 {project.name}</Link>}
+              <span title={`Modifiée le ${formatDateTime(n.updatedAt)}`}>{formatDate(n.updatedAt.slice(0, 10))}</span>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Création ou modification d'une note : titre, texte (Markdown), projet. */
+export function NoteModal({
+  note,
+  defaults,
+  projects,
+  onClose,
+  onSaved,
+}: {
+  note: PersonalNote | null;
+  defaults?: { projectId?: string };
+  projects: ProjectRef[];
+  onClose: () => void;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [f, setF] = useState({
+    title: note?.title ?? '',
+    content: note?.content ?? '',
+    projectId: note ? note.projectId : (defaults?.projectId ?? ''),
+    pinned: note?.pinned ?? false,
+  });
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+
+  async function save() {
+    if (note) await api.updateNote(note.id, f);
+    else await api.createNote(f);
+    await onSaved();
+  }
+
+  async function remove() {
+    if (!note || !confirm('Supprimer cette note ?')) return;
+    try {
+      await api.deleteNote(note.id);
+      toast('Note supprimée.');
+      onClose();
+      await onSaved();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }
+
+  return (
+    <ItemModal
+      title={note ? 'Note' : 'Nouvelle note'}
+      onClose={onClose}
+      onSave={save}
+      wide
+      canSave={!!(f.title.trim() || f.content.trim())}
+      extraFooter={
+        note && (
+          <>
+            <button className="btn btn-danger-ghost" onClick={() => void remove()}>Supprimer</button>
+            <span className="muted small">Créée le {formatDate(note.createdAt.slice(0, 10))}</span>
+          </>
+        )
+      }
+    >
+      <label className="field">
+        <span>Titre</span>
+        <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="Facultatif" />
+      </label>
+      <label className="field">
+        <span>Projet</span>
+        <ProjectSelect value={f.projectId} onChange={(v) => set('projectId', v)} projects={projects} emptyLabel="Aucun" />
+      </label>
+      <div className="field span-2">
+        <span>Note</span>
+        <MarkdownField value={f.content} onChange={(v) => set('content', v)} placeholder="Idées, informations, liens…" resetKey={note?.id ?? 'nouvelle'} />
+      </div>
+      <label className="field span-2">
+        <label className="check">
+          <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} /> Épinglée en tête de liste
+        </label>
+      </label>
+      <p className="muted small span-2">Vos notes sont personnelles : personne d’autre ne les voit.</p>
+    </ItemModal>
+  );
+}

@@ -3,7 +3,8 @@
  *
  *  pk              sk                       contenu
  *  PROJ#<id>       META                     fiche + indicateurs calculés (+ GSI1 « PROJ » pour la liste)
- *  PROJ#<id>       TASK#<id>                ticket (+ GSI1 « TICKET » : tous les tickets, pour les sprints et la to-do)
+ *  PROJ#<id>       TASK#<id>                ticket (+ GSI1 « TICKET » : tous les tickets, pour les sprints)
+ *  PROJ#hors-projet TASK#<id>               ticket sans projet (`NO_PROJECT_ID` : pas de fiche META)
  *  PROJ#<id>       JALON#<id>               jalon du planning
  *  PROJ#<id>       PRESTA#<id>              prestation (devis, commande…)
  *  PROJ#<id>       CONTACT#<id>             intervenant
@@ -24,6 +25,8 @@ import {
   computeStats,
   emptyItems,
   normalizeTaskRecord,
+  NO_PROJECT_ID,
+  NO_PROJECT_LABEL,
   PROJECT_ITEM_SCHEMAS,
   statusLabel,
   type ActivityEntry,
@@ -142,6 +145,11 @@ export async function requireProject(id: string): Promise<ProjectSummary> {
   const it = await getMeta(id);
   if (!it) throw notFound('Projet');
   return toSummary(it);
+}
+
+/** Projet désigné par une tâche de la to-do ou une note (vide : aucun). */
+export async function assertProjectRef(projectId: string): Promise<void> {
+  if (projectId && !(await getMeta(projectId))) throw new HttpError(400, 'Projet introuvable : il a peut-être été supprimé.');
 }
 
 export async function listProjects(cdcCounts: Map<string, number> = new Map()): Promise<ProjectSummary[]> {
@@ -342,7 +350,7 @@ export async function createItem<K extends ProjectItemKind>(
   user: string,
   opts: { extra?: Record<string, unknown>; silent?: boolean; itemId?: string } = {},
 ): Promise<ProjectItem<K>> {
-  const project = await requireProject(id);
+  const project = await ownerProject(id, kind);
   const data = PROJECT_ITEM_SCHEMAS[kind].parse(input) as Record<string, unknown>;
   const now = nowIso();
   const itemId = opts.itemId ?? newId();
@@ -350,7 +358,7 @@ export async function createItem<K extends ProjectItemKind>(
   const base = { ...data, ...extra, id: itemId, createdAt: now, createdBy: user, updatedAt: now, updatedBy: user };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...base, ...derived(kind, base, null) };
   await ddb().send(new PutCommand({ TableName: T(), Item: item }));
-  if (!opts.silent) {
+  if (!opts.silent && project) {
     await logActivity(id, project.name, user, `a ajouté ${KIND_LABELS[kind].one} « ${itemTitle(kind, base)} »`);
     await refreshStats(id, user);
   }
@@ -366,7 +374,7 @@ export async function updateItem<K extends ProjectItemKind>(
   user: string,
   extra: Record<string, unknown> = {},
 ): Promise<ProjectItem<K>> {
-  const project = await requireProject(id);
+  const project = await ownerProject(id, kind);
   const before = await getStored(id, kind, itemId);
   if (!before) throw notFound('Élément');
   if (kind === 'tasks' && !before.number) extra = { ...extra, number: await nextCounter(TICKET_COUNTER) };
@@ -375,8 +383,10 @@ export async function updateItem<K extends ProjectItemKind>(
   const merged = { ...base, ...derived(kind, base, { ...before, ...extra }) };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...merged };
   await ddb().send(new PutCommand({ TableName: T(), Item: item }));
-  await logActivity(id, project.name, user, await activityForUpdate(kind, before, merged, await getLists()));
-  await refreshStats(id, user);
+  if (project) {
+    await logActivity(id, project.name, user, await activityForUpdate(kind, before, merged, await getLists()));
+    await refreshStats(id, user);
+  }
   return stripItem(item);
 }
 
@@ -396,12 +406,49 @@ async function activityForUpdate(kind: ProjectItemKind, before: Record<string, u
 }
 
 export async function deleteItem(id: string, kind: ProjectItemKind, itemId: string, user: string): Promise<void> {
-  const project = await requireProject(id);
+  const project = await ownerProject(id, kind);
   const before = await getStored(id, kind, itemId);
   if (!before) throw notFound('Élément');
   await ddb().send(new DeleteCommand({ TableName: T(), Key: projectKeys.item(id, kind, itemId) }));
-  await logActivity(id, project.name, user, `a supprimé ${KIND_LABELS[kind].one} « ${itemTitle(kind, before)} »`);
-  await refreshStats(id, user);
+  if (project) {
+    await logActivity(id, project.name, user, `a supprimé ${KIND_LABELS[kind].one} « ${itemTitle(kind, before)} »`);
+    await refreshStats(id, user);
+  }
+}
+
+/**
+ * Projet d'un élément ; null pour un ticket hors projet (`NO_PROJECT_ID`), qui n'a ni fiche, ni historique,
+ * ni indicateurs. Seuls les tickets peuvent être hors projet.
+ */
+async function ownerProject(id: string, kind: ProjectItemKind): Promise<ProjectSummary | null> {
+  if (id === NO_PROJECT_ID) {
+    if (kind !== 'tasks') throw new HttpError(400, 'Seul un ticket peut être hors projet.');
+    return null;
+  }
+  return requireProject(id);
+}
+
+/**
+ * Rattache un ticket à un autre projet, ou le sort de tout projet (`NO_PROJECT_ID`) : il garde son identifiant,
+ * son numéro, son sprint et son historique.
+ */
+export async function moveTicket(fromId: string, itemId: string, toId: string, user: string): Promise<void> {
+  if (fromId === toId) return;
+  const [from, to] = [await ownerProject(fromId, 'tasks'), await ownerProject(toId, 'tasks')];
+  const before = await getStored(fromId, 'tasks', itemId);
+  if (!before) throw notFound('Ticket');
+  const item = { ...before, ...projectKeys.item(toId, 'tasks', itemId), projectId: toId, updatedAt: nowIso(), updatedBy: user };
+  await ddb().send(new PutCommand({ TableName: T(), Item: item }));
+  await ddb().send(new DeleteCommand({ TableName: T(), Key: projectKeys.item(fromId, 'tasks', itemId) }));
+  const title = itemTitle('tasks', before);
+  if (from) {
+    await logActivity(fromId, from.name, user, `a déplacé le ticket « ${title} » ${to ? `vers le projet « ${to.name} »` : 'hors projet'}`);
+    await refreshStats(fromId, user);
+  }
+  if (to) {
+    await logActivity(toId, to.name, user, `a rattaché le ticket « ${title} » au projet`);
+    await refreshStats(toId, user);
+  }
 }
 
 /** Met à jour des champs techniques d'un élément sans revalidation (téléversement confirmé, propositions traitées…). */
@@ -442,7 +489,7 @@ export async function listTickets(): Promise<TicketView[]> {
     listProjects(),
   ]);
   const all = [...tickets, ...(await numberLegacyTickets(legacy))];
-  const names = new Map(projects.map((p) => [p.id, p.name]));
+  const names = new Map([...projects.map((p) => [p.id, p.name] as const), [NO_PROJECT_ID, NO_PROJECT_LABEL] as const]);
   return all
     .filter((t) => names.has(String(t.projectId)))
     .map((t) => ({ ...stripItem<Task>(normalizeTaskRecord(t)), projectId: String(t.projectId), projectName: names.get(String(t.projectId))! }));

@@ -1,26 +1,34 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ticketKey, type PersonalTask, type TicketView } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, type PersonalTask } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, ItemModal, MarkdownField, MarkdownView } from '../projects/common';
 import { UserSelect, useUsers } from '../users/context';
-import { TicketStatusChip } from '../sprints/tickets';
 
 /**
- * To-do : la liste personnelle de choses à faire, que l'on coche. Une tâche peut être liée à un ticket
- * (« relancer le prestataire sur T-12 ») ; le ticket, lui, suit son statut dans le sprint.
+ * To-do : la liste de choses à faire, que l'on coche, rattachées ou non à un projet. Elle est indépendante des
+ * tickets : une tâche ne se planifie pas dans un sprint et n'a pas de statut.
  */
 
-/** Tâche de la to-do, avec le nom de son responsable et son ticket lié. */
-export interface TaskRow extends PersonalTask {
-  assignee: string;
-  ticket: TicketView | null;
+/** Projet proposé pour le rattachement (nom affiché). */
+export interface ProjectRef {
+  id: string;
+  name: string;
+  /** Projet terminé ou abandonné : plus proposé, mais toujours affiché. */
+  closed: boolean;
 }
 
-export function todoRow(t: PersonalTask, name: (email: string) => string, tickets: TicketView[]): TaskRow {
-  return { ...t, assignee: name(t.assigneeId), ticket: t.ticketId ? (tickets.find((x) => x.id === t.ticketId) ?? null) : null };
+/** Tâche de la to-do, avec le nom de son responsable et son projet. */
+export interface TaskRow extends PersonalTask {
+  assignee: string;
+  project: ProjectRef | null;
+}
+
+export function todoRow(t: PersonalTask, name: (email: string) => string, projects: ProjectRef[]): TaskRow {
+  return { ...t, assignee: name(t.assigneeId), project: t.projectId ? (projects.find((p) => p.id === t.projectId) ?? null) : null };
 }
 
 /** Tri : échéance la plus proche d'abord, puis ordre de création. */
@@ -32,11 +40,13 @@ export function TaskChecklist({
   onChanged,
   onEdit,
   showAssignee = true,
+  showProject = true,
 }: {
   rows: TaskRow[];
   onChanged: () => Promise<void> | void;
   onEdit: (t: TaskRow) => void;
   showAssignee?: boolean;
+  showProject?: boolean;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
@@ -76,9 +86,9 @@ export function TaskChecklist({
                   {t.details.trim() && <span className="check-more">{expanded ? ' ▾' : ' ▸'}</span>}
                 </button>
                 <span className="check-meta">
-                  {t.ticket && (
-                    <Link to={`/projets/${t.ticket.projectId}?onglet=tickets`} className="small" title={`${t.ticket.projectName} — ${t.ticket.title}`}>
-                      🎫 {ticketKey(t.ticket)}
+                  {showProject && t.project && (
+                    <Link to={`/projets/${t.project.id}?onglet=todo`} className="small" title="Voir la to-do du projet">
+                      📁 {t.project.name}
                     </Link>
                   )}
                   {showAssignee && t.assignee && t.assigneeId !== email && <span className="badge" title={t.assigneeId}>{t.assignee}</span>}
@@ -119,18 +129,18 @@ export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (
   );
 }
 
-/** Création ou modification d'une tâche de la to-do : intitulé, détails (Markdown), échéance, responsable et ticket lié. */
+/** Création ou modification d'une tâche de la to-do : intitulé, détails (Markdown), échéance, responsable et projet. */
 export function TaskModal({
   task,
   defaults,
-  tickets,
+  projects,
   onClose,
   onSaved,
 }: {
   task: TaskRow | null;
-  defaults: { assigneeId: string };
-  /** Tickets proposés pour le lien (ouverts). */
-  tickets: TicketView[];
+  defaults: { assigneeId: string; projectId?: string };
+  /** Projets proposés pour le rattachement. */
+  projects: ProjectRef[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }) {
@@ -142,13 +152,11 @@ export function TaskModal({
     dueDate: task?.dueDate ?? '',
     done: task?.done ?? false,
     assigneeId: task ? task.assigneeId : defaults.assigneeId,
-    ticketId: task?.ticketId ?? '',
+    projectId: task ? task.projectId : (defaults.projectId ?? ''),
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   // Seul un rôle habilité confie une tâche à un autre.
   const restrict = !me.permissions.assignOthers ? [me.email, ...(task?.assigneeId ? [task.assigneeId] : [])] : undefined;
-  const choices = [...tickets.filter((t) => !t.done), ...(task?.ticket && task.ticket.done ? [task.ticket] : [])].sort((a, b) => a.number - b.number);
-  const linked = choices.find((t) => t.id === f.ticketId);
 
   async function save() {
     const fields = { ...f, assigneeId: f.assigneeId || me.email };
@@ -193,15 +201,9 @@ export function TaskModal({
         <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} />
       </label>
       <label className="field">
-        <span>Ticket lié</span>
-        <select className="input" value={f.ticketId} onChange={(e) => set('ticketId', e.target.value)}>
-          <option value="">Aucun</option>
-          {f.ticketId && !linked && <option value={f.ticketId}>Ticket supprimé</option>}
-          {choices.map((t) => (
-            <option key={t.id} value={t.id}>{ticketKey(t)} {t.title} — {t.projectName}</option>
-          ))}
-        </select>
-        {linked && <span className="small"><TicketStatusChip status={linked.status} /></span>}
+        <span>Projet</span>
+        <ProjectSelect value={f.projectId} onChange={(v) => set('projectId', v)} projects={projects} emptyLabel="Aucun (tâche personnelle)" />
+        {f.projectId && <span className="muted small">Visible de toute l’équipe dans la to-do du projet.</span>}
       </label>
       <label className="field">
         <span>Échéance</span>
@@ -222,5 +224,28 @@ export function TaskModal({
         <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Précisions, liens, étapes…" resetKey={task?.id ?? 'nouvelle'} />
       </div>
     </ItemModal>
+  );
+}
+
+/** Projets, par nom, pour le rattachement d'une tâche ou d'une note. */
+export function useProjectRefs(): ProjectRef[] {
+  const { data } = useLoad(() => api.listProjects(), []);
+  return useMemo(
+    () => (data ?? []).map((p) => ({ id: p.id, name: p.name, closed: CLOSED_PROJECT_STATUSES.includes(p.status) })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
+    [data],
+  );
+}
+
+/** Choix du projet : les projets ouverts, et le projet actuel s'il est clos. */
+export function ProjectSelect({ value, onChange, projects, emptyLabel }: { value: string; onChange: (id: string) => void; projects: ProjectRef[]; emptyLabel: string }) {
+  const shown = projects.filter((p) => !p.closed || p.id === value);
+  return (
+    <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{emptyLabel}</option>
+      {value && projects.length > 0 && !shown.some((p) => p.id === value) && <option value={value}>Projet supprimé</option>}
+      {shown.map((p) => (
+        <option key={p.id} value={p.id}>{p.name}{p.closed ? ' (clos)' : ''}</option>
+      ))}
+    </select>
   );
 }

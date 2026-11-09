@@ -16,9 +16,16 @@ export const MODULES: HubModule[] = [
   {
     id: 'todo',
     title: 'To-do',
-    description: 'Ma liste de choses à faire, à cocher, liées ou non à un ticket, et mes tickets ouverts. Selon le rôle, celles de toute l’équipe.',
+    description: 'Ma liste de choses à faire, à cocher, rattachées ou non à un projet (sans lien avec les tickets). Selon le rôle, celles de toute l’équipe.',
     path: '/todo',
     icon: '✅',
+  },
+  {
+    id: 'notes',
+    title: 'Notes',
+    description: 'Mon bloc-notes personnel : des notes en vrac, rattachées ou non à un projet, que je suis seul à voir.',
+    path: '/notes',
+    icon: '📝',
   },
   {
     id: 'projets',
@@ -27,6 +34,13 @@ export const MODULES: HubModule[] = [
       'Suivre chaque projet : intervenants, prestations et budget, tickets, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
     path: '/projets',
     icon: '📁',
+  },
+  {
+    id: 'planning',
+    title: 'Planning',
+    description: 'Les jalons de tous les projets sur une même frise : ce qui arrive, ce qui glisse, ce qui est en retard.',
+    path: '/planning',
+    icon: '🗓️',
   },
   {
     id: 'sprints',

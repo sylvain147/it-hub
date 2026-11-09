@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
+  NO_PROJECT_ID,
+  NO_PROJECT_LABEL,
   movementLabel,
   shortDay,
   sprintDocKinds,
@@ -108,6 +110,7 @@ export function SprintPage() {
 }
 
 function ProjectLink({ id, name }: { id: string; name: string }) {
+  if (id === NO_PROJECT_ID) return <span className="small muted">{NO_PROJECT_LABEL}</span>;
   return name ? <Link to={`/projets/${id}?onglet=tickets`} className="small">{name}</Link> : <span className="muted">–</span>;
 }
 

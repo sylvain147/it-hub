@@ -809,3 +809,49 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .feedback-btn:hover { background: rgba(255, 255, 255, 0.08); }
 .feedback-message { white-space: pre-wrap; margin: 10px 0 6px; }
 .feedback-card.treated { opacity: 0.75; }
+
+/* Frise de tous les projets */
+.gp-card { overflow-x: auto; }
+.gp { min-width: 760px; }
+.gp-row { display: grid; grid-template-columns: 220px 1fr; align-items: center; min-height: 62px; border-bottom: 1px solid var(--line); }
+.gp-row:last-child { border-bottom: none; }
+.gp-head { min-height: 26px; border-bottom: 1px solid #d0d5dd; }
+.gp-name { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 10px; font-weight: 500; }
+.gp-name a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gp-track { position: relative; height: 100%; min-height: inherit; }
+.gp-month { position: absolute; top: 4px; padding-left: 4px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.gp-grid { position: absolute; top: 0; bottom: 0; border-left: 1px solid #f2f4f7; }
+.gp-bar { position: absolute; top: 50%; height: 8px; margin-top: -4px; background: #e4e7ec; border-radius: 4px; }
+.gp-today { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--blue); pointer-events: none; }
+.gp-jalon { position: absolute; top: 50%; transform: translate(-6px, -6px); z-index: 1; cursor: default; }
+.gp-jalon .gp-label { position: absolute; left: -4px; font-size: 11px; white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; background: rgba(255, 255, 255, 0.85); padding: 0 2px; border-radius: 3px; }
+.gp-above .gp-label { bottom: 14px; }
+.gp-below .gp-label { top: 14px; }
+.gp-end .gp-label { left: auto; right: -4px; }
+.gp-jalon:hover { z-index: 2; }
+.gp-jalon:hover .gp-label { max-width: none; font-weight: 600; }
+.gp-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid var(--blue); box-sizing: border-box; vertical-align: middle; }
+.tl-done .gp-dot, .gp-dot.tl-done { background: var(--ok); border-color: var(--ok); }
+.tl-late .gp-dot, .gp-dot.tl-late { border-color: var(--danger); background: #fee4e2; }
+.gp-legend { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+.gp-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.gp-bar-sample { display: inline-block; width: 22px; height: 8px; border-radius: 4px; background: #e4e7ec; }
+.gp-month-block h3 { margin: 16px 0 6px; font-size: 14px; text-transform: capitalize; }
+
+/* Notes en vrac */
+.note-quick { display: flex; gap: 8px; align-items: flex-start; }
+.note-quick textarea { flex: 1; resize: vertical; }
+.note-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.note-card { display: flex; flex-direction: column; background: #fffdf5; border: 1px solid #f4ebc9; border-radius: 10px; padding: 10px 12px; min-height: 120px; }
+.note-card.pinned { border-color: #f5c96a; box-shadow: 0 1px 0 #f5c96a; }
+.note-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.note-open { background: none; border: none; padding: 0; font: inherit; font-weight: 600; text-align: left; cursor: pointer; color: var(--ink); }
+.note-open:hover { color: var(--blue); }
+.note-pin { opacity: 0.3; }
+.note-pin.on, .note-pin:hover { opacity: 1; }
+.note-body { flex: 1; font-size: 13px; max-height: 180px; overflow: hidden; cursor: pointer; mask-image: linear-gradient(to bottom, #000 75%, transparent); }
+.note-body p:first-child { margin-top: 4px; }
+.note-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
+@media (max-width: 640px) {
+  .note-quick { flex-direction: column; align-items: stretch; }
+}
