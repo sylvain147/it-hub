@@ -150,7 +150,7 @@ function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
 }
 
 async function getMeta(id: string): Promise<MetaItem | null> {
-  const res = await ddb().send(new GetCommand({ TableName: T(), Key: projectKeys.meta(id) }));
+  const res = await ddb().send(new GetCommand({ TableName: T(), Key: projectKeys.meta(id), ConsistentRead: true }));
   return (res.Item as MetaItem | undefined) ?? null;
 }
 

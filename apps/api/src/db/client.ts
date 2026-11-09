@@ -26,12 +26,16 @@ export function resetDdb() {
   client = null;
 }
 
-/** Requête paginée complète. */
+/**
+ * Requête paginée complète. Sur la table elle-même, la lecture est fortement cohérente : relue juste après un
+ * enregistrement (ex. une note ajoutée au journal), elle le contient déjà. Les index secondaires (GSI) ne le permettent pas.
+ */
 export async function queryAll<T>(input: Omit<QueryCommandInput, 'TableName'>): Promise<T[]> {
   const items: T[] = [];
   let ExclusiveStartKey: Record<string, unknown> | undefined;
+  const ConsistentRead = input.IndexName ? undefined : (input.ConsistentRead ?? true);
   do {
-    const res = await ddb().send(new QueryCommand({ TableName: config.tableName, ...input, ExclusiveStartKey }));
+    const res = await ddb().send(new QueryCommand({ TableName: config.tableName, ...input, ConsistentRead, ExclusiveStartKey }));
     items.push(...((res.Items ?? []) as T[]));
     ExclusiveStartKey = res.LastEvaluatedKey;
   } while (ExclusiveStartKey);
