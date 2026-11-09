@@ -102,6 +102,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+/** Évènement émis à chaque modification de la to-do (pastille du bouton « To-do », listes ouvertes). */
+export const TODOS_CHANGED = 'hub:todos-changed';
+function todosChanged<T>(r: T): T {
+  window.dispatchEvent(new Event(TODOS_CHANGED));
+  return r;
+}
+
 export const api = {
   me: () => request<Me>('GET', '/me'),
 
@@ -111,9 +118,9 @@ export const api = {
   resendInvitation: (email: string) => request<HubUser>('POST', `/users/${encodeURIComponent(email)}/invitation`),
   todos: (user?: string) => request<TodosResponse>('GET', `/todos${user ? `?user=${encodeURIComponent(user)}` : ''}`),
   projectTodos: (projectId: string) => request<TodosResponse>('GET', `/todos?projet=${encodeURIComponent(projectId)}`),
-  createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b),
-  updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch),
-  deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`),
+  createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b).then(todosChanged),
+  updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch).then(todosChanged),
+  deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`).then(todosChanged),
   /** Nouvel ordre de la to-do (glisser-déposer). */
   reorderTodos: (ids: string[]) => request<null>('PUT', '/todos/ordre', { ids } satisfies TodoOrderBody),
   /** Notes : les miennes par défaut ; `user` (e-mail ou « all ») réservé aux administrateurs. */

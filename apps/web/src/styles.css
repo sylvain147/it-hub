@@ -964,3 +964,25 @@ a.gp-range:hover { filter: brightness(0.92); }
 .prio-basse { color: var(--muted); }
 .import-preview { max-height: 280px; overflow: auto; }
 .clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* Bouton To-do toujours visible (en haut à droite) */
+.todo-fab { position: fixed; top: 14px; right: 18px; z-index: 45; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid #d0d5dd; background: #fff; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); cursor: pointer; font: inherit; font-weight: 600; }
+.todo-fab:hover, .todo-fab.open { background: #f5f8ff; border-color: var(--blue); }
+.todo-fab-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.todo-pop-backdrop { position: fixed; inset: 0; z-index: 46; }
+.todo-pop { position: fixed; top: 58px; right: 18px; z-index: 47; width: min(380px, calc(100vw - 24px)); max-height: min(70vh, 560px); overflow: auto; background: #fff; border: 1px solid #e4e7ec; border-radius: 12px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18); padding: 12px 14px; }
+.todo-pop-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.todo-pop-add { margin-bottom: 8px; }
+.todo-pop-add .input { width: 100%; }
+.todo-pop-list { list-style: none; margin: 0; padding: 0; }
+.todo-pop-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #f2f4f7; }
+.todo-pop-list li a { flex: 1; color: inherit; }
+.todo-pop-list li.due a { font-weight: 600; }
+/* Place réservée au bouton en haut à droite des en-têtes. */
+@media (min-width: 901px) {
+  .page-head, .editor-bar { padding-right: 120px; }
+}
+@media (max-width: 900px) {
+  .todo-fab { top: 8px; right: 10px; padding: 6px 10px; }
+  .todo-fab-label { display: none; }
+  .todo-pop { top: 52px; right: 10px; }
+}

@@ -8,6 +8,7 @@ import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
 import { FeedbackButton } from '../feedback/FeedbackButton';
 import { BoutonRouge } from '../bouton/BoutonRouge';
+import { TodoButton } from '../tasks/TodoButton';
 
 export function Layout() {
   const { me, signOut } = useAuth();
@@ -67,6 +68,7 @@ export function Layout() {
         <SettingsProvider>
           <UsersProvider>
             <Outlet />
+            <TodoButton />
             <BoutonRouge />
           </UsersProvider>
         </SettingsProvider>

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { api } from '../api';
+import { api, TODOS_CHANGED } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
@@ -14,6 +14,12 @@ export function TodoPage() {
   const [params, setParams] = useSearchParams();
   const scope = me.permissions.seeAllTodos ? (params.get('qui') ?? me.email) : me.email;
   const data = useLoad(() => api.todos(scope), [scope]);
+  // Tâche cochée ou ajoutée depuis le bouton « To-do » de l'en-tête.
+  useEffect(() => {
+    const on = () => void data.reload();
+    window.addEventListener(TODOS_CHANGED, on);
+    return () => window.removeEventListener(TODOS_CHANGED, on);
+  }, [data.reload]);
   const projects = useProjectRefs();
   // Lien depuis le planning : `?tache=` met la tâche en évidence.
   const focusId = params.get('tache');
