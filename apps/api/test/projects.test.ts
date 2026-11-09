@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { setupTestEnv } from './helpers.js';
 import { ddb } from '../src/db/client.js';
 import { config } from '../src/config.js';
@@ -25,11 +25,25 @@ describe('module Projets', () => {
   it('crée un projet et refuse une fiche invalide', async () => {
     const bad = await env.call('POST', '/projects', { name: '  ' });
     expect(bad.status).toBe(400);
-    const res = await env.call('POST', '/projects', { name: 'Migration Coliéco', code: 'COL-27', description: 'La Poste arrête l’offre **Coliéco** en janvier 2027.', objectifs: '- Basculer vers l’offre Essentiel' });
+    const res = await env.call('POST', '/projects', { name: 'Migration Coliéco', code: 'COL-27', description: 'La Poste arrête l’offre **Coliéco** en janvier 2027.', sections: [{ id: 'obj', title: 'Objectifs', content: '- Basculer vers l’offre Essentiel' }] });
     expect(res.status).toBe(201);
     id = res.json.id;
     expect(res.json).toMatchObject({ status: 'cadrage', priority: 'normale', health: 'vert', rev: 1 });
     expect(res.json.activity[0].text).toBe('a créé le projet');
+    expect(res.json.sections).toEqual([{ id: 'obj', title: 'Objectifs', content: '- Basculer vers l’offre Essentiel' }]);
+    expect(res.json).not.toHaveProperty('objectifs');
+  });
+
+  it('ajoute, renomme et retire des sections libres', async () => {
+    const { json: p } = await env.call('GET', `/projects/${id}`);
+    const untitled = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), sections: [...p.sections, { id: 'x', title: ' ', content: '' }] } });
+    expect(untitled.status).toBe(400);
+    const sections = [{ id: 'enjeux', title: 'Enjeux', content: 'Coût du transport' }, { ...p.sections[0], title: 'Objectifs du projet' }];
+    const ok = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields: { ...pick(p), sections } });
+    expect(ok.status).toBe(200);
+    expect(ok.json.sections).toEqual(sections);
+    const back = await env.call('PUT', `/projects/${id}`, { rev: ok.json.rev, fields: { ...pick(ok.json), sections: [p.sections[0]] } });
+    expect(back.json.sections).toEqual(p.sections);
   });
 
   it('modifie la fiche avec verrouillage optimiste', async () => {
@@ -37,7 +51,7 @@ describe('module Projets', () => {
     const fields = { ...pick(p), status: 'en_cours', health: 'orange', healthComment: 'Devis en attente', targetDate: '2027-01-15' };
     const ok = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields });
     expect(ok.status).toBe(200);
-    expect(ok.json).toMatchObject({ rev: 2, status: 'en_cours', health: 'orange' });
+    expect(ok.json).toMatchObject({ rev: p.rev + 1, status: 'en_cours', health: 'orange' });
     const stale = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields }, 'bob@test');
     expect(stale.status).toBe(409);
   });
@@ -85,6 +99,22 @@ describe('module Projets', () => {
     expect(keep.json.chefDeProjet).toBe('Prestataire externe');
     await env.call('DELETE', '/projects/ancien-1');
     await env.call('DELETE', '/projects/ancien-2');
+  });
+
+  it('reprend les anciens champs objectifs et hors périmètre en sections', async () => {
+    const now = new Date().toISOString();
+    const item = { ...projectKeys.meta('ancien-3'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-3', name: 'Ancien 3', code: '', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjet: '', demandeur: '', startDate: '', targetDate: '', description: 'Contexte', objectifs: 'Livrer', horsPerimetre: 'La facturation', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: item }));
+    const { json: p } = await env.call('GET', '/projects/ancien-3');
+    expect(p.sections).toEqual([{ id: 'objectifs', title: 'Objectifs', content: 'Livrer' }, { id: 'hors-perimetre', title: 'Hors périmètre', content: 'La facturation' }]);
+    expect(p).not.toHaveProperty('objectifs');
+    // Au premier enregistrement, les anciens champs disparaissent : retirer une section est définitif.
+    const saved = await env.call('PUT', '/projects/ancien-3', { rev: 1, fields: { ...pick(p), sections: [p.sections[1]] } });
+    expect(saved.json.sections).toEqual([p.sections[1]]);
+    const { Item } = await ddb().send(new GetCommand({ TableName: config.tableName, Key: projectKeys.meta('ancien-3') }));
+    expect(Item).not.toHaveProperty('objectifs');
+    expect((await env.call('GET', '/projects/ancien-3')).json.sections).toEqual([p.sections[1]]);
+    await env.call('DELETE', '/projects/ancien-3');
   });
 
   it('gère tickets, jalons, prestations, intervenants, liens et risques', async () => {
@@ -282,6 +312,6 @@ describe('module Projets', () => {
 });
 
 function pick(p: any) {
-  const { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags } = p;
-  return { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, objectifs, horsPerimetre, budgetPrevu, tags };
+  const { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags } = p;
+  return { name, code, status, priority, health, healthComment, chefDeProjetId, chefDeProjet, demandeur, startDate, targetDate, description, sections, budgetPrevu, tags };
 }

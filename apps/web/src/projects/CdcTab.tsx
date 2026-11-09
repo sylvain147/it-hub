@@ -31,7 +31,7 @@ export function CdcTab() {
         <button className="btn" onClick={() => setAttach(true)}>Rattacher un CDC existant</button>
       </div>
       <p className="muted small">
-        Le cahier des charges est rédigé à partir de la fiche projet (description, objectifs, hors périmètre), de la prestation choisie, du planning, des risques et des notes
+        Le cahier des charges est rédigé à partir de la fiche projet (description et ses sections), de la prestation choisie, du planning, des risques et des notes
         du journal que vous sélectionnez — et, si vous en avez une, d’une transcription de réunion. Il reste ensuite modifiable, versionné et exportable en Word et PDF.
       </p>
       {withoutCdc.length > 0 && (
@@ -100,7 +100,7 @@ function GenerateDialog({ prestationId, onClose }: { prestationId: string | null
   const [error, setError] = useState<unknown>(null);
   const notes = project.items.notes.filter((n) => n.kind !== 'rapport');
   const p = prestas.find((x) => x.id === presta);
-  const hasMaterial = !!(project.description.trim() || project.objectifs.trim() || noteIds.size || transcript.trim() || p);
+  const hasMaterial = !!(project.description.trim() || project.sections.some((s) => s.content.trim()) || noteIds.size || transcript.trim() || p);
 
   async function create(withAi: boolean) {
     setBusy(true);

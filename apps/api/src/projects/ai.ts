@@ -16,6 +16,7 @@ import {
   isJalonLate,
   isTaskOverdue,
   jalonDrift,
+  projectSectionsMarkdown,
   riskScore,
   todayIso,
   type Note,
@@ -105,7 +106,7 @@ export function reportInput(p: ProjectDetail, lists: ListSettings, today = today
   return [
     `Date du jour : ${today}`,
     section('Fiche', ficheLines(p, lists)),
-    p.objectifs.trim() && section('Objectifs', [p.objectifs.trim()]),
+    projectSectionsMarkdown(p.sections),
     section(
       'Planning',
       items.jalons.map((j) => {
@@ -147,9 +148,9 @@ export function projectContextMarkdown(p: ProjectDetail, opts: { prestationId: s
   const notes = items.notes.filter((n) => opts.noteIds.includes(n.id));
   const parts = [
     `## Contexte\n${ficheLines(p, lists).map((l) => `- ${l}`).join('\n')}${p.description.trim() ? `\n\n${p.description.trim()}` : ''}`,
-    (p.objectifs.trim() || presta) &&
-      `## Demandes et besoins\n${p.objectifs.trim()}${presta ? `\n\n**Prestation concernée** : ${presta.prestataire} — ${presta.objet}${presta.chargeJours != null ? ` (${presta.chargeJours} j/h estimés)` : ''}${presta.notes.trim() ? `\n${presta.notes.trim()}` : ''}` : ''}`,
-    p.horsPerimetre.trim() && `## Hors périmètre\n${p.horsPerimetre.trim()}`,
+    projectSectionsMarkdown(p.sections),
+    presta &&
+      `## Demandes et besoins\n**Prestation concernée** : ${presta.prestataire} — ${presta.objet}${presta.chargeJours != null ? ` (${presta.chargeJours} j/h estimés)` : ''}${presta.notes.trim() ? `\n${presta.notes.trim()}` : ''}`,
     items.jalons.length && `## Dates et échéances\n${items.jalons.map((j) => `- ${j.label} : ${j.startDate ? `du ${d(j.startDate)} au ` : ''}${d(j.date)}${j.done ? ' (atteint)' : ''}`).join('\n')}`,
     items.risks.some((r) => r.status !== 'clos') &&
       `## Contraintes et risques\n${items.risks
