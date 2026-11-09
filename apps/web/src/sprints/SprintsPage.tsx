@@ -10,7 +10,7 @@ import { DueLabel, ItemModal, PriorityTag } from '../projects/common';
 import { useSettings } from '../settings/context';
 import { Swatch } from './charts';
 import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
-import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, type TicketRow } from './tickets';
+import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, type TicketRow } from './tickets';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
 const STATE_LABELS: Record<Sprint['state'], string> = { future: 'À venir', active: 'En cours', closed: 'Clos' };
@@ -276,6 +276,7 @@ function ActiveSprint({
                       <span className="small muted board-card-project">{t.projectName}</span>
                       {t.deskId && <span className="small muted" title="Ticket Desk du prestataire">Desk #{t.deskId}</span>}
                       {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
+                      <TicketTimes t={t} />
                       {t.assignee && <span className={t.assigneeId ? 'avatar' : 'avatar avatar-ext'} title={t.assignee}>{initials(t.assignee)}</span>}
                     </div>
                     {/* Écrans tactiles : pas de glisser-déposer, on change le statut ici. */}

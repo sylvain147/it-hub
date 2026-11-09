@@ -45,12 +45,39 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
         {t.deskId && <DeskBadge id={t.deskId} />}
         {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId || 'Personne extérieure au hub'}>{t.assignee}</span>}
         {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
+        <TicketTimes t={t} />
         <TicketStatusChip status={t.status} />
         {extra}
       </span>
     </li>
   );
 }
+
+/** Temps estimé et temps passé d'un ticket (rien s'ils ne sont pas renseignés). */
+export function TicketTimes({ t }: { t: Pick<Task, 'estimatedHours' | 'spentHours'> }) {
+  if (t.estimatedHours == null && t.spentHours == null) return null;
+  return (
+    <span className="small muted ticket-times" title="Temps estimé · temps passé">
+      {t.estimatedHours != null && <>⏳ {fmtHours(t.estimatedHours)}</>}
+      {t.estimatedHours != null && t.spentHours != null && ' · '}
+      {t.spentHours != null && <>⏱ {fmtHours(t.spentHours)}</>}
+    </span>
+  );
+}
+
+/** Saisie d'une durée en heures (virgule acceptée) ; vide : non renseignée. */
+function HoursInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  return (
+    <span className="hours-input">
+      <input className="input" inputMode="decimal" aria-label={label} value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, ''))} placeholder="—" />
+      <span className="muted">h</span>
+    </span>
+  );
+}
+
+/** Texte saisi → heures (null si vide, NaN si invalide). */
+const parseHours = (v: string): number | null => (v.trim() ? Number(v.replace(',', '.')) : null);
+const hoursText = (h: number | null | undefined) => (h == null ? '' : String(h).replace('.', ','));
 
 /** Projet d'un ticket : lien vers ses tickets, ou « Hors projet ». */
 export function TicketProject({ t }: { t: Pick<TicketRow, 'projectId' | 'projectName'> }) {
@@ -210,13 +237,16 @@ export function TicketModal({
     projectId: ticket?.projectId ?? defaults?.projectId ?? '',
     assigneeId: ticket ? ticket.assigneeId : me.email,
     assignee: ticket && !ticket.assigneeId ? ticket.assignee : '',
+    estimatedHours: hoursText(ticket?.estimatedHours),
+    spentHours: hoursText(ticket?.spentHours),
   });
   const [external, setExternal] = useState(!!ticket && !ticket.assigneeId);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
 
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
-    const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...who };
+    const times = { estimatedHours: parseHours(f.estimatedHours), spentHours: parseHours(f.spentHours) };
+    const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, f.projectId !== ticket.projectId ? { ...fields, projectId: f.projectId } : fields);
     else await api.createItem(f.projectId, 'tasks', fields);
@@ -244,7 +274,7 @@ export function TicketModal({
       onClose={onClose}
       onSave={save}
       wide
-      canSave={!!f.title.trim() && !!f.projectId && (external ? !!f.assignee.trim() : true)}
+      canSave={!!f.title.trim() && !!f.projectId && (external ? !!f.assignee.trim() : true) && !Number.isNaN(parseHours(f.estimatedHours)) && !Number.isNaN(parseHours(f.spentHours))}
       extraFooter={
         ticket && (
           <>
@@ -309,6 +339,14 @@ export function TicketModal({
         <button type="button" className="btn-link small" onClick={() => setExternal(!external)}>
           {external ? 'Choisir un utilisateur du hub' : 'Personne extérieure au hub…'}
         </button>
+      </label>
+      <label className="field">
+        <span>Temps estimé</span>
+        <HoursInput label="Temps estimé (heures)" value={f.estimatedHours} onChange={(v) => set('estimatedHours', v)} />
+      </label>
+      <label className="field">
+        <span>Temps passé</span>
+        <HoursInput label="Temps passé (heures)" value={f.spentHours} onChange={(v) => set('spentHours', v)} />
       </label>
       <div className="field span-2">
         <span>N° ticket Desk (prestataire)</span>
