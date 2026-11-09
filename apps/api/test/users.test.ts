@@ -46,6 +46,22 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('POST', `/users/${MEMBRE}/invitation`, {}, ADMIN)).status).toBe(400); // pas de Cognito en local
   });
 
+  it('renseigne le poste, le backup et le périmètre d’un utilisateur', async () => {
+    const legacy = (await env.call('GET', '/users', undefined, ADMIN)).json.find((u: any) => u.email === RESP);
+    expect(legacy).toMatchObject({ jobTitle: '', backupId: '', perimeters: [] });
+    const profile = { name: 'Chloé Durand', role: 'membre', active: true, jobTitle: 'Cheffe de projet ERP', backupId: RESP, perimeters: ['web', 'erp'] };
+    const r = await env.call('PUT', `/users/${MEMBRE}`, profile, ADMIN);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ jobTitle: 'Cheffe de projet ERP', backupId: RESP, perimeters: ['web', 'erp'] });
+    expect((await env.call('PUT', `/users/${MEMBRE}`, { ...profile, perimeters: ['finance'] }, ADMIN)).status).toBe(400);
+    expect((await env.call('PUT', `/users/${MEMBRE}`, { ...profile, backupId: MEMBRE }, ADMIN)).status).toBe(400);
+    expect((await env.call('PUT', `/users/${MEMBRE}`, { ...profile, backupId: 'inconnu@exemple.fr' }, ADMIN)).status).toBe(400);
+    // Seul un administrateur modifie la fiche.
+    expect((await env.call('PUT', `/users/${MEMBRE}`, profile, RESP)).status).toBe(403);
+    const created = await env.call('POST', '/users', { email: 'eve@exemple.fr', name: 'Ève Roux', jobTitle: 'Admin réseau', backupId: MEMBRE, perimeters: ['reseau', 'securite'] }, ADMIN);
+    expect(created.json.user).toMatchObject({ jobTitle: 'Admin réseau', backupId: MEMBRE, perimeters: ['reseau', 'securite'] });
+  });
+
   it('rattache les tickets à un utilisateur', async () => {
     const mine = await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Préparer le comité' }, MEMBRE);
     expect(mine.json).toMatchObject({ assigneeId: MEMBRE, assignee: 'Chloé Durand' }); // par défaut : soi-même

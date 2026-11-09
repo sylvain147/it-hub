@@ -327,6 +327,8 @@ function derived(kind: ProjectItemKind, data: Record<string, unknown>, before: S
       };
     }
     case 'jalons':
+      if (data.startDate && !data.date) throw new HttpError(400, 'Renseignez la date de fin du jalon.');
+      if (data.startDate && data.date && String(data.startDate) > String(data.date)) throw new HttpError(400, 'La date de début du jalon doit précéder sa date de fin.');
       // La date initiale permet de mesurer le glissement du planning.
       return { initialDate: (before?.initialDate as string) || (data.date as string) || '' };
     case 'notes':

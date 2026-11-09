@@ -157,8 +157,9 @@ describe('tickets enregistrés avant les sprints', () => {
   it('déduit le statut des anciens formats', () => {
     expect(normalizeTaskRecord({ title: 'a', done: true })).toMatchObject({ status: 'termine', done: true, sprintId: null, number: 0, statusChanges: [] });
     expect(normalizeTaskRecord({ title: 'b', done: false })).toMatchObject({ status: 'a_faire', done: false });
-    expect(normalizeTaskRecord({ title: 'c', status: 'bloque', priority: 'haute' })).toMatchObject({ status: 'attente', done: false });
-    expect(normalizeTaskRecord({ title: 'c', status: 'fait' })).not.toHaveProperty('priority');
+    expect(normalizeTaskRecord({ title: 'c', status: 'bloque', priority: 'haute' })).toMatchObject({ status: 'attente', done: false, priority: 'haute' });
+    expect(normalizeTaskRecord({ title: 'c', status: 'fait' })).toMatchObject({ priority: 'normale' });
+    expect(normalizeTaskRecord({ title: 'c', priority: 'inconnue' })).toMatchObject({ priority: 'normale' });
     expect(normalizeTaskRecord({ title: 'd', status: 'recette', sprintId: 4, number: 9 })).toMatchObject({ status: 'recette', sprintId: 4, number: 9 });
   });
 });
@@ -172,8 +173,9 @@ describe('fonds conditionnels des cartes', () => {
     { kind: 'responsable', value: '', days: 0, color: 'vert' }, // incomplète : ignorée
     { kind: 'projet', value: 'p2', days: 0, color: 'bleu' },
     { kind: 'sans_responsable', value: '', days: 0, color: 'violet' },
+    { kind: 'sans_desk', value: '', days: 0, color: 'jaune' },
   ];
-  const base = ticket({ projectId: 'p1', statusChanges: [{ at: '2026-10-08T08:00:00.000Z', from: 'a_faire', to: 'en_cours' }] });
+  const base = ticket({ projectId: 'p1', deskId: '48213', statusChanges: [{ at: '2026-10-08T08:00:00.000Z', from: 'a_faire', to: 'en_cours' }] });
 
   it('applique la première règle qui correspond', () => {
     expect(cardColor(rules, { ...base, dueDate: '2026-10-09' }, today)).toBe('rouge');
@@ -182,6 +184,7 @@ describe('fonds conditionnels des cartes', () => {
     expect(cardColor(rules, { ...base, statusChanges: [{ at: '2026-10-04T08:00:00.000Z', from: 'a_faire', to: 'en_cours' }] }, today)).toBe('gris');
     expect(cardColor(rules, { ...base, projectId: 'p2' }, today)).toBe('bleu');
     expect(cardColor(rules, { ...base, assigneeId: '' }, today)).toBe('violet');
+    expect(cardColor(rules, { ...base, deskId: '' }, today)).toBe('jaune');
     // Un ticket terminé n'est jamais « en retard ».
     expect(cardColor(rules.slice(0, 1), { ...base, done: true, status: 'termine', dueDate: '2026-10-01' }, today)).toBeNull();
   });
@@ -195,6 +198,7 @@ describe('fonds conditionnels des cartes', () => {
       'Responsable : ?',
       'Projet : Paie',
       'Sans responsable du hub (personne extérieure)',
+      'Sans ticket Desk',
     ]);
   });
 });

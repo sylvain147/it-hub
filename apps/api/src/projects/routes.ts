@@ -95,12 +95,15 @@ export function projectRoutes() {
     return c.json(await pr.listProjects(counts));
   });
 
-  /** Frise globale : les jalons de tous les projets (avant `/:id`). */
+  /** Frise globale : les jalons et la to-do datée de tous les projets (avant `/:id`). */
   r.get('/jalons', async (c) => {
-    const projects = await pr.listProjects();
+    const [projects, todos] = await Promise.all([pr.listProjects(), users.listTodos()]);
     const out: PlanningProject[] = [];
     for (const p of projects) {
-      out.push({ id: p.id, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons') });
+      const dated = todos
+        .filter((t) => t.projectId === p.id && t.dueDate)
+        .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }));
+      out.push({ id: p.id, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
     }
     return c.json(out);
   });
@@ -236,7 +239,7 @@ export function projectRoutes() {
       );
     const tasks = await decide(s.tasks, b.tasks, async (t) => {
       const who = await resolveTaskAssignee({ assignee: t.assignee }, null, user);
-      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
+      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { title: t.title, ...who, dueDate: t.dueDate, priority: t.priority, details: `Issue du compte rendu « ${note.title} »` }), user, { silent: true });
       created.push('ticket');
     });
     const jalons = await decide(s.jalons, b.jalons, async (j) => {

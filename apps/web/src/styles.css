@@ -410,7 +410,7 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .toolbar-row .input-auto { min-width: 140px; }
 .quick-add { max-width: 460px; }
 .seg { display: inline-flex; border: 1px solid #d0d5dd; border-radius: 8px; overflow: hidden; }
-.seg button { border: none; background: #fff; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+.seg button { border: none; background: #fff; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
 .seg button.on { background: var(--blue-50); color: var(--blue); font-weight: 600; }
 .menu-inline { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -860,3 +860,26 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .badge-desk { background: #f4f3ff; color: #5925dc; }
 .input-desk { max-width: 220px; }
 .desk-info { margin-top: 6px; padding: 8px 10px; background: #f9fafb; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 3px; }
+.plan-project { background: #f5f8ff; border: 1px solid #d1e0ff; border-radius: 8px; padding: 8px 10px; }
+
+/* Fiche utilisateur : périmètres */
+.badge-perimeter { background: #ecfdf3; color: #067647; }
+.perimeter-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #d0d5dd; border-radius: 999px; cursor: pointer; font-size: 13px; background: #fff; }
+.choice-chip.on { border-color: var(--blue); background: var(--blue-50); color: var(--blue); font-weight: 600; }
+.choice-chip input { accent-color: var(--blue); }
+
+/* Jalons sur une période (frise d'un projet et frise globale) */
+.tl-range { position: absolute; top: 66px; height: 11px; border-radius: 6px; background: #d1e0ff; opacity: 0.9; }
+.tl-range.tl-done { background: #abefc6; }
+.tl-range.tl-late { background: #fecdca; }
+.gp-range { position: absolute; top: 50%; height: 12px; margin-top: -6px; border-radius: 6px; background: #b2ccff; z-index: 1; }
+.gp-range.tl-done { background: #abefc6; }
+.gp-range.tl-late { background: #fecdca; }
+.gp-range-sample { background: #b2ccff; }
+.gp-todo { position: absolute; top: 50%; transform: translate(-5px, 8px); z-index: 1; cursor: default; }
+.gp-square { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: #fff; border: 2px solid #7a5af8; box-sizing: border-box; vertical-align: middle; }
+.gp-todo.tl-done .gp-square { background: var(--ok); border-color: var(--ok); }
+.gp-todo.tl-late .gp-square { border-color: var(--danger); background: #fee4e2; }
+.gp-todo:hover { z-index: 3; }
+.badge-todo { background: #f4f3ff; color: #5925dc; }

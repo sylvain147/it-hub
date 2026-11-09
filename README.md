@@ -15,13 +15,14 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 ### 📝 Notes
 
 - **Un bloc-notes personnel**, en vrac : titre facultatif, texte mis en forme, rattaché ou non à un projet. Saisie rapide en une zone de texte (Ctrl + Entrée).
-- Les notes sont **privées** : seul leur auteur les voit (pas même un administrateur). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
+- Les notes sont **personnelles** : seul leur titulaire les voit, avec les **administrateurs**, qui consultent celles d'une personne ou de toute l'équipe et peuvent **ajouter une note à quelqu'un** (« ajoutée par … »). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
 - **Épingler** une note la garde en tête ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
 
 ### 🗓️ Planning
 
-- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints) et la date du jour. Sur 6 mois, 12 mois ou toute la durée ; projets clos et jalons atteints masquables.
-- En dessous, **les jalons de la période mois par mois**, avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
+- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 6 mois, 12 mois ou toute la durée ; projets clos et éléments terminés masquables.
+- **To-do sur la frise** (affichable ou non) : les tâches qui ont une échéance, sur la ligne de leur projet, et une ligne « Ma to-do » pour les miennes hors projet.
+- En dessous, **les échéances de la période mois par mois** (jalons et tâches), avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
 
 ### 📁 Projets
 
@@ -31,7 +32,7 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
 - **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description, statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **To-do et notes** : la to-do du projet (partagée) et mes notes sur le projet (personnelles).
-- **Planning** : jalons sur une frise, avec la **date initiale** conservée pour mesurer le glissement. Le module Planning les rassemble pour tous les projets.
+- **Planning** : jalons sur une frise, ponctuels ou sur une **période** (date de début et date de fin), avec la **date initiale** conservée pour mesurer le glissement. Le module Planning les rassemble pour tous les projets.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
 - **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (outils de tickets externes, SharePoint, Git, environnements…).
@@ -48,13 +49,14 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté).
 
 - **Tickets** : rattachés à un projet ou **hors projet** (choix « Hors projet » dans la fiche du ticket). Changer le projet d'un ticket le déplace, ou le sort de tout projet, en gardant son numéro et son historique.
+- **Priorité** des tickets (basse, normale, haute, critique) : affichée sur les listes et les cartes (sauf « normale ») ; le backlog, les sprints et les colonnes du tableau sont triés par priorité.
 - **N° ticket Desk** : un ticket du hub se rattache au ticket Desk du prestataire. La fiche affiche alors ce que le suivi TMA en sait (sujet, statut, catégorie, thème, **temps passé par le prestataire** d'après les relevés, mois par mois) et les autres tickets du hub qui le citent ; le badge « Desk #… » apparaît sur les listes et le tableau. Dans le relevé TMA du mois, chaque ticket Desk mène au ticket du hub rattaché.
 
 - **Statuts** : À faire, En cours, En attente, En recette, Terminé. Ce sont les colonnes du tableau ; leurs libellés, leur ordre et leur visibilité se règlent dans **Paramétrage → Statuts**.
 - **Sprints** : nom (« Sprint 4 » par défaut), dates (deux semaines à la suite du précédent par défaut), objectif. Un seul sprint est **en cours** à la fois ; les autres sont à venir ou clos.
-- **Planification** : chaque sprint à venir liste ses tickets, et le **backlog** regroupe les tickets ouverts hors sprint de tous les projets ; un menu sur chaque ticket le planifie dans un sprint ou le remet au backlog. **Démarrer** lance le prochain sprint.
+- **Planification** : chaque sprint à venir liste ses tickets, et le **backlog** regroupe les tickets ouverts hors sprint de tous les projets ; un menu sur chaque ticket le planifie dans un sprint ou le remet au backlog. **Démarrer** lance le prochain sprint. Filtrer le backlog sur un projet propose de **planifier tout le projet** (ses tickets au backlog) dans un sprint en un clic ; même chose depuis l'onglet « Tickets » du projet.
 - **Tableau du sprint en cours** : une colonne par statut, on **glisse** les tickets d'une colonne à l'autre (sur mobile : menu de statut sur la carte) ; filtres par projet et « seulement les miens ».
-- **Fonds conditionnels des cartes** (Paramétrage → Tableau des sprints) : des règles colorent le fond des cartes — échéance dépassée, échéance dans les N jours, même statut depuis plus de N jours, projet, responsable, personne extérieure. La première règle qui correspond l'emporte ; une légende les rappelle au-dessus du tableau.
+- **Fonds conditionnels des cartes** (Paramétrage → Tableau des sprints) : des règles colorent le fond des cartes — échéance dépassée, échéance dans les N jours, même statut depuis plus de N jours, projet, responsable, personne extérieure, sans ticket Desk. La première règle qui correspond l'emporte ; une légende les rappelle au-dessus du tableau.
 - **Clôturer** le sprint : les tickets non terminés partent dans le sprint suivant (ou au backlog) ; les chiffres du sprint clos sont figés.
 - **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique des statuts et des sprints de chaque ticket :
   - chiffres clés : tickets actifs, terminés (avec et sans la recette), ajouts en cours de sprint, échéances dépassées ;
@@ -103,12 +105,12 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 ### 👥 Utilisateurs et connexion
 
 - **Connexion** : page du hub en français (e-mail + mot de passe, puis code de l'application d'authentification ; première connexion avec choix du mot de passe et activation de la double authentification ; mot de passe oublié).
-- **Utilisateurs** (administrateurs) : ajout (invitation par e-mail avec mot de passe temporaire), nom, rôle, désactivation, renvoi de l'invitation. Le hub garde toujours au moins un administrateur actif.
+- **Utilisateurs** (administrateurs) : ajout (invitation par e-mail avec mot de passe temporaire), nom, **poste**, **backup** (un autre utilisateur), **périmètre** (ERP, Logistique, Sécurité, Réseau, Web ; plusieurs possibles), rôle, désactivation, renvoi de l'invitation. Le hub garde toujours au moins un administrateur actif.
 - **Rôles** :
 
 | Rôle | Droits |
 |---|---|
-| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les to-do de toute l'équipe ; lit et traite les retours |
+| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l'équipe ; lit et traite les retours |
 | Responsable d'équipe | Voit les to-do de toute l'équipe et peut y ajouter des tâches pour chacun |
 | Chargé de projet | Voit sa propre to-do et y ajoute ses tâches |
 

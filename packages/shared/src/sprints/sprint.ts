@@ -47,6 +47,10 @@ export interface Sprint extends z.infer<typeof sprintInputSchema> {
 export const DEFAULT_SPRINT_DAYS = 14;
 
 /** Clôture : destination des tickets non terminés (sprint à venir, ou null pour le backlog). */
+/** Planifie d'un coup dans un sprint tous les tickets ouverts d'un projet restés au backlog. */
+export const planProjectBody = z.object({ projectId: z.string().min(1).max(40) });
+export type PlanProjectBody = z.input<typeof planProjectBody>;
+
 export const closeSprintBody = z.object({ moveTo: z.number().int().positive().nullable().default(null) });
 export type CloseSprintBody = z.input<typeof closeSprintBody>;
 

@@ -17,7 +17,7 @@ export function TodoTab() {
   const { name } = useUsers();
   const projects = useProjectRefs();
   const todos = useLoad(() => api.projectTodos(project.id), [project.id]);
-  const notes = useLoad(() => api.notes(project.id), [project.id]);
+  const notes = useLoad(() => api.notes({ projectId: project.id }), [project.id]);
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<TaskRow | 'new' | null>(null);
   const [note, setNote] = useState<PersonalNote | 'new' | null>(null);

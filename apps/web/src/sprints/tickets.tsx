@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, ticketKey, type DeskTicketInfo, type Sprint, type Task, type TicketStatus } from '@samm/shared';
+import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
-import { DueLabel, ItemModal, MarkdownField } from '../projects/common';
+import { DueLabel, ItemModal, MarkdownField, PriorityTag } from '../projects/common';
 import { StatusOptions } from '../settings/context';
 import { UserSelect, useUsers } from '../users/context';
 import { Swatch, useTicketLabel } from './charts';
@@ -40,6 +40,7 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
       <button className="ticket-title" onClick={() => onOpen(t)} title="Ouvrir le ticket">{t.title}</button>
       <span className="ticket-meta">
         {showProject && t.projectName && <TicketProject t={t} />}
+        <PriorityTag priority={t.priority} hideNormal />
         {sprintName && <span className="small muted">{sprintName}</span>}
         {t.deskId && <DeskBadge id={t.deskId} />}
         {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId || 'Personne extérieure au hub'}>{t.assignee}</span>}
@@ -126,6 +127,38 @@ function DeskInfo({ id, ticketId }: { id: string; ticketId: string | null }) {
 /** Page où retrouver un ticket : son projet, ou les sprints s'il est hors projet. */
 export const ticketPath = (t: Pick<TicketRow, 'projectId'>) => (t.projectId === NO_PROJECT_ID ? '/sprints' : `/projets/${t.projectId}?onglet=tickets`);
 
+/** Planifie d'un coup tous les tickets d'un projet restés au backlog dans un sprint en cours ou à venir. */
+export function PlanProjectBar({ projectId, projectName, count, open, onDone }: { projectId: string; projectName: string; count: number; open: Sprint[]; onDone: () => Promise<void> | void }) {
+  const [target, setTarget] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!count || !open.length) return null;
+  async function plan() {
+    setBusy(true);
+    try {
+      const r = await api.planProject(Number(target), projectId);
+      toast(`${r.planned} ticket${r.planned > 1 ? 's' : ''} planifié${r.planned > 1 ? 's' : ''} dans « ${open.find((s) => s.id === Number(target))?.name ?? ''} ».`);
+      setTarget('');
+      await onDone();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="toolbar-row plan-project">
+      <span className="small">
+        Planifier tout le projet <strong>{projectName}</strong> ({count} ticket{count > 1 ? 's' : ''} au backlog) dans
+      </span>
+      <select className="input input-sm input-auto" value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Sprint">
+        <option value="">choisir un sprint…</option>
+        {open.map((s) => <option key={s.id} value={s.id}>{sprintLabel(s)}</option>)}
+      </select>
+      <button className="btn btn-sm btn-primary" disabled={!target || busy} onClick={() => void plan()}>Planifier</button>
+    </div>
+  );
+}
+
 /** Sprints où l'on peut planifier un ticket : en cours, puis à venir. */
 export function useOpenSprints() {
   const data = useLoad(() => api.sprints(), []);
@@ -170,6 +203,7 @@ export function TicketModal({
     title: ticket?.title ?? '',
     details: ticket?.details ?? '',
     status: ticket?.status ?? defaults?.status ?? ('a_faire' as TicketStatus),
+    priority: ticket?.priority ?? ('normale' as Priority),
     sprintId: ticket ? ticket.sprintId : (defaults?.sprintId ?? null),
     dueDate: ticket?.dueDate ?? '',
     deskId: ticket?.deskId ?? '',
@@ -182,7 +216,7 @@ export function TicketModal({
 
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
-    const fields = { title: f.title, details: f.details, status: f.status, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...who };
+    const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, f.projectId !== ticket.projectId ? { ...fields, projectId: f.projectId } : fields);
     else await api.createItem(f.projectId, 'tasks', fields);
@@ -258,6 +292,12 @@ export function TicketModal({
       <label className="field">
         <span>Échéance</span>
         <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+      </label>
+      <label className="field">
+        <span>Priorité</span>
+        <select className="input" value={f.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
+          {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
+        </select>
       </label>
       <label className="field">
         <span>Responsable</span>

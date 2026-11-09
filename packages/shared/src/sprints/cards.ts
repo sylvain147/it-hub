@@ -6,7 +6,7 @@ import type { Task } from '../project.js';
  * la première qui correspond au ticket donne la couleur de fond de sa carte.
  */
 
-export const CARD_RULE_KINDS = ['retard', 'echeance', 'immobile', 'projet', 'responsable', 'sans_responsable'] as const;
+export const CARD_RULE_KINDS = ['retard', 'echeance', 'immobile', 'projet', 'responsable', 'sans_responsable', 'sans_desk'] as const;
 export type CardRuleKind = (typeof CARD_RULE_KINDS)[number];
 export const CARD_RULE_LABELS: Record<CardRuleKind, string> = {
   retard: 'Échéance dépassée',
@@ -15,6 +15,7 @@ export const CARD_RULE_LABELS: Record<CardRuleKind, string> = {
   projet: 'Projet',
   responsable: 'Responsable',
   sans_responsable: 'Sans responsable du hub (personne extérieure)',
+  sans_desk: 'Sans ticket Desk',
 };
 /** Conditions qui prennent un nombre de jours, ou une valeur (projet, utilisateur). */
 export const CARD_RULE_DAYS: CardRuleKind[] = ['echeance', 'immobile'];
@@ -42,7 +43,7 @@ export function isCardRuleComplete(r: CardRule): boolean {
 const DAY_MS = 86_400_000;
 const dayDiff = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY_MS);
 
-type CardTicket = Pick<Task, 'done' | 'dueDate' | 'assigneeId' | 'createdAt' | 'statusChanges'> & { projectId: string };
+type CardTicket = Pick<Task, 'done' | 'dueDate' | 'assigneeId' | 'createdAt' | 'statusChanges' | 'deskId'> & { projectId: string };
 
 export function cardRuleMatches(r: CardRule, t: CardTicket, today: string): boolean {
   switch (r.kind) {
@@ -61,6 +62,8 @@ export function cardRuleMatches(r: CardRule, t: CardTicket, today: string): bool
       return t.assigneeId === r.value;
     case 'sans_responsable':
       return !t.assigneeId;
+    case 'sans_desk':
+      return !t.deskId;
   }
 }
 

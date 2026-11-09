@@ -89,7 +89,7 @@ function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings
     ...ficheLines(p, lists),
     `Intervenants : ${items.contacts.map((c) => `${c.name}${c.role ? ` (${c.role}${c.organisation ? `, ${c.organisation}` : ''})` : ''}`).join(' ; ') || '(aucun)'}`,
     `Tâches déjà ouvertes : ${open.map((t) => t.title).join(' ; ') || '(aucune)'}`,
-    `Jalons existants : ${items.jalons.map((j) => `${j.label} (${d(j.date)})`).join(' ; ') || '(aucun)'}`,
+    `Jalons existants : ${items.jalons.map((j) => `${j.label} (${j.startDate ? `${d(j.startDate)} → ` : ''}${d(j.date)})`).join(' ; ') || '(aucun)'}`,
     `Risques déjà identifiés : ${items.risks.filter((r) => r.status !== 'clos').map((r) => r.title).join(' ; ') || '(aucun)'}`,
   ].join('\n');
 }
@@ -110,7 +110,7 @@ export function reportInput(p: ProjectDetail, lists: ListSettings, today = today
       'Planning',
       items.jalons.map((j) => {
         const drift = jalonDrift(j);
-        return `- ${j.label} : ${d(j.date)}${j.done ? ' — atteint' : isJalonLate(j, today) ? ' — EN RETARD' : ''}${drift ? ` (glissement ${drift > 0 ? '+' : ''}${drift} j)` : ''}`;
+        return `- ${j.label} : ${j.startDate ? `du ${d(j.startDate)} au ` : ''}${d(j.date)}${j.done ? ' — atteint' : isJalonLate(j, today) ? ' — EN RETARD' : ''}${drift ? ` (glissement ${drift > 0 ? '+' : ''}${drift} j)` : ''}`;
       }),
     ),
     section('Tâches terminées depuis 30 jours', recentDone.map((t) => `- ${t.title}${t.assignee ? ` (${t.assignee})` : ''}`)),
@@ -150,7 +150,7 @@ export function projectContextMarkdown(p: ProjectDetail, opts: { prestationId: s
     (p.objectifs.trim() || presta) &&
       `## Demandes et besoins\n${p.objectifs.trim()}${presta ? `\n\n**Prestation concernée** : ${presta.prestataire} — ${presta.objet}${presta.chargeJours != null ? ` (${presta.chargeJours} j/h estimés)` : ''}${presta.notes.trim() ? `\n${presta.notes.trim()}` : ''}` : ''}`,
     p.horsPerimetre.trim() && `## Hors périmètre\n${p.horsPerimetre.trim()}`,
-    items.jalons.length && `## Dates et échéances\n${items.jalons.map((j) => `- ${j.label} : ${d(j.date)}${j.done ? ' (atteint)' : ''}`).join('\n')}`,
+    items.jalons.length && `## Dates et échéances\n${items.jalons.map((j) => `- ${j.label} : ${j.startDate ? `du ${d(j.startDate)} au ` : ''}${d(j.date)}${j.done ? ' (atteint)' : ''}`).join('\n')}`,
     items.risks.some((r) => r.status !== 'clos') &&
       `## Contraintes et risques\n${items.risks
         .filter((r) => r.status !== 'clos')

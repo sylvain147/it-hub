@@ -111,7 +111,7 @@ describe('module Projets', () => {
     );
     const legacy = (await env.call('GET', `/projects/${id}`)).json.items.tasks.find((x: any) => x.id === 'ancienne');
     expect(legacy).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4, sprintId: null });
-    expect(legacy).not.toHaveProperty('priority');
+    expect(legacy.priority).toBe('haute'); // la priorité des anciennes tâches est reprise
     const renamed = await env.call('PATCH', `/projects/${id}/items/tasks/ancienne`, { title: 'Ancienne tâche (renommée)' });
     expect(renamed.json).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4 });
     await env.call('DELETE', `/projects/${id}/items/tasks/ancienne`);

@@ -23,7 +23,8 @@ export const userKeys = {
 };
 
 type UserItem = HubUser & { pk: string; sk: string };
-const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => u;
+/** Les utilisateurs créés avant la fiche (poste, backup, périmètres) n'ont pas ces champs. */
+const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => ({ ...u, jobTitle: u.jobTitle ?? '', backupId: u.backupId ?? '', perimeters: u.perimeters ?? [] });
 
 /** L'annuaire sert à chaque requête (contrôle d'accès) : courte mise en cache dans le processus. */
 let cache: { at: number; users: HubUser[] } | null = null;

@@ -108,10 +108,12 @@ export const api = {
   createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b),
   updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch),
   deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`),
-  notes: (projectId?: string) => request<PersonalNote[]>('GET', `/notes${projectId ? `?projet=${encodeURIComponent(projectId)}` : ''}`),
-  createNote: (b: PersonalNoteInput) => request<PersonalNote>('POST', '/notes', b),
-  updateNote: (id: string, patch: Partial<PersonalNoteInput>) => request<PersonalNote>('PATCH', `/notes/${id}`, patch),
-  deleteNote: (id: string) => request<null>('DELETE', `/notes/${id}`),
+  /** Notes : les miennes par défaut ; `user` (e-mail ou « all ») réservé aux administrateurs. */
+  notes: (q: { projectId?: string; user?: string } = {}) =>
+    request<PersonalNote[]>('GET', `/notes?${new URLSearchParams({ ...(q.projectId ? { projet: q.projectId } : {}), ...(q.user ? { user: q.user } : {}) }).toString()}`),
+  createNote: (b: PersonalNoteInput & { ownerId?: string }) => request<PersonalNote>('POST', '/notes', b),
+  updateNote: (n: Pick<PersonalNote, 'id' | 'ownerId'>, patch: Partial<PersonalNoteInput>) => request<PersonalNote>('PATCH', `/notes/${n.id}?owner=${encodeURIComponent(n.ownerId)}`, patch),
+  deleteNote: (n: Pick<PersonalNote, 'id' | 'ownerId'>) => request<null>('DELETE', `/notes/${n.id}?owner=${encodeURIComponent(n.ownerId)}`),
 
   listCdcs: () => request<CdcSummary[]>('GET', '/cdcs'),
   getCdc: (id: string) => request<CdcDetail>('GET', `/cdcs/${id}`),
@@ -203,6 +205,7 @@ export const api = {
   attachCdc: (cdcId: string, projectId: string | null) => request<CdcDetail>('PATCH', `/cdcs/${cdcId}/project`, { projectId }),
 
   sprints: () => request<SprintsOverview>('GET', '/sprints'),
+  planProject: (sprintId: number, projectId: string) => request<{ planned: number }>('POST', `/sprints/${sprintId}/plan-project`, { projectId }),
   createSprint: (b: CreateSprintBody) => request<Sprint>('POST', '/sprints', b),
   updateSprint: (sprintId: number, b: SprintInput) => request<SprintDetail>('PUT', `/sprints/${sprintId}`, b),
   startSprint: (sprintId: number) => request<SprintDetail>('POST', `/sprints/${sprintId}/start`),
