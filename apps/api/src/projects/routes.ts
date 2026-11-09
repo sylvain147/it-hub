@@ -34,6 +34,7 @@ import { projectContextMarkdown } from './ai.js';
 import { linkLegacyChefs, resolveProjectChef, resolveTaskAssignee } from '../users/routes.js';
 import * as users from '../users/repo.js';
 import { listNotes, putNote } from '../notes/routes.js';
+import { listIdeas, putIdea } from '../ideas/routes.js';
 import { assertPlannable } from '../sprints/repo.js';
 
 /** Ticket : responsable rattaché à l'annuaire, sprint en cours ou à venir (s'il change). */
@@ -140,7 +141,8 @@ export function projectRoutes() {
     if (p.activeJobId) throw new HttpError(409, 'Une tâche IA est en cours sur ce projet.');
     // Les cahiers des charges ne sont pas supprimés : ils sont simplement détachés.
     for (const cdc of (await cdcsByProject()).get(id) ?? []) await repo.setCdcProject(cdc.id, null);
-    // Ni la to-do ni les notes rattachées : elles restent, hors projet.
+    // Ni la to-do, ni les notes, ni les idées rattachées : elles restent, hors projet.
+    for (const i of (await listIdeas()).filter((i) => i.projectId === id)) await putIdea({ ...i, projectId: '' });
     for (const t of (await users.listTodos()).filter((t) => t.projectId === id)) await users.putTodo({ ...t, projectId: '' });
     for (const u of await users.listUsers()) {
       for (const n of (await listNotes(u.email)).filter((n) => n.projectId === id)) await putNote({ ...n, projectId: '' });

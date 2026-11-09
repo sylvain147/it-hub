@@ -36,6 +36,13 @@ export const MODULES: HubModule[] = [
     icon: '📁',
   },
   {
+    id: 'idees',
+    title: 'Idées d’amélioration',
+    description: 'La liste des idées d’amélioration de l’équipe (ERP, outils…), classées par priorité. Une idée retenue devient un ticket en un clic ; une liste Notion s’importe en un copier-coller.',
+    path: '/idees',
+    icon: '💡',
+  },
+  {
     id: 'planning',
     title: 'Planning',
     description: 'Les jalons de tous les projets sur une même frise : ce qui arrive, ce qui glisse, ce qui est en retard.',

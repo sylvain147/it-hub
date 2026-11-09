@@ -32,6 +32,7 @@ import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
 import { feedbackRoutes } from './feedback/routes.js';
 import { noteRoutes } from './notes/routes.js';
 import { boutonRougeRoutes } from './bouton/routes.js';
+import { ideaRoutes } from './ideas/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -295,6 +296,7 @@ export function createApp() {
   api.route('/notes', noteRoutes());
   api.route('/feedback', feedbackRoutes());
   api.route('/bouton-rouge', boutonRougeRoutes());
+  api.route('/idees', ideaRoutes());
 
   // Activité récente des projets (accueil).
   api.get('/activity', async (c) => c.json(await pr.recentActivity(Math.min(Number(c.req.query('limit') ?? 30) || 30, 100))));

@@ -956,3 +956,11 @@ a.gp-range:hover { filter: brightness(0.92); }
 .br-wall-name { flex: 1; }
 .br-wall-count { text-align: right; }
 .br-wall-count strong { font-size: 18px; color: var(--danger); }
+/* Idées d'amélioration */
+.idea-quick { margin-bottom: 12px; }
+.row-muted td { opacity: 0.6; }
+.prio-critique { color: var(--danger); font-weight: 600; }
+.prio-haute { color: #b54708; font-weight: 600; }
+.prio-basse { color: var(--muted); }
+.import-preview { max-height: 280px; overflow: auto; }
+.clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }

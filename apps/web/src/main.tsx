@@ -26,6 +26,7 @@ import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import { MurDeLaHonte } from './bouton/BoutonRouge';
+import { IdeasPage } from './ideas/IdeasPage';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: 'projets', element: <ProjectsList /> },
       { path: 'projets/:id', element: <ProjectPage /> },
       { path: 'planning', element: <GlobalPlanningPage /> },
+      { path: 'idees', element: <IdeasPage /> },
       { path: 'notes', element: <NotesPage /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
