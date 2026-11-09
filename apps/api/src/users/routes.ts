@@ -140,34 +140,32 @@ async function assertAssignable(assigneeId: string, current: string, role: HubUs
   if (!u.active) throw new HttpError(400, `${u.name} est désactivé : choisissez un autre responsable.`);
 }
 
+/** Sa tâche, celle qu'on a confiée, celle d'un projet (partagée par l'équipe), ou toutes selon le rôle. */
 function canEdit(t: PersonalTask, current: string, role: HubUser['role']) {
-  return t.assigneeId === current || t.createdBy === current || can(role, 'seeAllTodos');
+  return t.assigneeId === current || t.createdBy === current || !!t.projectId || can(role, 'seeAllTodos');
 }
 
-/** Le ticket lié à une tâche de la to-do doit exister. */
-async function assertTicket(ticketId: string) {
-  if (ticketId && !(await pr.listTickets()).some((t) => t.id === ticketId)) throw new HttpError(400, 'Ticket introuvable : il a peut-être été supprimé.');
-}
-
-/** Routes de la to-do (montées sous /api/todos). */
+/** Routes de la to-do (montées sous /api/todos). Indépendantes des tickets et des sprints. */
 export function todoRoutes() {
   const r = new Hono();
 
-  /** `?user=` : e-mail, ou « all » pour toute l'équipe (selon le rôle) ; par défaut, soi-même. */
+  /**
+   * `?user=` : e-mail, ou « all » pour toute l'équipe (selon le rôle) ; par défaut, soi-même.
+   * `?projet=` : la to-do d'un projet, visible de toute l'équipe comme le projet.
+   */
   r.get('/', async (c) => {
     const current = userName(c);
+    const todos = await users.listTodos();
+    const projectId = c.req.query('projet');
+    if (projectId) {
+      const res: TodosResponse = { scope: 'projet', personal: todos.filter((t) => t.projectId === projectId) };
+      return c.json(res);
+    }
     const scope = (c.req.query('user') || current).toLowerCase();
     if (scope !== current) requirePermission(c, 'seeAllTodos', 'voir la to-do des autres');
-    const keep = (assigneeId: string) => scope === 'all' || assigneeId === scope;
-    const [todos, tickets] = await Promise.all([users.listTodos(), pr.listTickets()]);
     // Les tâches qu'on a confiées à quelqu'un restent visibles par leur auteur.
-    const personal = todos.filter((t) => keep(t.assigneeId) || (scope === current && t.createdBy === current));
-    const linked = new Set(personal.map((t) => t.ticketId).filter(Boolean));
-    const res: TodosResponse = {
-      scope,
-      personal,
-      tickets: tickets.filter((t) => (!t.done && keep(t.assigneeId)) || linked.has(t.id)).sort((a, b) => a.number - b.number),
-    };
+    const personal = todos.filter((t) => scope === 'all' || t.assigneeId === scope || (scope === current && t.createdBy === current));
+    const res: TodosResponse = { scope, personal };
     return c.json(res);
   });
 
@@ -176,7 +174,7 @@ export function todoRoutes() {
     const b = await body(c, todoInputSchema);
     const assigneeId = b.assigneeId || current;
     await assertAssignable(assigneeId, current, c.get('user').role);
-    await assertTicket(b.ticketId);
+    await pr.assertProjectRef(b.projectId);
     const now = nowIso();
     const t: PersonalTask = { ...b, assigneeId, id: newId(), createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: b.done ? now : '' };
     return c.json(await users.putTodo(t), 201);
@@ -199,7 +197,7 @@ export function todoRoutes() {
       if (!fields.assigneeId) throw new HttpError(400, 'Une tâche doit avoir un responsable.');
       await assertAssignable(String(fields.assigneeId), current, role);
     }
-    if (fields.ticketId && fields.ticketId !== before.ticketId) await assertTicket(String(fields.ticketId));
+    if (fields.projectId && fields.projectId !== before.projectId) await pr.assertProjectRef(String(fields.projectId));
     const merged = parseBody(todoInputSchema, { ...before, ...fields });
     const now = nowIso();
     const doneAt = merged.done ? before.doneAt || now : '';

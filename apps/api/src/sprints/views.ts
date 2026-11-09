@@ -2,6 +2,7 @@
 import {
   buildSprintPreparation,
   buildSprintReport,
+  NO_PROJECT_ID,
   statusLabels,
   type Sprint,
   type SprintDetail,
@@ -72,7 +73,7 @@ export async function sprintDetail(id: number): Promise<SprintDetail> {
   const ids = new Set([...(report?.issues ?? []).map((i) => i.id), ...(preparation?.planned ?? []).map((i) => i.id)]);
   const counts = new Map<string, { id: string; name: string; count: number }>();
   for (const t of tickets) {
-    if (!ids.has(t.id)) continue;
+    if (!ids.has(t.id) || t.projectId === NO_PROJECT_ID) continue;
     const c = counts.get(t.projectId) ?? { id: t.projectId, name: t.projectName, count: 0 };
     c.count++;
     counts.set(t.projectId, c);

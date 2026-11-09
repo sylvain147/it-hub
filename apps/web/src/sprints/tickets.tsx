@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { ticketKey, type Sprint, type Task, type TicketStatus } from '@samm/shared';
+import { NO_PROJECT_ID, NO_PROJECT_LABEL, ticketKey, type Sprint, type Task, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -11,9 +11,9 @@ import { UserSelect, useUsers } from '../users/context';
 import { Swatch, useTicketLabel } from './charts';
 
 /**
- * Tickets : travail planifié des projets. Un ticket appartient à un projet, suit les statuts du tableau
- * (paramétrables) et se range dans un sprint ou au backlog. Mêmes composants pour l'onglet « Tickets » d'un projet,
- * la page « Sprints » et la to-do.
+ * Tickets : travail planifié. Un ticket appartient à un projet ou reste hors projet (`NO_PROJECT_ID`), suit les
+ * statuts du tableau (paramétrables) et se range dans un sprint ou au backlog. Mêmes composants pour l'onglet
+ * « Tickets » d'un projet et la page « Sprints ».
  */
 
 /** Ticket, avec son projet quand on le connaît. */
@@ -39,7 +39,7 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
       <TicketKey t={t} />
       <button className="ticket-title" onClick={() => onOpen(t)} title="Ouvrir le ticket">{t.title}</button>
       <span className="ticket-meta">
-        {showProject && t.projectName && <Link to={`/projets/${t.projectId}?onglet=tickets`} className="small">📁 {t.projectName}</Link>}
+        {showProject && t.projectName && <TicketProject t={t} />}
         {sprintName && <span className="small muted">{sprintName}</span>}
         {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId || 'Personne extérieure au hub'}>{t.assignee}</span>}
         {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
@@ -49,6 +49,15 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
     </li>
   );
 }
+
+/** Projet d'un ticket : lien vers ses tickets, ou « Hors projet ». */
+export function TicketProject({ t }: { t: Pick<TicketRow, 'projectId' | 'projectName'> }) {
+  if (t.projectId === NO_PROJECT_ID) return <span className="small muted">{NO_PROJECT_LABEL}</span>;
+  return <Link to={`/projets/${t.projectId}?onglet=tickets`} className="small">📁 {t.projectName}</Link>;
+}
+
+/** Page où retrouver un ticket : son projet, ou les sprints s'il est hors projet. */
+export const ticketPath = (t: Pick<TicketRow, 'projectId'>) => (t.projectId === NO_PROJECT_ID ? '/sprints' : `/projets/${t.projectId}?onglet=tickets`);
 
 /** Sprints où l'on peut planifier un ticket : en cours, puis à venir. */
 export function useOpenSprints() {
@@ -106,7 +115,8 @@ export function TicketModal({
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
     const fields = { title: f.title, details: f.details, status: f.status, sprintId: f.sprintId, dueDate: f.dueDate, ...who };
-    if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, fields);
+    // Changer le projet déplace le ticket (même numéro, même historique).
+    if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, f.projectId !== ticket.projectId ? { ...fields, projectId: f.projectId } : fields);
     else await api.createItem(f.projectId, 'tasks', fields);
     await onSaved();
   }
@@ -151,16 +161,15 @@ export function TicketModal({
       </label>
       <label className="field">
         <span>Projet *</span>
-        {ticket ? (
-          <input className="input" value={ticket.projectName ?? ''} disabled />
-        ) : (
-          <select className="input" value={f.projectId} onChange={(e) => set('projectId', e.target.value)}>
-            <option value="">Choisir un projet…</option>
-            {activeProjects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        )}
+        <select className="input" value={f.projectId} onChange={(e) => set('projectId', e.target.value)}>
+          {!ticket && <option value="">Choisir un projet…</option>}
+          <option value={NO_PROJECT_ID}>{NO_PROJECT_LABEL}</option>
+          {ticket && ticket.projectId !== NO_PROJECT_ID && !activeProjects.some((p) => p.id === ticket.projectId) && <option value={ticket.projectId}>{ticket.projectName}</option>}
+          {activeProjects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {ticket && f.projectId !== ticket.projectId && <span className="muted small">Le ticket sera déplacé ; il garde son numéro et son historique.</span>}
       </label>
       <label className="field">
         <span>Statut</span>

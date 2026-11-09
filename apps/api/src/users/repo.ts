@@ -3,7 +3,7 @@
  *
  *  pk      sk           contenu
  *  USER    U#<e-mail>   utilisateur du hub (nom, rôle, actif, dernière activité)
- *  TODO    T#<id>       tâche personnelle, hors projet (responsable : `assigneeId`)
+ *  TODO    T#<id>       tâche de la to-do, rattachée ou non à un projet (responsable : `assigneeId`)
  *
  * L'équipe compte quelques personnes : une partition par entité suffit, lue en entier.
  */
@@ -81,10 +81,13 @@ export async function touchLastSeen(u: HubUser): Promise<void> {
 // ---------------------------------------------------------------------------
 
 type TodoItem = PersonalTask & { pk: string; sk: string };
-/** Les tâches enregistrées avant la simplification portent un statut (« fait ») au lieu de `done`, et pas de ticket lié. */
+/**
+ * Les tâches enregistrées avant la simplification portent un statut (« fait ») au lieu de `done` ; d'autres pointaient
+ * un ticket (`ticketId`), lien abandonné depuis que la to-do est séparée des tickets.
+ */
 function stripTodo({ pk: _pk, sk: _sk, ...t }: TodoItem): PersonalTask {
-  const { status, priority: _p, ...rest } = t as PersonalTask & { status?: string; priority?: string };
-  return { ...rest, done: typeof t.done === 'boolean' ? t.done : status === 'fait', ticketId: t.ticketId ?? '' };
+  const { status, priority: _p, ticketId: _t, ...rest } = t as PersonalTask & { status?: string; priority?: string; ticketId?: string };
+  return { ...rest, done: typeof t.done === 'boolean' ? t.done : status === 'fait', projectId: t.projectId ?? '' };
 }
 
 export async function listTodos(): Promise<PersonalTask[]> {

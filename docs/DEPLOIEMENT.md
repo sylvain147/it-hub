@@ -26,6 +26,7 @@ Dans `infra/cdk.json` (section `context`) :
 
 ```bash
 pnpm install
+pnpm build                                          # le front doit être construit avant toute commande CDK (même le bootstrap)
 pnpm --filter @samm/infra exec cdk bootstrap        # une seule fois par compte/région
 pnpm run deploy                                     # construit le front puis déploie la stack HubIt
 ```

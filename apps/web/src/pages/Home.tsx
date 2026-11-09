@@ -9,25 +9,25 @@ import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
 import { DueLabel, HealthBadge, ProjectStatusBadge } from '../projects/common';
 import { ActivityList } from '../projects/OverviewTab';
+import { ticketPath } from '../sprints/tickets';
 
 export function Home() {
   const { me } = useAuth();
   const [allTasks, setAllTasks] = useState(false);
   const { data: projects } = useLoad(() => api.listProjects(), []);
   const { data: todos } = useLoad(() => api.todos(allTasks ? 'all' : undefined), [allTasks]);
+  const { data: sprints } = useLoad(() => api.sprints(), []);
   const { data: activity } = useLoad(() => api.activity(), []);
   const { name } = useUsers();
 
   const active = (projects ?? []).filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status));
   // Projets à surveiller d'abord (météo rouge, puis orange), puis les plus récemment modifiés.
   const watch = [...active].sort((a, b) => HEALTHS.indexOf(b.health) - HEALTHS.indexOf(a.health) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
-  // Tickets ouverts et tâches de la to-do, par échéance.
-  const myTasks = [
-    ...(todos?.tickets ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: `${ticketKey(t)} · ${t.projectName}`, to: `/projets/${t.projectId}?onglet=tickets`, who: t.assignee })),
-    ...(todos?.personal ?? []).filter((t) => !t.done).map((t) => ({ ...t, where: 'To-do', to: '/todo', who: name(t.assigneeId) })),
-  ]
-    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
-    .slice(0, 12);
+  // La to-do et les tickets restent deux listes distinctes, chacune par échéance.
+  const byDueDate = (a: { dueDate: string }, b: { dueDate: string }) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
+  const myTodos = (todos?.personal ?? []).filter((t) => !t.done).sort(byDueDate).slice(0, 10);
+  const myTickets = (sprints?.tickets ?? []).filter((t) => !t.done && (allTasks || t.assigneeId === me.email)).sort(byDueDate).slice(0, 10);
+  const projectName = (id: string) => (projects ?? []).find((p) => p.id === id)?.name ?? '';
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const deadlines = active
     .filter((p) => p.stats.nextJalon && p.stats.nextJalon.date <= in30)
@@ -53,24 +53,26 @@ export function Home() {
       <div className="home-grid">
         <section className="card">
           <div className="card-head">
-            <h2>{allTasks ? 'Tickets et to-do de l’équipe' : 'Mes tickets et ma to-do'}</h2>
+            <h2>{allTasks ? 'To-do de l’équipe' : 'Ma to-do'}</h2>
             <span className="row-actions">
               {me.permissions.seeAllTodos && (
-                <button className="btn-link small" onClick={() => setAllTasks(!allTasks)}>{allTasks ? 'Seulement les miennes' : 'Toute l’équipe'}</button>
+                <button className="btn-link small" onClick={() => setAllTasks(!allTasks)}>{allTasks ? 'Seulement la mienne' : 'Toute l’équipe'}</button>
               )}
               <Link to={allTasks ? '/todo?qui=all' : '/todo'} className="small">Tout voir →</Link>
             </span>
           </div>
-          {myTasks.length === 0 ? (
-            <p className="muted">{allTasks ? 'Rien d’ouvert.' : 'Rien d’ouvert à votre nom.'}</p>
+          {myTodos.length === 0 ? (
+            <p className="muted">Rien à faire.</p>
           ) : (
             <ul className="list-plain">
-              {myTasks.map((t) => (
+              {myTodos.map((t) => (
                 <li key={t.id} className="home-task">
                   <DueLabel date={t.dueDate} />
                   <span>
-                    <Link to={t.to}>{t.title}</Link>
-                    <div className="muted small">{t.where}{allTasks && t.who && ` · ${t.who}`}</div>
+                    <Link to="/todo">{t.title}</Link>
+                    {(t.projectId || allTasks) && (
+                      <div className="muted small">{[projectName(t.projectId), allTasks ? name(t.assigneeId) : ''].filter(Boolean).join(' · ')}</div>
+                    )}
                   </span>
                 </li>
               ))}
@@ -80,7 +82,30 @@ export function Home() {
 
         <section className="card">
           <div className="card-head">
+            <h2>{allTasks ? 'Tickets ouverts de l’équipe' : 'Mes tickets ouverts'}</h2>
+            <Link to="/sprints" className="small">Sprints →</Link>
+          </div>
+          {myTickets.length === 0 ? (
+            <p className="muted">{allTasks ? 'Aucun ticket ouvert.' : 'Aucun ticket ouvert à votre nom.'}</p>
+          ) : (
+            <ul className="list-plain">
+              {myTickets.map((t) => (
+                <li key={t.id} className="home-task">
+                  <DueLabel date={t.dueDate} />
+                  <span>
+                    <Link to={ticketPath(t)}>{t.title}</Link>
+                    <div className="muted small">{ticketKey(t)} · {t.projectName}{allTasks && t.assignee && ` · ${t.assignee}`}</div>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card span-2-home">
+          <div className="card-head">
             <h2>Échéances des 30 prochains jours</h2>
+            <Link to="/planning" className="small">Frise de tous les projets →</Link>
           </div>
           {deadlines.length === 0 ? (
             <p className="muted">Aucun jalon dans les 30 prochains jours.</p>

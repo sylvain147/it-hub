@@ -96,7 +96,7 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | pk | sk | Contenu |
 |---|---|---|
 | `PROJ#<id>` | `META` | Fiche + indicateurs + révision (index `gsi1` « PROJ » pour la liste) |
-| `PROJ#<id>` | `TASK#<id>` | Ticket : numéro, statut, sprint (`sprintId`, null = backlog), historique des statuts et des sprints, description en Markdown (index `gsi1` « TICKET » : tous les tickets, pour les sprints et la to-do) |
+| `PROJ#<id>` | `TASK#<id>` | Ticket : numéro, statut, sprint (`sprintId`, null = backlog), historique des statuts et des sprints, description en Markdown (index `gsi1` « TICKET » : tous les tickets, pour les sprints). Ticket hors projet : `PROJ#hors-projet` (`NO_PROJECT_ID`, sans fiche `META`) |
 | `COUNTER` | `TICKET`, `SPRINT` | Derniers numéros attribués (compteurs atomiques `nextCounter`) |
 | `PROJ#<id>` | `JALON#`, `PRESTA#`, `CONTACT#`, `LINK#`, `FILE#`, `NOTE#`, `RISK#` | Éléments rattachés |
 | `PROJ#<id>` | `ACT#<date>#<aléa>` | Historique (index `gsi1` « ACT » : activité récente ; expire après 1 an) |
@@ -105,7 +105,7 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 
 ## Sprints
 
-- **Tickets** : éléments `tasks` des projets (`taskInputSchema`), modifiés par les routes génériques des projets (`PATCH /api/projects/:id/items/tasks/:itemId`). Le serveur attribue le numéro (`nextCounter('TICKET')`, clé « T-12 »), calcule `done` (statut `termine`) et ajoute à chaque changement une entrée à `statusChanges` / `sprintChanges` (200 au plus). Un ticket ne se planifie que dans un sprint en cours ou à venir (`assertPlannable`). Les tâches à cocher d'avant les sprints (`done`, index « TASK_OPEN ») sont lues par `normalizeTaskRecord`, puis numérotées et indexées « TICKET » à leur première lecture (`listTickets`, `getProjectDetail`).
+- **Tickets** : éléments `tasks` des projets (`taskInputSchema`), modifiés par les routes génériques des projets (`PATCH /api/projects/:id/items/tasks/:itemId`). Le serveur attribue le numéro (`nextCounter('TICKET')`, clé « T-12 »), calcule `done` (statut `termine`) et ajoute à chaque changement une entrée à `statusChanges` / `sprintChanges` (200 au plus). Un ticket ne se planifie que dans un sprint en cours ou à venir (`assertPlannable`). Les tâches à cocher d'avant les sprints (`done`, index « TASK_OPEN ») sont lues par `normalizeTaskRecord`, puis numérotées et indexées « TICKET » à leur première lecture (`listTickets`, `getProjectDetail`). **Hors projet** : un ticket peut être rangé sous `NO_PROJECT_ID` (« hors-projet ») : pas de fiche, d'historique d'activité ni d'indicateurs (`ownerProject`), et aucun autre élément n'y est admis. `PATCH …/items/tasks/:itemId` avec `projectId` déplace le ticket (`moveTicket` : même identifiant, numéro et historique), après validation du reste de la modification.
 - **Statuts** : codes fixes (`TICKET_STATUSES` : `a_faire`, `en_cours`, `attente`, `recette`, `termine`) ; libellés, ordre et visibilité dans le paramétrage (liste `ticket`). Les colonnes du tableau suivent cet ordre.
 - **Sprints** (`apps/api/src/sprints/`) : numérotés (`nextCounter('SPRINT')`), états `future` → `active` → `closed`. Un seul sprint en cours (`POST /:id/start`). La clôture (`POST /:id/close`, `moveTo` : sprint à venir ou null pour le backlog) enregistre `completedAt` **avant** de déplacer les tickets non terminés : les chiffres du sprint clos s'arrêtent à la clôture. Seul un sprint à venir se supprime (ses tickets reviennent au backlog).
 - **Fonds des cartes** (`sprints/cards.ts`) : règles `cardRules` du paramétrage des listes (`cardRuleSchema`, 20 au plus), évaluées dans le navigateur par `cardColor` (première règle complète qui correspond). Couleurs fixes (`CARD_COLORS`), classes `card-bg-*`.
@@ -123,12 +123,15 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 - **Comptes de connexion** (`users/identity.ts`) : création (invitation), renvoi, désactivation (+ fermeture des sessions), nom — via l'API d'administration Cognito ; sans effet en local.
 - **Connexion** (`apps/web/src/auth/LoginPage.tsx`) : écran propre au hub sur l'API `aws-amplify/auth` (`signIn` / `confirmSignIn`) : mot de passe temporaire, configuration TOTP (QR code généré dans le navigateur), code TOTP, mot de passe oublié.
 - **Responsable des tickets** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, le ticket revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
-- **To-do** : tâches personnelles à cocher (`done`), une partition `TODO`, liées ou non à un ticket (`ticketId`). `GET /api/todos?user=` renvoie la to-do d'une personne (ou `all`) selon les droits, avec ses tickets ouverts et les tickets liés à ses tâches. Les tâches d'avant la simplification (`status: 'fait'`) sont converties à la lecture.
+- **To-do** : tâches à cocher (`done`), une partition `TODO`, rattachées ou non à un projet (`projectId`), **indépendantes des tickets** (ni statut ni sprint). `GET /api/todos?user=` renvoie la to-do d'une personne (ou `all`) selon les droits ; `GET /api/todos?projet=` la to-do d'un projet, visible et modifiable par toute l'équipe comme le projet. Les tâches d'avant la simplification (`status: 'fait'`) sont converties à la lecture ; l'ancien lien vers un ticket (`ticketId`) est ignoré. À la suppression d'un projet, ses tâches et notes restent, détachées.
+- **Notes** (`packages/shared/src/notes.ts`, `apps/api/src/notes/routes.ts`) : bloc-notes personnel, une partition par auteur (`NOTE#<e-mail>`) ; `/api/notes` ne lit et ne modifie que les notes de l'utilisateur connecté (`?projet=` : celles d'un projet). Distinctes des notes du journal d'un projet (`PROJ#<id>` / `NOTE#<id>`, partagées).
+- **Frise globale** : `GET /api/projects/jalons` renvoie chaque projet (nom, code, statut, météo, dates) avec ses jalons (`PlanningProject`) ; page `/planning` (`projects/GlobalPlanningPage.tsx`).
 
 | pk | sk | Contenu |
 |---|---|---|
 | `USER` | `U#<e-mail>` | Utilisateur : nom, rôle, actif, invitation, dernière activité |
-| `TODO` | `T#<id>` | Tâche de la to-do (responsable `assigneeId`, auteur `createdBy`, ticket lié `ticketId`) |
+| `TODO` | `T#<id>` | Tâche de la to-do (responsable `assigneeId`, auteur `createdBy`, projet `projectId`) |
+| `NOTE#<e-mail>` | `N#<id>` | Note personnelle (titre, texte Markdown, projet `projectId`, épinglée) |
 
 ## Ajouter un module au hub
 

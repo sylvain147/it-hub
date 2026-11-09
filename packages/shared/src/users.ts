@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { taskInputSchema, type ItemBase, type TicketView } from './project.js';
+import { taskInputSchema, type ItemBase } from './project.js';
 
 /**
  * Utilisateurs du hub et rôles.
@@ -18,14 +18,14 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do de toute l’équipe ; lit les retours sur l’application.',
   responsable: 'Voit les to-do de toute l’équipe et peut en attribuer à chacun.',
-  membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets, les tickets et les sprints restent partagés par toute l’équipe.',
+  membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets (et leur to-do), les tickets et les sprints restent partagés par toute l’équipe.',
 };
 
 /** Droits portés par les rôles (le code teste un droit, jamais un rôle). */
 export const PERMISSIONS = {
   /** Créer, modifier et désactiver des utilisateurs. */
   manageUsers: ['admin'],
-  /** Voir la to-do (et les tickets ouverts) des autres utilisateurs. */
+  /** Voir la to-do des autres utilisateurs. */
   seeAllTodos: ['admin', 'responsable'],
   /** Ajouter ou réattribuer une tâche de to-do à quelqu'un d'autre. */
   assignOthers: ['admin', 'responsable'],
@@ -91,24 +91,23 @@ export function initials(name: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Tâche de la to-do d'une personne : une simple chose à faire que l'on coche, liée ou non à un ticket
- * (`ticketId` : identifiant du ticket, quel que soit son projet).
+ * Tâche de la to-do d'une personne : une simple chose à faire que l'on coche, rattachée ou non à un projet
+ * (`projectId`). La to-do est indépendante des tickets : une tâche ne se planifie pas dans un sprint.
  */
 export const todoInputSchema = taskInputSchema.pick({ title: true, details: true, dueDate: true }).extend({
   done: z.boolean().default(false),
   /** Utilisateur responsable (e-mail) ; par défaut, celui qui crée la tâche. */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
-  ticketId: z.string().max(40).default(''),
+  /** Projet concerné (vide : tâche hors projet). */
+  projectId: z.string().max(40).default(''),
 });
 export type TodoInput = z.input<typeof todoInputSchema>;
 
 export type PersonalTask = z.infer<typeof todoInputSchema> & ItemBase & { doneAt: string };
 
-/** To-do d'une personne (ou de toute l'équipe), et ses tickets. */
+/** To-do d'une personne, de toute l'équipe ou d'un projet. */
 export interface TodosResponse {
-  /** E-mail de la personne, ou « all » pour toute l'équipe. */
+  /** E-mail de la personne, « all » pour toute l'équipe, ou « projet » pour la to-do d'un projet. */
   scope: string;
   personal: PersonalTask[];
-  /** Tickets ouverts attribués à la personne, et tickets liés aux tâches de la to-do (même terminés). */
-  tickets: TicketView[];
 }

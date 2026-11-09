@@ -76,16 +76,14 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     const chloe = await env.call('GET', '/todos', undefined, MEMBRE);
     expect(chloe.json.scope).toBe(MEMBRE);
     expect(chloe.json.personal.map((t: any) => t.title).sort()).toEqual(['Mettre à jour mon planning', 'Préparer l’entretien annuel']);
-    expect(chloe.json.tickets.map((t: any) => t.title)).toEqual(['Recette des paiements']);
+    expect(chloe.json.tickets).toBeUndefined(); // la to-do ne mélange pas les tickets
     // Les tâches des autres : réservées aux rôles qui le permettent.
     expect((await env.call('GET', `/todos?user=${RESP}`, undefined, MEMBRE)).status).toBe(403);
     expect((await env.call('GET', '/todos?user=all', undefined, MEMBRE)).status).toBe(403);
     const team = await env.call('GET', '/todos?user=all', undefined, RESP);
     expect(team.json.personal).toHaveLength(3);
-    expect(team.json.tickets.length).toBeGreaterThanOrEqual(3);
     const ofChloe = await env.call('GET', `/todos?user=${MEMBRE}`, undefined, ADMIN);
     expect(ofChloe.json.personal).toHaveLength(2);
-    expect(ofChloe.json.tickets.every((t: any) => t.assigneeId === MEMBRE && !t.done)).toBe(true);
 
     // Modification : la personne concernée, l'auteur ou un rôle qui voit tout.
     const doneTodo = await env.call('PATCH', `/todos/${own.json.id}`, { done: true }, MEMBRE);
@@ -98,17 +96,26 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('DELETE', `/todos/${own.json.id}`, undefined, MEMBRE)).status).toBe(204);
   });
 
-  it('lie une tâche de la to-do à un ticket', async () => {
-    expect((await env.call('POST', '/todos', { title: 'Relancer', ticketId: 'inconnu' }, MEMBRE)).status).toBe(400);
-    const todo = (await env.call('POST', '/todos', { title: 'Relancer la recette', ticketId: legacyTaskId }, MEMBRE)).json;
-    expect(todo).toMatchObject({ ticketId: legacyTaskId, done: false });
-    // Le ticket lié reste visible même terminé.
-    await env.call('PATCH', `/projects/${projectId}/items/tasks/${legacyTaskId}`, { status: 'termine' }, ADMIN);
-    const res = (await env.call('GET', '/todos', undefined, MEMBRE)).json;
-    expect(res.tickets.find((t: any) => t.id === legacyTaskId)).toMatchObject({ title: 'Recette des paiements', done: true, projectName: 'Refonte du site', number: 1 });
-    const unlinked = await env.call('PATCH', `/todos/${todo.id}`, { ticketId: '' }, MEMBRE);
-    expect(unlinked.json.ticketId).toBe('');
-    expect((await env.call('GET', '/todos', undefined, MEMBRE)).json.tickets.some((t: any) => t.id === legacyTaskId)).toBe(false);
+  it('rattache une tâche de la to-do à un projet, sans en faire un ticket', async () => {
+    expect((await env.call('POST', '/todos', { title: 'Relancer', projectId: 'inconnu' }, MEMBRE)).status).toBe(400);
+    const todo = (await env.call('POST', '/todos', { title: 'Relancer le prestataire', projectId }, MEMBRE)).json;
+    expect(todo).toMatchObject({ projectId, done: false });
+    expect(todo.status).toBeUndefined();
+    expect(todo.sprintId).toBeUndefined();
+    // Pas de ticket créé dans le projet.
+    const tickets = (await env.call('GET', `/projects/${projectId}`, undefined, ADMIN)).json.items.tasks;
+    expect(tickets.some((t: any) => t.title === 'Relancer le prestataire')).toBe(false);
+    // La to-do du projet est partagée : toute l'équipe la voit et la coche.
+    const ofProject = (await env.call('GET', `/todos?projet=${projectId}`, undefined, RESP)).json;
+    expect(ofProject).toMatchObject({ scope: 'projet' });
+    expect(ofProject.personal.map((t: any) => t.title)).toEqual(['Relancer le prestataire']);
+    expect((await env.call('PATCH', `/todos/${todo.id}`, { done: true }, RESP)).json.done).toBe(true);
+    // Le lien vers un ticket n'existe plus.
+    const legacy = await env.call('PATCH', `/todos/${todo.id}`, { ticketId: legacyTaskId }, MEMBRE);
+    expect(legacy.json.ticketId).toBeUndefined();
+    const detached = await env.call('PATCH', `/todos/${todo.id}`, { projectId: '' }, MEMBRE);
+    expect(detached.json.projectId).toBe('');
+    expect((await env.call('GET', `/todos?projet=${projectId}`, undefined, RESP)).json.personal).toHaveLength(0);
   });
 
   it('modifie et désactive les utilisateurs en gardant un administrateur', async () => {

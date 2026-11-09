@@ -7,6 +7,7 @@ import { ErrorBox, Spinner, formatDateTime, shortUser, toast } from '../componen
 import { HealthBadge, PriorityTag, ProjectProvider, ProjectStatusBadge } from './common';
 import { OverviewTab } from './OverviewTab';
 import { TicketsTab } from './TicketsTab';
+import { TodoTab } from './TodoTab';
 import { PlanningTab } from './PlanningTab';
 import { PrestationsTab } from './PrestationsTab';
 import { ContactsTab } from './ContactsTab';
@@ -18,6 +19,7 @@ import { CdcTab } from './CdcTab';
 const TABS = [
   { id: 'apercu', label: 'Aperçu' },
   { id: 'tickets', label: 'Tickets' },
+  { id: 'todo', label: 'To-do et notes' },
   { id: 'planning', label: 'Planning' },
   { id: 'prestations', label: 'Prestations' },
   { id: 'cdc', label: 'Cahiers des charges' },
@@ -144,6 +146,7 @@ export function ProjectPage() {
         <div className="tab-content">
           {tab === 'apercu' && <OverviewTab />}
           {tab === 'tickets' && <TicketsTab />}
+          {tab === 'todo' && <TodoTab />}
           {tab === 'planning' && <PlanningTab />}
           {tab === 'prestations' && <PrestationsTab />}
           {tab === 'intervenants' && <ContactsTab />}

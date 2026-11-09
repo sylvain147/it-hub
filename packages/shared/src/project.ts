@@ -193,6 +193,13 @@ export const taskInputSchema = z.object({
   dueDate: isoDate.default(''),
 });
 
+/**
+ * Tickets sans projet : rangés sous cet identifiant réservé, qui n'a pas de fiche projet (ni indicateurs, ni historique).
+ * Un ticket peut ensuite être rattaché à un projet, ou en être sorti, en gardant son numéro et son historique.
+ */
+export const NO_PROJECT_ID = 'hors-projet';
+export const NO_PROJECT_LABEL = 'Hors projet';
+
 /** Changement de statut d'un ticket (historique : revue de sprint). */
 export interface StatusChange {
   at: string;
@@ -408,6 +415,18 @@ export const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export function isTaskOverdue(t: Pick<Task, 'done' | 'dueDate'>, today = todayIso()): boolean {
   return !t.done && !!t.dueDate && t.dueDate < today;
+}
+
+/** Frise globale : chaque projet avec ses jalons (`GET /api/projects/jalons`). */
+export interface PlanningProject {
+  id: string;
+  name: string;
+  code: string;
+  status: ProjectStatus;
+  health: Health;
+  startDate: string;
+  targetDate: string;
+  jalons: ProjectJalon[];
 }
 
 export function isJalonLate(j: Pick<ProjectJalon, 'done' | 'date'>, today = todayIso()): boolean {
