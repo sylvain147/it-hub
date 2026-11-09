@@ -89,7 +89,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="auth-logo"><img className="brand-logo" src="/hobbit.svg" alt="" /> Hobbit</div>
+          <div className="auth-logo"><img className="brand-logo" src="/hobbit.png" alt="" /> Hobbit</div>
           <div className="alert alert-error">{error ?? 'Session invalide.'}</div>
           <button className="btn btn-block" onClick={() => void signOut()}>Se déconnecter</button>
         </div>

@@ -31,14 +31,14 @@ export function Layout() {
           <span />
         </button>
         <NavLink to="/" className="brand brand-mobile">
-          <img className="brand-logo" src="/hobbit.svg" alt="" />
+          <img className="brand-logo" src="/hobbit.png" alt="" />
           <span>Hobbit</span>
         </NavLink>
       </header>
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
         <NavLink to="/" className="brand">
-          <img className="brand-logo" src="/hobbit.svg" alt="" />
+          <img className="brand-logo" src="/hobbit.png" alt="" />
           <span>Hobbit</span>
         </NavLink>
         <SideNav />
