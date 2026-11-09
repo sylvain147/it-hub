@@ -47,16 +47,16 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
   });
 
   it('laisse chacun choisir son thème de couleur, conservé quand un administrateur modifie sa fiche', async () => {
-    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('marine');
-    const r = await env.call('PUT', '/me/preferences', { theme: 'comte' }, MEMBRE);
+    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('comte');
+    const r = await env.call('PUT', '/me/preferences', { theme: 'prune' }, MEMBRE);
     expect(r.status).toBe(200);
-    expect(r.json).toMatchObject({ email: MEMBRE, theme: 'comte', permissions: { manageUsers: false } });
+    expect(r.json).toMatchObject({ email: MEMBRE, theme: 'prune', permissions: { manageUsers: false } });
     expect((await env.call('PUT', '/me/preferences', { theme: 'fluo' }, MEMBRE)).status).toBe(400);
     // Le thème des autres ne bouge pas.
-    expect((await env.call('GET', '/me', undefined, ADMIN)).json.theme).toBe('marine');
+    expect((await env.call('GET', '/me', undefined, ADMIN)).json.theme).toBe('comte');
     const profile = { name: 'Chloé Durand', role: 'membre', active: true, jobTitle: '', backupId: '', perimeters: [] };
-    expect((await env.call('PUT', `/users/${MEMBRE}`, profile, ADMIN)).json.theme).toBe('comte');
-    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('comte');
+    expect((await env.call('PUT', `/users/${MEMBRE}`, profile, ADMIN)).json.theme).toBe('prune');
+    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('prune');
   });
 
   it('renseigne le poste, le backup et le périmètre d’un utilisateur', async () => {

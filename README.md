@@ -157,7 +157,7 @@ Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond 
 ### 💬 Retours sur l'application
 
 - **« Faire un retour »** dans le menu de l'utilisateur (son nom, en bas du menu latéral), sur toutes les pages : bug, idée ou remarque, avec la page en cours et l'auteur joints automatiquement.
-- **Thème de couleur** dans le menu de l'utilisateur : chacun choisit un thème prédéfini (Bleu marine, La Comté, Forêt, Bière ambrée, Framboise, Prune, Ardoise), appliqué tout de suite et retenu sur sa fiche (il le suit sur tous ses postes).
+- **Thème de couleur** dans le menu de l'utilisateur : chacun choisit un thème prédéfini (La Comté, vert, par défaut ; Bleu marine, Forêt, Bière ambrée, Framboise, Prune, Ardoise), appliqué tout de suite et retenu sur sa fiche (il le suit sur tous ses postes).
 - Page **Retours** (menu de l'utilisateur, administrateurs) : retours à traiter / traités, note de suivi, réouverture, suppression.
 
 ## Maîtrise des coûts IA (Bedrock)

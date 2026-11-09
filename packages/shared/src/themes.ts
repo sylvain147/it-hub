@@ -5,9 +5,9 @@ import { z } from 'zod';
  * Un thème ne fixe que les couleurs d'accent : menu latéral (`navy`), liens et boutons (`blue`), fonds clairs (`blue50`).
  * `blue` doit rester lisible sur fond blanc (texte des liens).
  */
-export const THEMES = ['marine', 'comte', 'foret', 'biere', 'framboise', 'prune', 'ardoise'] as const;
+export const THEMES = ['comte', 'marine', 'foret', 'biere', 'framboise', 'prune', 'ardoise'] as const;
 export type ThemeId = (typeof THEMES)[number];
-export const DEFAULT_THEME: ThemeId = 'marine';
+export const DEFAULT_THEME: ThemeId = 'comte';
 
 export interface ThemeColors {
   /** Menu latéral, titres. */
@@ -21,8 +21,8 @@ export interface ThemeColors {
 }
 
 export const THEME_DEFS: Record<ThemeId, { label: string; description: string; colors: ThemeColors }> = {
+  comte: { label: 'La Comté', description: 'Vert prairie, comme chez soi (thème par défaut).', colors: { navy: '#2f4a2a', navy2: '#4a6b3a', blue: '#3f7a32', blue50: '#eef5ea' } },
   marine: { label: 'Bleu marine', description: 'Le thème d’origine, sobre.', colors: { navy: '#1f3864', navy2: '#2b4f8c', blue: '#2e74b5', blue50: '#eef4fb' } },
-  comte: { label: 'La Comté', description: 'Vert prairie, comme chez soi.', colors: { navy: '#2f4a2a', navy2: '#4a6b3a', blue: '#3f7a32', blue50: '#eef5ea' } },
   foret: { label: 'Forêt', description: 'Vert sapin et bleu canard.', colors: { navy: '#123f3c', navy2: '#1f6b65', blue: '#0e7c73', blue50: '#e6f4f2' } },
   biere: { label: 'Bière ambrée', description: 'Brun chaleureux et ambre.', colors: { navy: '#4a2e12', navy2: '#7a5220', blue: '#99560f', blue50: '#fbf2e4' } },
   framboise: { label: 'Framboise', description: 'Rose profond.', colors: { navy: '#561a32', navy2: '#86304f', blue: '#b12d5c', blue50: '#fbedf2' } },

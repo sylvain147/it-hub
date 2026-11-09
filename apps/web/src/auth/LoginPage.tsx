@@ -3,6 +3,7 @@ import { confirmResetPassword, confirmSignIn, resetPassword, signIn, type SignIn
 import QRCode from 'qrcode';
 import { DEV_USER_KEY, runtimeConfig } from '../config';
 import { Spinner } from '../components/ui';
+import { Brand } from '../components/Brand';
 
 const RECENT_KEY = 'hub-dev-recent';
 const PASSWORD_HINT = '12 caractères au moins, avec une minuscule, une majuscule et un chiffre.';
@@ -13,7 +14,7 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-logo">
-          <img className="brand-logo" src="/hobbit.png" alt="" /> Hobbit
+          <Brand />
         </div>
         {runtimeConfig().authMode === 'cognito' ? <CognitoLogin onSignedIn={onSignedIn} /> : <DevLogin onSignedIn={onSignedIn} />}
       </div>

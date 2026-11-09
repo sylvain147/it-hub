@@ -4,6 +4,7 @@ import { ADMIN_LINKS, MENU_SECTIONS, MODULES, type MenuSection } from '../module
 import { ROLE_LABELS } from '@samm/shared';
 import { useAuth } from '../auth';
 import { ToastHost } from './ui';
+import { Brand } from './Brand';
 import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
 import { FeedbackModal } from '../feedback/FeedbackModal';
@@ -31,15 +32,13 @@ export function Layout() {
           <span />
         </button>
         <NavLink to="/" className="brand brand-mobile">
-          <img className="brand-logo" src="/hobbit.png" alt="" />
-          <span>Hobbit</span>
+          <Brand />
         </NavLink>
       </header>
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
         <NavLink to="/" className="brand">
-          <img className="brand-logo" src="/hobbit.png" alt="" />
-          <span>Hobbit</span>
+          <Brand />
         </NavLink>
         <SideNav />
         <UserMenu name={me.name} email={me.email} role={ROLE_LABELS[me.role]} admin={ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission])} onSignOut={() => void signOut()} />

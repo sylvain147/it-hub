@@ -1,9 +1,9 @@
 :root {
   /* Couleurs d'accent : remplacées par le thème choisi par l'utilisateur (theme.ts, THEME_DEFS). */
-  --navy: #1f3864;
-  --navy-2: #2b4f8c;
-  --blue: #2e74b5;
-  --blue-50: #eef4fb;
+  --navy: #2f4a2a;
+  --navy-2: #4a6b3a;
+  --blue: #3f7a32;
+  --blue-50: #eef5ea;
   --ink: #1d2433;
   --muted: #667085;
   --line: #e4e7ec;
@@ -37,6 +37,15 @@ a:hover { text-decoration: underline; }
 .sidebar { width: 232px; flex-shrink: 0; background: var(--navy); color: #dbe4f3; display: flex; flex-direction: column; padding: 16px 12px; position: sticky; top: 0; height: 100vh; }
 .brand { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 700; font-size: 17px; padding: 4px 8px 18px; text-decoration: none !important; }
 .brand-logo { width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; display: block; background: #fbf3dc; padding: 2px; object-fit: contain; }
+/* Nom du hub : lettres calligraphiées et brin de feuilles (couleurs de nature, indépendantes du thème). */
+.wordmark { position: relative; display: inline-block; font-family: 'Almendra', Georgia, serif; font-weight: 700; font-size: 1.35em; letter-spacing: 0.01em; line-height: 1; padding-right: 24px; }
+.wordmark-leaves { position: absolute; right: -4px; top: -11px; width: 29px; height: 23px; overflow: visible; }
+.wordmark-leaves .leaf-stem { fill: none; stroke: #8a6a3b; stroke-width: 1.4; stroke-linecap: round; }
+.wordmark-leaves .leaf { stroke: #2f5d22; stroke-width: 0.6; }
+.wordmark-leaves .leaf-1 { fill: #7fb04a; }
+.wordmark-leaves .leaf-2 { fill: #a5cc5c; }
+.wordmark-leaves .leaf-3 { fill: #5f9a3a; }
+.brand:hover .wordmark-leaves { transform: rotate(-8deg); transform-origin: 0 100%; transition: transform 0.3s; }
 .side-nav { flex: 1; min-height: 0; overflow-y: auto; }
 .nav-section + .nav-section { margin-top: 6px; }
 .nav-title { display: flex; justify-content: space-between; align-items: center; width: 100%; background: none; border: none; color: inherit; font: inherit; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; opacity: 0.6; margin: 10px 0 4px; padding: 2px 8px; cursor: pointer; text-align: left; }
