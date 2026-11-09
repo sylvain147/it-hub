@@ -9,7 +9,7 @@
  * L'équipe ne compte que quelques sprints par trimestre : la partition se lit en entier.
  */
 import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { Sprint, SprintDocKind, SprintDocument } from '@samm/shared';
+import { pastSprintTimes, type Sprint, type SprintDocKind, type SprintDocument } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, nextCounter, queryAll } from '../db/client.js';
 import { HttpError, notFound, nowIso } from '../lib/util.js';
@@ -59,7 +59,8 @@ export async function listSprintItems(): Promise<SprintItem[]> {
   return items.sort((a, b) => a.id - b.id);
 }
 
-export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'startDate' | 'endDate'>, user: string): Promise<Sprint> {
+/** `past` : sprint déjà terminé, enregistré directement comme clos (historique). */
+export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'startDate' | 'endDate'>, user: string, past = false): Promise<Sprint> {
   const id = await nextCounter('SPRINT');
   const now = nowIso();
   const item: SprintItem = {
@@ -67,9 +68,7 @@ export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'start
     ...fields,
     name: fields.name || `Sprint ${id}`,
     id,
-    state: 'future',
-    startedAt: null,
-    completedAt: null,
+    ...(past ? { state: 'closed' as const, ...pastSprintTimes(fields.startDate, fields.endDate) } : { state: 'future' as const, startedAt: null, completedAt: null }),
     createdAt: now,
     createdBy: user,
     updatedAt: now,

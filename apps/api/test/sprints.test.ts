@@ -278,4 +278,34 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect((await env.call('POST', `/sprints/${s.id}/plan-project`, { projectId: p1 })).status).toBe(400);
     expect((await env.call('POST', '/sprints/1/plan-project', { projectId: p2 })).status).toBe(400);
   });
+
+  it('enregistre un sprint passé comme clos, pour l’historique', async () => {
+    // Créé après coup, avec des dates passées : directement clos, rangé à sa date parmi les sprints clos.
+    const old = await env.call('POST', '/sprints', { name: 'Sprint 0', startDate: '2026-01-05', endDate: '2026-01-16' });
+    expect(old.status).toBe(201);
+    expect(old.json).toMatchObject({ state: 'closed', startedAt: '2026-01-05T07:00:00.000Z', completedAt: '2026-01-16T19:00:00.000Z' });
+    expect((await env.call('POST', `/sprints/${old.json.id}/start`)).status).toBe(400);
+    const closed = (await env.call('GET', '/sprints')).json.sprints.filter((x: any) => x.state === 'closed');
+    expect(closed.at(-1).id).toBe(old.json.id);
+    const detail = (await env.call('GET', `/sprints/${old.json.id}`)).json;
+    expect(detail.preparation).toBeNull();
+    expect(detail.report).toMatchObject({ startDay: '2026-01-05', asOfDay: '2026-01-16' });
+
+    // Un sprint à venir dont la fin est dépassée se classe comme sprint passé (pas avant).
+    const s = (await env.call('POST', '/sprints', { name: 'Futur' })).json;
+    expect(s.state).toBe('future');
+    expect((await env.call('POST', `/sprints/${s.id}/past`, {})).status).toBe(400);
+    await ticket(p1, 'Ticket du sprint passé', { sprintId: s.id });
+    await env.call('PUT', `/sprints/${s.id}`, { name: 'Sprint 4', startDate: '2026-02-02', endDate: '2026-02-13' });
+    expect((await env.call('POST', `/sprints/${s.id}/past`, { moveTo: s.id })).status).toBe(400);
+    const past = await env.call('POST', `/sprints/${s.id}/past`, { moveTo: null });
+    expect(past.status).toBe(200);
+    expect(past.json.moved).toBe(1);
+    expect(past.json.detail.sprint).toMatchObject({ state: 'closed', completedAt: '2026-02-13T19:00:00.000Z' });
+    expect((await patch(p1, 'Ticket du sprint passé', {})).json.sprintId).toBeNull();
+    expect((await env.call('POST', `/sprints/${s.id}/past`, {})).status).toBe(400);
+    // Le sprint en cours ne se classe pas ainsi : il se clôture.
+    const active = (await env.call('GET', '/sprints')).json.sprints.find((x: any) => x.state === 'active');
+    expect((await env.call('POST', `/sprints/${active.id}/past`, {})).status).toBe(400);
+  });
 });
