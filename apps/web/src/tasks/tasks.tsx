@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { CLOSED_PROJECT_STATUSES, type PersonalTask } from '@samm/shared';
 import { api } from '../api';
@@ -34,23 +34,109 @@ export function todoRow(t: PersonalTask, name: (email: string) => string, projec
 /** Tri : échéance la plus proche d'abord, puis ordre de création. */
 export const byDue = (a: TaskRow, b: TaskRow) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || a.createdAt.localeCompare(b.createdAt);
 
-/** Liste à cocher. Un clic sur l'intitulé déplie les détails. */
+/** Tri de la to-do : l'ordre choisi par glisser-déposer, puis les tâches jamais déplacées, par échéance. */
+export const byPosition = (a: TaskRow, b: TaskRow) =>
+  (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) || byDue(a, b);
+
+/** Déplace `id` à l'index `to` de la liste. */
+function moveTo(ids: string[], id: string, to: number): string[] {
+  const rest = ids.filter((x) => x !== id);
+  rest.splice(Math.max(0, Math.min(to, rest.length)), 0, id);
+  return rest;
+}
+
+/**
+ * Liste à cocher. Un clic sur l'intitulé déplie les détails. Avec `reorderable`, la poignée ⠿ range les tâches par
+ * glisser-déposer (souris ou doigt), ou au clavier avec les flèches.
+ */
 export function TaskChecklist({
   rows,
   onChanged,
   onEdit,
   showAssignee = true,
   showProject = true,
+  reorderable = false,
+  focusId,
 }: {
   rows: TaskRow[];
   onChanged: () => Promise<void> | void;
   onEdit: (t: TaskRow) => void;
   showAssignee?: boolean;
   showProject?: boolean;
+  reorderable?: boolean;
+  /** Tâche à mettre en évidence (lien depuis le planning). */
+  focusId?: string | null;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const { email } = useAuth();
+  const listRef = useRef<HTMLUListElement>(null);
+  // Ordre affiché pendant et juste après un déplacement, en attendant le rechargement.
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const rowsKey = rows.map((t) => t.id).join(',');
+  useEffect(() => setOrder(null), [rowsKey]);
+  const shown = order ? order.map((id) => rows.find((t) => t.id === id)).filter((t): t is TaskRow => !!t) : rows;
+
+  useEffect(() => {
+    if (focusId) listRef.current?.querySelector(`[data-id="${CSS.escape(focusId)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [focusId, rowsKey]);
+
+  async function commit(ids: string[]) {
+    if (ids.join(',') === rowsKey) return setOrder(null);
+    setOrder(ids);
+    try {
+      await api.reorderTodos(ids);
+      await onChanged();
+    } catch (e) {
+      setOrder(null);
+      toast((e as Error).message, 'error');
+    }
+  }
+
+  /** Index d'insertion sous le pointeur : avant la première tâche dont le milieu est plus bas. */
+  function indexAt(y: number, id: string): number {
+    const items = [...(listRef.current?.querySelectorAll<HTMLElement>(':scope > li') ?? [])].filter((li) => li.dataset.id !== id);
+    const i = items.findIndex((li) => {
+      const r = li.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    });
+    return i < 0 ? items.length : i;
+  }
+
+  // Le pointeur est suivi sur toute la fenêtre : la ligne déplacée change de place dans le DOM pendant le glisser.
+  const drag = {
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>, id: string) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      let current = shown.map((t) => t.id);
+      setDragging(id);
+      setOrder(current);
+      const move = (ev: PointerEvent) => {
+        const next = moveTo(current, id, indexAt(ev.clientY, id));
+        if (next.join(',') === current.join(',')) return;
+        current = next;
+        setOrder(next);
+      };
+      const end = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        setDragging(null);
+        void commit(current);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+    },
+    onKeyDown: (e: React.KeyboardEvent, id: string) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const ids = shown.map((t) => t.id);
+      const to = ids.indexOf(id) + (e.key === 'ArrowUp' ? -1 : 1);
+      if (to >= 0 && to < ids.length) void commit(moveTo(ids, id, to)).then(() => listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"] .drag-handle`)?.focus());
+    },
+  };
 
   async function toggle(t: TaskRow) {
     setBusy(t.id);
@@ -73,11 +159,22 @@ export function TaskChecklist({
     });
 
   return (
-    <ul className="checklist">
-      {rows.map((t) => {
+    <ul className={dragging ? 'checklist dragging' : 'checklist'} ref={listRef}>
+      {shown.map((t) => {
         const expanded = open.has(t.id);
         return (
-          <li key={t.id} className={t.done ? 'check-item done' : 'check-item'}>
+          <li key={t.id} data-id={t.id} className={['check-item', t.done && 'done', dragging === t.id && 'drag-source', focusId === t.id && 'focus'].filter(Boolean).join(' ')}>
+            {reorderable && shown.length > 1 && (
+              <button
+                className="drag-handle"
+                title="Glisser pour déplacer (ou flèches haut et bas)"
+                aria-label={`Déplacer « ${t.title} »`}
+                onPointerDown={(e) => drag.onPointerDown(e, t.id)}
+                onKeyDown={(e) => drag.onKeyDown(e, t.id)}
+              >
+                ⠿
+              </button>
+            )}
             <input type="checkbox" checked={t.done} disabled={busy === t.id} onChange={() => void toggle(t)} aria-label={t.done ? 'Marquer comme à faire' : 'Marquer comme faite'} />
             <div className="check-body">
               <div className="check-line">

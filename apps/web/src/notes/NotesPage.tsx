@@ -21,9 +21,23 @@ export function NotesPage() {
   const [project, setProject] = useState('');
   const [editing, setEditing] = useState<PersonalNote | 'new' | null>(null);
 
+  // Les notes archivées sont rangées à part (`?vue=archives`).
+  const archives = params.get('vue') === 'archives';
+  const setArchives = (on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (on) next.set('vue', 'archives');
+        else next.delete('vue');
+        return next;
+      },
+      { replace: true },
+    );
+  const archivedCount = (data.data ?? []).filter((n) => n.archived).length;
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const notes = (data.data ?? []).filter(
     (n) =>
+      n.archived === archives &&
       (!project || (project === 'aucun' ? !n.projectId : n.projectId === project)) &&
       words.every((w) => `${n.title} ${n.content} ${scope === 'all' ? name(n.ownerId) : ''}`.toLowerCase().includes(w)),
   );
@@ -60,6 +74,10 @@ export function NotesPage() {
       <section className="card">
         {scope !== 'all' && <NoteQuickAdd ownerId={scope === me.email ? undefined : scope} onAdded={reload} />}
         <div className="toolbar-row mt">
+          <div className="seg" role="group" aria-label="Notes affichées">
+            <button className={archives ? '' : 'on'} onClick={() => setArchives(false)}>Notes</button>
+            <button className={archives ? 'on' : ''} onClick={() => setArchives(true)}>🗄 Archivées{archivedCount ? ` (${archivedCount})` : ''}</button>
+          </div>
           <input className="input input-auto" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher…" aria-label="Rechercher" />
           <select className="input input-auto" value={project} onChange={(e) => setProject(e.target.value)} aria-label="Projet">
             <option value="">Tous les projets</option>
@@ -72,7 +90,9 @@ export function NotesPage() {
       <ErrorBox error={data.error} />
       {data.loading && !data.data && <Spinner />}
       {data.data && !data.data.length && <EmptyState>Aucune note pour l’instant. Notez une idée, une info glanée en réunion, un lien…</EmptyState>}
-      {data.data && data.data.length > 0 && !notes.length && <EmptyState>Aucune note ne correspond.</EmptyState>}
+      {data.data && data.data.length > 0 && !notes.length && (
+        <EmptyState>{archives && !archivedCount ? 'Aucune note archivée. Archivez une note (🗄) pour la ranger sans la supprimer.' : 'Aucune note ne correspond.'}</EmptyState>
+      )}
       {notes.length > 0 && <NoteGrid notes={notes} projects={projects} onOpen={setEditing} onChanged={reload} />}
       {editing && <NoteModal note={editing === 'new' ? null : editing} defaults={{ projectId: project === 'aucun' ? '' : project, ownerId: scope === 'all' ? me.email : scope }} projects={projects} onClose={() => setEditing(null)} onSaved={reload} />}
     </div>

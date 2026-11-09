@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { isJalonLate, jalonDrift, jalonPeriod, type ProjectJalon } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, formatDate, toast } from '../components/ui';
@@ -10,6 +11,12 @@ export function PlanningTab() {
   const actions = useItemActions();
   const [editing, setEditing] = useState<ProjectJalon | 'new' | null>(null);
   const jalons = project.items.jalons;
+  // Lien depuis le planning global : `?jalon=` met le jalon en évidence.
+  const focusId = useSearchParams()[0].get('jalon');
+  const focusRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    focusRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [focusId]);
 
   async function toggle(j: ProjectJalon) {
     try {
@@ -46,7 +53,7 @@ export function PlanningTab() {
               {jalons.map((j) => {
                 const drift = jalonDrift(j);
                 return (
-                  <tr key={j.id} className={j.done ? 'row-done' : ''}>
+                  <tr key={j.id} ref={j.id === focusId ? focusRef : undefined} className={[j.done && 'row-done', j.id === focusId && 'row-focus'].filter(Boolean).join(' ')}>
                     <td><input type="checkbox" checked={j.done} title="Atteint" onChange={() => void toggle(j)} /></td>
                     <td>
                       <button className="btn-link strong-link" onClick={() => setEditing(j)}>{j.label}</button>

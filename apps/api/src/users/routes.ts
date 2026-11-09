@@ -3,6 +3,7 @@ import {
   can,
   nameKey,
   todoInputSchema,
+  todoOrderBody,
   userInputSchema,
   userUpdateSchema,
   type HubUser,
@@ -189,6 +190,17 @@ export function todoRoutes() {
     const now = nowIso();
     const t: PersonalTask = { ...b, assigneeId, id: newId(), createdAt: now, createdBy: current, updatedAt: now, updatedBy: current, doneAt: b.done ? now : '' };
     return c.json(await users.putTodo(t), 201);
+  });
+
+  /** Glisser-déposer : `ids` dans le nouvel ordre ; chaque tâche reçoit son rang (sans compter comme une modification). */
+  r.put('/ordre', async (c) => {
+    const current = userName(c);
+    const role = c.get('user').role;
+    const { ids } = await body(c, todoOrderBody);
+    const tasks = await Promise.all([...new Set(ids)].map((id) => users.getTodo(id)));
+    if (tasks.some((t) => !canEdit(t, current, role))) throw new HttpError(403, 'Une de ces tâches ne vous concerne pas.');
+    await Promise.all(tasks.map((t, i) => (t.position === i ? null : users.putTodo({ ...t, position: i }))));
+    return c.body(null, 204);
   });
 
   r.patch('/:id', async (c) => {

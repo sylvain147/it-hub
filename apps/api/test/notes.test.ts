@@ -36,6 +36,18 @@ describe('notes en vrac et frise des jalons', () => {
     expect(ofProject.map((n: any) => n.title)).toEqual(['Questions pour le comité']);
   });
 
+  it('archive une note et la ressort des archives', async () => {
+    const n = (await env.call('POST', '/notes', { content: 'Compte rendu du comité de septembre' }, MEMBRE)).json;
+    expect(n.archived).toBe(false);
+    const archived = await env.call('PATCH', `/notes/${n.id}`, { archived: true }, MEMBRE);
+    expect(archived.json).toMatchObject({ archived: true, content: 'Compte rendu du comité de septembre' });
+    // Une autre modification garde l'archivage.
+    expect((await env.call('PATCH', `/notes/${n.id}`, { title: 'Comité' }, MEMBRE)).json.archived).toBe(true);
+    expect((await env.call('GET', '/notes', undefined, MEMBRE)).json.find((x: any) => x.id === n.id).archived).toBe(true);
+    expect((await env.call('PATCH', `/notes/${n.id}`, { archived: false }, MEMBRE)).json.archived).toBe(false);
+    expect((await env.call('DELETE', `/notes/${n.id}`, undefined, MEMBRE)).status).toBe(204);
+  });
+
   it('garde les notes privées, sauf pour les administrateurs qui voient et ajoutent celles de tous', async () => {
     const RESP = 'bruno.petit@exemple.fr';
     await env.call('POST', '/users', { email: RESP, name: 'Bruno Petit', role: 'responsable' }, ADMIN);

@@ -25,7 +25,9 @@ export function Home() {
   const watch = [...active].sort((a, b) => HEALTHS.indexOf(b.health) - HEALTHS.indexOf(a.health) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
   // La to-do et les tickets restent deux listes distinctes, chacune par échéance.
   const byDueDate = (a: { dueDate: string }, b: { dueDate: string }) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
-  const myTodos = (todos?.personal ?? []).filter((t) => !t.done).sort(byDueDate).slice(0, 10);
+  // Ma to-do dans l'ordre choisi par glisser-déposer, puis par échéance.
+  const rank = (t: { position?: number }) => t.position ?? Number.MAX_SAFE_INTEGER;
+  const myTodos = (todos?.personal ?? []).filter((t) => !t.done).sort((a, b) => rank(a) - rank(b) || byDueDate(a, b)).slice(0, 10);
   const myTickets = (sprints?.tickets ?? []).filter((t) => !t.done && (allTasks || t.assigneeId === me.email)).sort(byDueDate).slice(0, 10);
   const projectName = (id: string) => (projects ?? []).find((p) => p.id === id)?.name ?? '';
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);

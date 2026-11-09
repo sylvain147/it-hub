@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { PersonalNote } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox } from '../components/ui';
-import { byDue, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
+import { byPosition, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
 import { NoteGrid, NoteModal, NoteQuickAdd } from '../notes/notes';
 import { useUsers } from '../users/context';
 import { useProject } from './common';
@@ -18,16 +18,21 @@ export function TodoTab() {
   const projects = useProjectRefs();
   const todos = useLoad(() => api.projectTodos(project.id), [project.id]);
   const notes = useLoad(() => api.notes({ projectId: project.id }), [project.id]);
+  // Lien depuis le planning : `?tache=` met la tâche en évidence.
+  const focusId = useSearchParams()[0].get('tache');
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<TaskRow | 'new' | null>(null);
   const [note, setNote] = useState<PersonalNote | 'new' | null>(null);
 
   const rows = (todos.data?.personal ?? []).map((t) => todoRow(t, name, projects));
-  const open = rows.filter((t) => !t.done).sort(byDue);
+  const open = rows.filter((t) => !t.done).sort(byPosition);
   const done = rows.filter((t) => t.done).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
+  const showDoneList = showDone || done.some((t) => t.id === focusId);
   const reloadTodos = async () => {
     await todos.reload();
   };
+  const current = (notes.data ?? []).filter((n) => !n.archived);
+  const archivedCount = (notes.data ?? []).length - current.length;
   const reloadNotes = async () => {
     await notes.reload();
   };
@@ -54,13 +59,13 @@ export function TodoTab() {
         </div>
         <ErrorBox error={todos.error} />
         {todos.data && !open.length && <EmptyState>Rien à faire sur ce projet.</EmptyState>}
-        {open.length > 0 && <TaskChecklist rows={open} onChanged={reloadTodos} onEdit={setEditing} showProject={false} />}
+        {open.length > 0 && <TaskChecklist rows={open} onChanged={reloadTodos} onEdit={setEditing} showProject={false} reorderable focusId={focusId} />}
         {done.length > 0 && (
           <>
-            <button className="btn btn-link mt" onClick={() => setShowDone((v) => !v)}>
-              {showDone ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
+            <button className="btn btn-link mt" onClick={() => setShowDone(!showDoneList)}>
+              {showDoneList ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
             </button>
-            {showDone && <TaskChecklist rows={done} onChanged={reloadTodos} onEdit={setEditing} showProject={false} />}
+            {showDoneList && <TaskChecklist rows={done} onChanged={reloadTodos} onEdit={setEditing} showProject={false} focusId={focusId} />}
           </>
         )}
       </section>
@@ -73,10 +78,15 @@ export function TodoTab() {
         <p className="muted small">Personnelles : personne d’autre ne les voit. Pour partager un compte rendu ou une décision, utilisez le journal.</p>
         <NoteQuickAdd projectId={project.id} onAdded={reloadNotes} />
         <ErrorBox error={notes.error} />
-        {notes.data && notes.data.length > 0 && (
+        {current.length > 0 && (
           <div className="mt">
-            <NoteGrid notes={notes.data} projects={projects} showProject={false} onOpen={setNote} onChanged={reloadNotes} />
+            <NoteGrid notes={current} projects={projects} showProject={false} onOpen={setNote} onChanged={reloadNotes} />
           </div>
+        )}
+        {archivedCount > 0 && (
+          <p className="mt small">
+            <Link to="/notes?vue=archives">🗄 {archivedCount} note(s) archivée(s)</Link>
+          </p>
         )}
       </section>
 

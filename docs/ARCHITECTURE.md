@@ -123,15 +123,15 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 - **Comptes de connexion** (`users/identity.ts`) : création (invitation), renvoi, désactivation (+ fermeture des sessions), nom — via l'API d'administration Cognito ; sans effet en local.
 - **Connexion** (`apps/web/src/auth/LoginPage.tsx`) : écran propre au hub sur l'API `aws-amplify/auth` (`signIn` / `confirmSignIn`) : mot de passe temporaire, configuration TOTP (QR code généré dans le navigateur), code TOTP, mot de passe oublié.
 - **Responsable des tickets** : `assigneeId` (e-mail) + `assignee` (nom recopié de l'annuaire, comme les prestataires) ; `resolveTaskAssignee` rattache un texte à un utilisateur s'il le désigne, sinon le garde comme personne extérieure ; sans responsable, le ticket revient à son auteur. Création et renommage d'un utilisateur : `syncItems`.
-- **To-do** : tâches à cocher (`done`), une partition `TODO`, rattachées ou non à un projet (`projectId`), **indépendantes des tickets** (ni statut ni sprint). `GET /api/todos?user=` renvoie la to-do d'une personne (ou `all`) selon les droits ; `GET /api/todos?projet=` la to-do d'un projet, visible et modifiable par toute l'équipe comme le projet. Les tâches d'avant la simplification (`status: 'fait'`) sont converties à la lecture ; l'ancien lien vers un ticket (`ticketId`) est ignoré. À la suppression d'un projet, ses tâches et notes restent, détachées.
-- **Notes** (`packages/shared/src/notes.ts`, `apps/api/src/notes/routes.ts`) : bloc-notes personnel, une partition par titulaire (`NOTE#<e-mail>`) ; `/api/notes` lit et modifie les notes de l'utilisateur connecté (`?projet=` : celles d'un projet). Avec `manageAllNotes`, `?user=<e-mail>|all` en lecture, `ownerId` à la création et `?owner=` en modification/suppression visent un autre titulaire (`createdBy` garde l'auteur). Distinctes des notes du journal d'un projet (`PROJ#<id>` / `NOTE#<id>`, partagées).
-- **Frise globale** : `GET /api/projects/jalons` renvoie chaque projet (nom, code, statut, météo, dates) avec ses jalons (ponctuels, ou sur une période `startDate` → `date`, contrôlée par `derived`) et sa to-do datée (`PlanningProject`) ; la to-do hors projet vient de `GET /api/todos` ; page `/planning` (`projects/GlobalPlanningPage.tsx`).
+- **To-do** : tâches à cocher (`done`), une partition `TODO`, rattachées ou non à un projet (`projectId`), **indépendantes des tickets** (ni statut ni sprint). `GET /api/todos?user=` renvoie la to-do d'une personne (ou `all`) selon les droits ; `GET /api/todos?projet=` la to-do d'un projet, visible et modifiable par toute l'équipe comme le projet. Les tâches d'avant la simplification (`status: 'fait'`) sont converties à la lecture ; l'ancien lien vers un ticket (`ticketId`) est ignoré. L'ordre choisi par glisser-déposer est le rang `position` (`PUT /api/todos/ordre` avec les `ids` dans l'ordre, tri `byPosition` côté front ; une tâche jamais déplacée n'en a pas et passe après, par échéance). À la suppression d'un projet, ses tâches et notes restent, détachées.
+- **Notes** (`packages/shared/src/notes.ts`, `apps/api/src/notes/routes.ts`) : bloc-notes personnel, une partition par titulaire (`NOTE#<e-mail>`) ; `/api/notes` lit et modifie les notes de l'utilisateur connecté (`?projet=` : celles d'un projet). Avec `manageAllNotes`, `?user=<e-mail>|all` en lecture, `ownerId` à la création et `?owner=` en modification/suppression visent un autre titulaire (`createdBy` garde l'auteur). Une note archivée (`archived`) reste renvoyée ; le front la range dans l'onglet « Archivées » (`/notes?vue=archives`). Distinctes des notes du journal d'un projet (`PROJ#<id>` / `NOTE#<id>`, partagées).
+- **Frise globale** : `GET /api/projects/jalons` renvoie chaque projet (nom, code, statut, météo, dates) avec ses jalons (ponctuels, ou sur une période `startDate` → `date`, contrôlée par `derived`) et sa to-do datée (`PlanningProject`) ; la to-do hors projet vient de `GET /api/todos` ; page `/planning` (`projects/GlobalPlanningPage.tsx`, vues 1 semaine à 12 mois et « Tout » : `windowOf`, graduations `ticksOf`). Les points mènent à `/projets/<id>?onglet=planning&jalon=<id>`, `?onglet=todo&tache=<id>` ou `/todo?tache=<id>`, qui mettent l'élément en évidence.
 
 | pk | sk | Contenu |
 |---|---|---|
 | `USER` | `U#<e-mail>` | Utilisateur : nom, rôle, actif, invitation, dernière activité |
-| `TODO` | `T#<id>` | Tâche de la to-do (responsable `assigneeId`, auteur `createdBy`, projet `projectId`) |
-| `NOTE#<e-mail>` | `N#<id>` | Note personnelle (titre, texte Markdown, projet `projectId`, épinglée) |
+| `TODO` | `T#<id>` | Tâche de la to-do (responsable `assigneeId`, auteur `createdBy`, projet `projectId`, rang `position`) |
+| `NOTE#<e-mail>` | `N#<id>` | Note personnelle (titre, texte Markdown, projet `projectId`, épinglée, archivée) |
 
 ## Ajouter un module au hub
 
@@ -147,3 +147,11 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | pk | sk | Contenu |
 |---|---|---|
 | `FEEDBACK` | `F#<date ISO>#<id>` | Retour (type, message, page, auteur, statut, note de traitement) |
+
+## Bouton rouge « NE PAS CLIQUER »
+
+Petit jeu caché : `packages/shared/src/bouton.ts` (rareté `BOUTON_ROUGE_CHANCE`, pause `BOUTON_ROUGE_PAUSE_MIN`), `apps/api/src/bouton/routes.ts` (`GET /api/bouton-rouge` : mon compteur et le classement ; `POST /api/bouton-rouge/clic` : incrément atomique), front `apps/web/src/bouton/BoutonRouge.tsx` (monté dans `Layout`, tirage au sort à chaque changement de page, dernière apparition dans `localStorage` ; `?bouton-rouge` force l'apparition). La scène de déception est en CSS et le son en Web Audio : rien à télécharger.
+
+| pk | sk | Contenu |
+|---|---|---|
+| `BOUTON` | `C#<e-mail>` | Nombre de clics (`count`), dernier clic |

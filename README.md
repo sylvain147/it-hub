@@ -6,7 +6,7 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ### ✅ To-do
 
-- **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, triées par échéance avec les retards en évidence. On ajoute une tâche en une ligne.
+- **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, avec les retards en évidence. On ajoute une tâche en une ligne et on la **range par glisser-déposer** (poignée ⠿, ou flèches du clavier) ; les tâches jamais déplacées suivent, par échéance.
 - La to-do est **séparée des tickets** : une tâche n'a ni statut ni sprint, et ne se planifie pas. Le travail à planifier se crée en ticket (module Sprints).
 - Une tâche se **rattache à un projet** ou reste personnelle. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
 - **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
@@ -16,13 +16,18 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 - **Un bloc-notes personnel**, en vrac : titre facultatif, texte mis en forme, rattaché ou non à un projet. Saisie rapide en une zone de texte (Ctrl + Entrée).
 - Les notes sont **personnelles** : seul leur titulaire les voit, avec les **administrateurs**, qui consultent celles d'une personne ou de toute l'équipe et peuvent **ajouter une note à quelqu'un** (« ajoutée par … »). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
-- **Épingler** une note la garde en tête ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
+- **Épingler** une note la garde en tête ; **archiver** la range à part (onglet « Archivées », d'où on la ressort) sans la supprimer ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
 
 ### 🗓️ Planning
 
-- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 6 mois, 12 mois ou toute la durée ; projets clos et éléments terminés masquables.
+- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 1 semaine (jour par jour), 1 mois, 3 mois, 6 mois, 12 mois ou toute la durée, avec ◀ ▶ pour passer à la période précédente ou suivante ; projets clos et éléments terminés masquables.
+- **Un clic sur un point ouvre l'élément** : un jalon mène à l'onglet « Planning » de son projet, une tâche à la to-do (du projet ou la mienne), l'élément étant mis en évidence.
 - **To-do sur la frise** (affichable ou non) : les tâches qui ont une échéance, sur la ligne de leur projet, et une ligne « Ma to-do » pour les miennes hors projet.
 - En dessous, **les échéances de la période mois par mois** (jalons et tâches), avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
+
+### 🔴 Bouton rouge
+
+Petit jeu caché : de temps en temps (une chance sur 40 à chaque changement de page, au plus une fois par demi-heure), un bouton rouge « NE PAS CLIQUER » apparaît quelques secondes. Ceux qui cliquent quand même ont droit à une scène de déception (et un trombone triste), et leur compteur grimpe au **tableau de la honte** de l'équipe. Ajouter `?bouton-rouge` à l'adresse le fait apparaître à coup sûr.
 
 ### 📁 Projets
 

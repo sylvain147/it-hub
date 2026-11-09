@@ -2,7 +2,7 @@
  * Notes en vrac : le bloc-notes personnel de chaque utilisateur, rattaché ou non à un projet.
  *
  *  pk              sk         contenu
- *  NOTE#<e-mail>   N#<id>     note (titre, texte Markdown, projet, épinglée)
+ *  NOTE#<e-mail>   N#<id>     note (titre, texte Markdown, projet, épinglée, archivée)
  *
  * Une partition par titulaire : chacun ne lit que la sienne ; les administrateurs (`manageAllNotes`) lisent et
  * complètent celles de tout le monde.
@@ -21,7 +21,8 @@ import * as users from '../users/repo.js';
 const key = (ownerId: string, id: string) => ({ pk: `NOTE#${ownerId}`, sk: `N#${id}` });
 
 type Item = PersonalNote & { pk: string; sk: string };
-const strip = ({ pk: _pk, sk: _sk, ...n }: Item): PersonalNote => n;
+/** Les notes enregistrées avant l'archivage n'ont pas ce champ. */
+const strip = ({ pk: _pk, sk: _sk, ...n }: Item): PersonalNote => ({ ...n, archived: n.archived ?? false });
 
 export async function listNotes(ownerId: string): Promise<PersonalNote[]> {
   const items = await queryAll<Item>({
@@ -106,7 +107,7 @@ export function noteRoutes() {
     const owner = ownerParam(c, c.req.query('owner'), 'modifier les notes des autres');
     const before = await getNote(owner, c.req.param('id'));
     const raw = await rawJson(c);
-    const merged = parseBody(personalNoteInputSchema, { title: before.title, content: before.content, projectId: before.projectId, pinned: before.pinned, ...raw });
+    const merged = parseBody(personalNoteInputSchema, { title: before.title, content: before.content, projectId: before.projectId, pinned: before.pinned, archived: before.archived ?? false, ...raw });
     if (merged.projectId !== before.projectId) await pr.assertProjectRef(merged.projectId);
     return c.json(await putNote({ ...before, ...merged, updatedAt: nowIso(), updatedBy: current }));
   });

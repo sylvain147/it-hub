@@ -112,6 +112,23 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('DELETE', `/todos/${own.json.id}`, undefined, MEMBRE)).status).toBe(204);
   });
 
+  it('range la to-do dans l’ordre choisi par glisser-déposer', async () => {
+    const titles = ['Premier', 'Deuxième', 'Troisième'];
+    const ids: string[] = [];
+    for (const title of titles) ids.push((await env.call('POST', '/todos', { title }, MEMBRE)).json.id);
+    expect((await env.call('PUT', '/todos/ordre', { ids: [] }, MEMBRE)).status).toBe(400);
+    expect((await env.call('PUT', '/todos/ordre', { ids: [ids[2], 'inconnue'] }, MEMBRE)).status).toBe(404);
+    expect((await env.call('PUT', '/todos/ordre', { ids: [ids[2], ids[0], ids[1]] }, MEMBRE)).status).toBe(204);
+    const mine = (await env.call('GET', '/todos', undefined, MEMBRE)).json.personal.filter((t: any) => ids.includes(t.id));
+    const ranked = mine.sort((a: any, b: any) => a.position - b.position).map((t: any) => t.title);
+    expect(ranked).toEqual(['Troisième', 'Premier', 'Deuxième']);
+    // Le rang survit à une modification ; on ne range pas la to-do personnelle d'un autre.
+    expect((await env.call('PATCH', `/todos/${ids[2]}`, { done: true }, MEMBRE)).json.position).toBe(0);
+    const bruno = (await env.call('POST', '/todos', { title: 'Tâche de Bruno' }, RESP)).json;
+    expect((await env.call('PUT', '/todos/ordre', { ids: [bruno.id, ids[0]] }, MEMBRE)).status).toBe(403);
+    for (const id of [...ids, bruno.id]) await env.call('DELETE', `/todos/${id}`, undefined, ADMIN);
+  });
+
   it('rattache une tâche de la to-do à un projet, sans en faire un ticket', async () => {
     expect((await env.call('POST', '/todos', { title: 'Relancer', projectId: 'inconnu' }, MEMBRE)).status).toBe(400);
     const todo = (await env.call('POST', '/todos', { title: 'Relancer le prestataire', projectId }, MEMBRE)).json;
