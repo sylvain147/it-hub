@@ -124,9 +124,9 @@ describe('module Projets', () => {
       const { json: p } = await env.call('GET', `/projects/${id}`);
       expect(p.items.notes.map((n: any) => n.title)).toContain('Info du jour');
       // Sur DynamoDB, une lecture « éventuellement cohérente » juste après l'ajout peut encore l'ignorer.
-      const reads = send.mock.calls.map(([cmd]) => cmd).filter((cmd): cmd is QueryCommand | GetCommand => (cmd instanceof QueryCommand && !cmd.input.IndexName) || cmd instanceof GetCommand);
+      const reads = send.mock.calls.map(([cmd]) => cmd as unknown).filter((cmd): cmd is QueryCommand => cmd instanceof QueryCommand && !cmd.input.IndexName);
       expect(reads.length).toBeGreaterThan(0);
-      expect(reads.filter((cmd) => cmd instanceof QueryCommand).every((cmd) => cmd.input.ConsistentRead)).toBe(true);
+      expect(reads.every((cmd) => cmd.input.ConsistentRead)).toBe(true);
     } finally {
       send.mockRestore();
     }
