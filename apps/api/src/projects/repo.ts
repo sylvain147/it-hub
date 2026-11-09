@@ -32,6 +32,7 @@ import {
   type ActivityEntry,
   type ItemBase,
   type ProjectDetail,
+  normalizeChefIds,
   normalizeProjectSections,
   type ProjectFields,
   type ProjectItem,
@@ -115,9 +116,12 @@ export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): s
 // Fiche projet
 // ---------------------------------------------------------------------------
 
-interface MetaItem extends Omit<ProjectFields, 'sections'> {
+interface MetaItem extends Omit<ProjectFields, 'sections' | 'chefDeProjetIds'> {
   /** Absent des projets antérieurs aux sections libres. */
   sections?: ProjectFields['sections'];
+  /** Absent des projets antérieurs aux chefs multiples, qui ont `chefDeProjetId` (retiré au premier enregistrement). */
+  chefDeProjetIds?: string[];
+  chefDeProjetId?: string;
   pk: string;
   sk: string;
   gsi1pk: string;
@@ -141,7 +145,8 @@ interface MetaItem extends Omit<ProjectFields, 'sections'> {
 function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
   const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, objectifs: _o, horsPerimetre: _h, ...rest } = it;
   const stale = it.activeJobAt && (Date.now() - Date.parse(it.activeJobAt)) / 60000 > config.staleJobMinutes;
-  return { ...rest, chefDeProjetId: it.chefDeProjetId ?? '', sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
+  const { chefDeProjetId: _c, ...fiche } = rest;
+  return { ...fiche, chefDeProjetIds: normalizeChefIds(it), sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
 }
 
 async function getMeta(id: string): Promise<MetaItem | null> {
@@ -212,7 +217,7 @@ export async function updateProject(id: string, rev: number, fields: ProjectFiel
         TableName: T(),
         Key: projectKeys.meta(id),
         ConditionExpression: 'rev = :rev',
-        UpdateExpression: 'SET ' + sets.join(', ') + ' REMOVE objectifs, horsPerimetre',
+        UpdateExpression: 'SET ' + sets.join(', ') + ' REMOVE objectifs, horsPerimetre, chefDeProjetId',
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
       }),
@@ -227,7 +232,9 @@ export async function updateProject(id: string, rev: number, fields: ProjectFiel
   if (before.status !== fields.status) changes.push('le statut');
   if (before.health !== fields.health) changes.push('la météo');
   if (before.targetDate !== fields.targetDate) changes.push('la date cible');
-  if ((before.chefDeProjetId ?? '') !== fields.chefDeProjetId || before.chefDeProjet !== fields.chefDeProjet) changes.push('le chef de projet');
+  if (normalizeChefIds(before).join() !== fields.chefDeProjetIds.join() || before.chefDeProjet !== fields.chefDeProjet) {
+    changes.push(fields.chefDeProjetIds.length > 1 ? 'les chefs de projet' : 'le chef de projet');
+  }
   await logActivity(id, fields.name, user, changes.length ? `a modifié ${changes.join(', ')} du projet` : 'a modifié la fiche du projet');
 }
 
@@ -249,15 +256,15 @@ export async function setFollower(id: string, email: string, follow: boolean): P
   return followers;
 }
 
-/** Recopie le chef de projet (rattachement d'un ancien projet, renommage de l'utilisateur), sans révision ni historique. */
-export async function setChef(id: string, chefDeProjetId: string, chefDeProjet: string): Promise<void> {
+/** Recopie les chefs de projet (rattachement d'un ancien projet, renommage d'un utilisateur), sans révision ni historique. */
+export async function setChefs(id: string, chefDeProjetIds: string[], chefDeProjet: string): Promise<void> {
   await ddb().send(
     new UpdateCommand({
       TableName: T(),
       Key: projectKeys.meta(id),
       ConditionExpression: 'attribute_exists(pk)',
-      UpdateExpression: 'SET chefDeProjetId = :id, chefDeProjet = :name',
-      ExpressionAttributeValues: { ':id': chefDeProjetId, ':name': chefDeProjet },
+      UpdateExpression: 'SET chefDeProjetIds = :ids, chefDeProjet = :name REMOVE chefDeProjetId',
+      ExpressionAttributeValues: { ':ids': chefDeProjetIds, ':name': chefDeProjet },
     }),
   );
 }

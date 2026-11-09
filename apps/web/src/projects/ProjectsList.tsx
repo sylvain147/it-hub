@@ -17,7 +17,7 @@ import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, shortUser } from '../components/ui';
 import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge, euros } from './common';
 import { StatusOptions, useSettings } from '../settings/context';
-import { UserSelect } from '../users/context';
+import { UserChoices } from '../users/context';
 import { FollowButton, MyProjectsCheck, useMyProjectsFilter } from './mine';
 
 type StatusFilter = ProjectStatus | 'actifs' | 'tous';
@@ -120,7 +120,7 @@ export function ProjectsList() {
                 <th>Projet</th>
                 <th>Statut</th>
                 <th>Météo</th>
-                <th>Chef de projet</th>
+                <th>Chefs de projet</th>
                 <th>Prestataires</th>
                 <th>Prochaine échéance</th>
                 <th className="num">Tickets</th>
@@ -179,7 +179,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('cadrage');
   const [priority, setPriority] = useState<Priority>('normale');
-  const [chef, setChef] = useState(email);
+  const [chefs, setChefs] = useState([email]);
   const [demandeur, setDemandeur] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [description, setDescription] = useState('');
@@ -190,7 +190,7 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const p = await api.createProject({ name, code, status, priority, chefDeProjetId: chef, demandeur, targetDate, description });
+      const p = await api.createProject({ name, code, status, priority, chefDeProjetIds: chefs, demandeur, targetDate, description });
       navigate(`/projets/${p.id}`);
     } catch (e) {
       setError(e);
@@ -237,10 +237,10 @@ function NewProjectDialog({ onClose }: { onClose: () => void }) {
             {PRIORITIES.map((s) => <option key={s} value={s}>{PRIORITY_LABELS[s]}</option>)}
           </select>
         </label>
-        <label className="field">
-          <span>Chef de projet</span>
-          <UserSelect value={chef} onChange={setChef} allowEmpty emptyLabel="— Aucun —" />
-        </label>
+        <div className="field span-2">
+          <span>Chefs de projet <span className="muted">(un ou plusieurs)</span></span>
+          <UserChoices value={chefs} onChange={setChefs} />
+        </div>
         <label className="field">
           <span>Demandeur (direction, service)</span>
           <input className="input" value={demandeur} onChange={(e) => setDemandeur(e.target.value)} placeholder="ex. Logistique" />

@@ -31,16 +31,16 @@ export function MyProjectsCheck({ mine, setMine }: { mine: boolean; setMine: (v:
 }
 
 /** Identifiants de mes projets, parmi une liste de projets. */
-export function myProjectIds(projects: Pick<ProjectSummary, 'id' | 'chefDeProjetId' | 'followers'>[] | null | undefined, email: string): Set<string> {
+export function myProjectIds(projects: Pick<ProjectSummary, 'id' | 'chefDeProjetIds' | 'followers'>[] | null | undefined, email: string): Set<string> {
   return new Set((projects ?? []).filter((p) => isMyProject(p, email)).map((p) => p.id));
 }
 
-/** Bouton « Suivre » d'un projet (le chef de projet le compte déjà parmi les siens). */
-export function FollowButton({ project, onChange, small }: { project: Pick<ProjectSummary, 'id' | 'chefDeProjetId' | 'followers'>; onChange: (followers: string[]) => void; small?: boolean }) {
+/** Bouton « Suivre » d'un projet (ses chefs de projet le comptent déjà parmi les leurs). */
+export function FollowButton({ project, onChange, small }: { project: Pick<ProjectSummary, 'id' | 'chefDeProjetIds' | 'followers'>; onChange: (followers: string[]) => void; small?: boolean }) {
   const { email } = useAuth();
   const [busy, setBusy] = useState(false);
   const following = project.followers.includes(email);
-  if (project.chefDeProjetId === email && !following) return null;
+  if (project.chefDeProjetIds.includes(email) && !following) return null;
   async function toggle() {
     setBusy(true);
     try {

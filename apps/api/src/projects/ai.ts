@@ -78,7 +78,7 @@ function ficheLines(p: ProjectSummary, lists: ListSettings): string[] {
     `Projet : ${p.name}${p.code ? ` (${p.code})` : ''}`,
     `Statut : ${statusLabel(lists, 'project', p.status)} · priorité ${p.priority} · météo actuelle : ${HEALTH_LABELS[p.health]}${p.healthComment ? ` (${p.healthComment})` : ''}`,
     p.demandeur && `Demandeur : ${p.demandeur}`,
-    p.chefDeProjet && `Chef de projet : ${p.chefDeProjet}`,
+    p.chefDeProjet && `${p.chefDeProjetIds.length > 1 ? 'Chefs de projet' : 'Chef de projet'} : ${p.chefDeProjet}`,
     (p.startDate || p.targetDate) && `Dates : début ${d(p.startDate)}, fin visée ${d(p.targetDate)}`,
   ].filter((l): l is string => !!l);
 }

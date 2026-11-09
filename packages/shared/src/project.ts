@@ -131,10 +131,17 @@ export const projectFieldsSchema = z.object({
   priority: z.enum(PRIORITIES).default('normale'),
   health: z.enum(HEALTHS).default('vert'),
   healthComment: z.string().max(1000).default(''),
-  /** Chef de projet côté IT : utilisateur du hub (e-mail). Vide : aucun (ou ancien projet saisi en texte). */
-  chefDeProjetId: z.string().trim().toLowerCase().max(200).default(''),
-  /** Nom du chef de projet, recopié de l'annuaire par le serveur quand `chefDeProjetId` est renseigné. */
-  chefDeProjet: z.string().max(200).default(''),
+  /**
+   * Chefs de projet côté IT (ex. un pour l'ERP, un pour le Web) : utilisateurs du hub (e-mails), dans l'ordre choisi.
+   * Vide : aucun (ou ancien projet saisi en texte). Remplace l'ancien champ unique `chefDeProjetId` (`normalizeChefIds`).
+   */
+  chefDeProjetIds: z
+    .array(z.string().trim().toLowerCase().min(1).max(200))
+    .max(10)
+    .default([])
+    .transform((ids) => [...new Set(ids)]),
+  /** Noms des chefs de projet séparés par des virgules, recopiés de l'annuaire par le serveur quand `chefDeProjetIds` est renseigné. */
+  chefDeProjet: z.string().max(1000).default(''),
   /** Direction ou service demandeur. */
   demandeur: z.string().max(200).default(''),
   startDate: isoDate.default(''),
@@ -491,7 +498,7 @@ export function isTaskOverdue(t: Pick<Task, 'done' | 'dueDate'>, today = todayIs
 /** Frise globale : chaque projet avec ses jalons (`GET /api/projects/jalons`). */
 export interface PlanningProject {
   id: string;
-  chefDeProjetId: string;
+  chefDeProjetIds: string[];
   followers: string[];
   name: string;
   code: string;
@@ -573,10 +580,15 @@ export type UpdateProjectBody = z.input<typeof updateProjectBody>;
 export const followProjectBody = z.object({ follow: z.boolean() });
 export type FollowProjectBody = z.infer<typeof followProjectBody>;
 
-/** « Mes projets » : ceux dont je suis le chef de projet ou que je suis. */
-export function isMyProject(p: Pick<ProjectSummary, 'chefDeProjetId' | 'followers'>, email: string): boolean {
+/** « Mes projets » : ceux dont je suis l'un des chefs de projet ou que je suis. */
+export function isMyProject(p: Pick<ProjectSummary, 'chefDeProjetIds' | 'followers'>, email: string): boolean {
   const me = email.toLowerCase();
-  return p.chefDeProjetId === me || (p.followers ?? []).includes(me);
+  return (p.chefDeProjetIds ?? []).includes(me) || (p.followers ?? []).includes(me);
+}
+
+/** Chefs de projet d'un enregistrement, y compris ceux d'avant les chefs multiples (champ unique `chefDeProjetId`). */
+export function normalizeChefIds(p: { chefDeProjetIds?: string[]; chefDeProjetId?: string }): string[] {
+  return p.chefDeProjetIds ?? (p.chefDeProjetId ? [p.chefDeProjetId] : []);
 }
 
 export const MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024;

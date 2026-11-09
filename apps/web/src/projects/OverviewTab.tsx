@@ -20,7 +20,7 @@ import { ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast 
 import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
 import { hasPending } from './ProjectPage';
 import { StatusOptions } from '../settings/context';
-import { UserSelect, useUsers } from '../users/context';
+import { UserChoices, useUsers } from '../users/context';
 
 export function fieldsOf(p: ProjectDetail): ProjectFields {
   return projectFieldsSchema.parse(p);
@@ -58,7 +58,7 @@ export function OverviewTab() {
             <button className="btn btn-sm" onClick={() => setEditing(true)}>✏️ Modifier</button>
           </div>
           <dl className="facts">
-            <div><dt>Chef de projet</dt><dd>{p.chefDeProjetId ? name(p.chefDeProjetId) : p.chefDeProjet ? <>{p.chefDeProjet} <span className="muted small">(hors annuaire)</span></> : '—'}</dd></div>
+            <div><dt>{p.chefDeProjetIds.length > 1 ? 'Chefs de projet' : 'Chef de projet'}</dt><dd>{p.chefDeProjetIds.length ? p.chefDeProjetIds.map(name).join(', ') : p.chefDeProjet ? <>{p.chefDeProjet} <span className="muted small">(hors annuaire)</span></> : '—'}</dd></div>
             <div><dt>Suivi par</dt><dd>{p.followers.length ? p.followers.map(name).join(', ') : '—'}</dd></div>
             <div><dt>Demandeur</dt><dd>{p.demandeur || '—'}</dd></div>
             <div><dt>Début</dt><dd>{p.startDate ? formatDate(p.startDate) : '—'}</dd></div>
@@ -362,10 +362,11 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <span>Commentaire météo</span>
           <input className="input" value={f.healthComment} onChange={(e) => set('healthComment', e.target.value)} />
         </label>
-        <label className="field">
-          <span>Chef de projet</span>
-          <UserSelect value={f.chefDeProjetId} onChange={(v) => setF((x) => ({ ...x, chefDeProjetId: v, chefDeProjet: '' }))} allowEmpty emptyLabel={!f.chefDeProjetId && f.chefDeProjet ? `${f.chefDeProjet} (hors annuaire)` : '— Aucun —'} />
-        </label>
+        <div className="field span-2">
+          <span>Chefs de projet <span className="muted">(un ou plusieurs, ex. un pour l’ERP et un pour le Web)</span></span>
+          {!f.chefDeProjetIds.length && f.chefDeProjet && <span className="muted small">Actuellement : {f.chefDeProjet} (hors annuaire)</span>}
+          <UserChoices value={f.chefDeProjetIds} onChange={(v) => setF((x) => ({ ...x, chefDeProjetIds: v, chefDeProjet: '' }))} />
+        </div>
         <label className="field">
           <span>Demandeur</span>
           <input className="input" value={f.demandeur} onChange={(e) => set('demandeur', e.target.value)} />
