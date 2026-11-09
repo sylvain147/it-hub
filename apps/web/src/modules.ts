@@ -28,6 +28,13 @@ export const MODULES: HubModule[] = [
     icon: '📝',
   },
   {
+    id: 'reunion',
+    title: 'Transcrire une réunion',
+    description: 'Un clic au début de la réunion (Teams, Zoom…) : ce qui est dit s’écrit au fil de l’eau, sans enregistrer le son. L’assistant en fait ensuite le compte rendu dans le projet.',
+    path: '/reunion',
+    icon: '🎙️',
+  },
+  {
     id: 'projets',
     title: 'Projets',
     description:
