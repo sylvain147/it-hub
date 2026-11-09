@@ -116,6 +116,14 @@ export function riskScore(r: { probability: RiskLevel; impact: RiskLevel }): num
 // Fiche projet
 // ---------------------------------------------------------------------------
 
+/** Section libre de la fiche projet (titre + texte Markdown), ajoutée par l'utilisateur sous la description. */
+export const projectSectionSchema = z.object({
+  id: z.string().trim().min(1).max(40),
+  title: z.string().trim().min(1, 'Chaque section doit avoir un titre').max(200),
+  content: z.string().max(15_000).default(''),
+});
+export type ProjectSection = z.infer<typeof projectSectionSchema>;
+
 export const projectFieldsSchema = z.object({
   name: z.string().trim().min(1, 'Le nom du projet est obligatoire').max(200),
   code: z.string().trim().max(40).default(''),
@@ -133,13 +141,33 @@ export const projectFieldsSchema = z.object({
   targetDate: isoDate.default(''),
   /** Textes riches au format Markdown. */
   description: z.string().max(30_000).default(''),
-  objectifs: z.string().max(15_000).default(''),
-  horsPerimetre: z.string().max(15_000).default(''),
+  /** Sections ajoutées par l'utilisateur, dans l'ordre d'affichage. */
+  sections: z.array(projectSectionSchema).max(30).default([]),
   /** Budget prévisionnel (€ HT), indépendant des prestations saisies. */
   budgetPrevu: z.number().min(0).max(1e9).nullable().default(null),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 export type ProjectFields = z.infer<typeof projectFieldsSchema>;
+
+/**
+ * Sections d'un enregistrement de projet. Les projets antérieurs aux sections libres avaient deux champs
+ * fixes (`objectifs`, `horsPerimetre`) : ils deviennent des sections du même nom.
+ */
+export function normalizeProjectSections(it: { sections?: ProjectSection[]; objectifs?: string; horsPerimetre?: string }): ProjectSection[] {
+  if (it.sections) return it.sections;
+  const legacy: ProjectSection[] = [];
+  if (it.objectifs?.trim()) legacy.push({ id: 'objectifs', title: 'Objectifs', content: it.objectifs });
+  if (it.horsPerimetre?.trim()) legacy.push({ id: 'hors-perimetre', title: 'Hors périmètre', content: it.horsPerimetre });
+  return legacy;
+}
+
+/** Sections non vides, en Markdown (`## Titre`), pour les rapports et l'assistant. */
+export function projectSectionsMarkdown(sections: ProjectSection[], level = 2): string {
+  return sections
+    .filter((s) => s.content.trim())
+    .map((s) => `${'#'.repeat(level)} ${s.title}\n${s.content.trim()}`)
+    .join('\n\n');
+}
 
 export interface ProjectStats {
   openTasks: number;

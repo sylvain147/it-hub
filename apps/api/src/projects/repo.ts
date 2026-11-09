@@ -32,6 +32,7 @@ import {
   type ActivityEntry,
   type ItemBase,
   type ProjectDetail,
+  normalizeProjectSections,
   type ProjectFields,
   type ProjectItem,
   type ProjectItemKind,
@@ -114,7 +115,9 @@ export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): s
 // Fiche projet
 // ---------------------------------------------------------------------------
 
-interface MetaItem extends ProjectFields {
+interface MetaItem extends Omit<ProjectFields, 'sections'> {
+  /** Absent des projets antérieurs aux sections libres. */
+  sections?: ProjectFields['sections'];
   pk: string;
   sk: string;
   gsi1pk: string;
@@ -124,6 +127,9 @@ interface MetaItem extends ProjectFields {
   stats: ProjectStats;
   /** Absent des projets créés avant le suivi. */
   followers?: string[];
+  /** Anciens champs fixes, remplacés par les sections libres (`normalizeProjectSections`) et retirés au premier enregistrement. */
+  objectifs?: string;
+  horsPerimetre?: string;
   activeJobId: string | null;
   activeJobAt: string | null;
   createdAt: string;
@@ -133,9 +139,9 @@ interface MetaItem extends ProjectFields {
 }
 
 function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
-  const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, ...rest } = it;
+  const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, objectifs: _o, horsPerimetre: _h, ...rest } = it;
   const stale = it.activeJobAt && (Date.now() - Date.parse(it.activeJobAt)) / 60000 > config.staleJobMinutes;
-  return { ...rest, chefDeProjetId: it.chefDeProjetId ?? '', followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
+  return { ...rest, chefDeProjetId: it.chefDeProjetId ?? '', sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
 }
 
 async function getMeta(id: string): Promise<MetaItem | null> {
@@ -206,7 +212,7 @@ export async function updateProject(id: string, rev: number, fields: ProjectFiel
         TableName: T(),
         Key: projectKeys.meta(id),
         ConditionExpression: 'rev = :rev',
-        UpdateExpression: 'SET ' + sets.join(', '),
+        UpdateExpression: 'SET ' + sets.join(', ') + ' REMOVE objectifs, horsPerimetre',
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
       }),

@@ -13,6 +13,7 @@ import {
   type Health,
   type ProjectDetail,
   type ProjectFields,
+  type ProjectSection,
 } from '@samm/shared';
 import { api, ApiError } from '../api';
 import { ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
@@ -68,18 +69,14 @@ export function OverviewTab() {
           ) : (
             <p className="muted">Pas encore de description. <button className="btn-link" onClick={() => setEditing(true)}>Décrire le projet</button> : elle servira aussi à générer les cahiers des charges.</p>
           )}
-          {p.objectifs.trim() && (
-            <>
-              <h3>Objectifs</h3>
-              <MarkdownView markdown={p.objectifs} />
-            </>
-          )}
-          {p.horsPerimetre.trim() && (
-            <>
-              <h3>Hors périmètre</h3>
-              <MarkdownView markdown={p.horsPerimetre} />
-            </>
-          )}
+          {p.sections
+            .filter((x) => x.content.trim())
+            .map((x) => (
+              <div key={x.id}>
+                <h3>{x.title}</h3>
+                <MarkdownView markdown={x.content} />
+              </div>
+            ))}
         </section>
 
         {(overdue.length > 0 || lateJalons.length > 0 || hotRisks.length > 0 || pending.length > 0) && (
@@ -397,16 +394,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
         <span>Description <span className="muted">(contexte, besoin, enjeux — reprise pour rédiger les cahiers des charges)</span></span>
         <MarkdownField value={f.description} onChange={(v) => set('description', v)} placeholder="Le contexte du projet, le déclencheur, les enjeux…" />
       </div>
-      <div className="form-grid mt">
-        <div className="field">
-          <span>Objectifs</span>
-          <MarkdownField value={f.objectifs} onChange={(v) => set('objectifs', v)} placeholder="Ce que le projet doit permettre…" />
-        </div>
-        <div className="field">
-          <span>Hors périmètre</span>
-          <MarkdownField value={f.horsPerimetre} onChange={(v) => set('horsPerimetre', v)} placeholder="Ce qui est explicitement exclu…" />
-        </div>
-      </div>
+      <SectionsEditor sections={f.sections} onChange={(v) => set('sections', v)} />
       <div className="actions mt">
         <button className="btn btn-danger-ghost" onClick={remove}>Supprimer le projet</button>
         <span className="tb-flex" />
@@ -415,11 +403,45 @@ function FicheForm({ onDone }: { onDone: () => void }) {
         ) : (
           <>
             <button className="btn" onClick={onDone}>Annuler</button>
-            <button className="btn btn-primary" disabled={!f.name.trim() || saving} onClick={save}>{saving && <Spinner small />} Enregistrer</button>
+            <button className="btn btn-primary" disabled={!f.name.trim() || f.sections.some((x) => !x.title.trim()) || saving} onClick={save}>{saving && <Spinner small />} Enregistrer</button>
           </>
         )}
       </div>
       <p className="muted small">Dernière modification le {formatDateTime(project.updatedAt)} par {shortUser(project.updatedBy)}.</p>
     </section>
+  );
+}
+
+/** Sections libres sous la description : titre + texte, ajoutées, renommées, déplacées ou retirées par l'utilisateur. */
+function SectionsEditor({ sections, onChange }: { sections: ProjectSection[]; onChange: (v: ProjectSection[]) => void }) {
+  const update = (id: string, patch: Partial<ProjectSection>) => onChange(sections.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const move = (i: number, d: -1 | 1) => {
+    const next = [...sections];
+    [next[i], next[i + d]] = [next[i + d]!, next[i]!];
+    onChange(next);
+  };
+  function remove(x: ProjectSection) {
+    if (x.content.trim() && !confirm(`Retirer la section « ${x.title || 'sans titre'} » et son texte ?`)) return;
+    onChange(sections.filter((y) => y.id !== x.id));
+  }
+  return (
+    <>
+      {sections.map((x, i) => (
+        <div key={x.id} className="field mt">
+          <div className="actions">
+            <input className="input strong tb-flex" value={x.title} maxLength={200} onChange={(e) => update(x.id, { title: e.target.value })} placeholder="Titre de la section *" aria-label="Titre de la section" />
+            <button className="btn btn-sm" disabled={i === 0} onClick={() => move(i, -1)} title="Monter">↑</button>
+            <button className="btn btn-sm" disabled={i === sections.length - 1} onClick={() => move(i, 1)} title="Descendre">↓</button>
+            <button className="btn btn-sm btn-danger-ghost" onClick={() => remove(x)} title="Retirer la section">✕</button>
+          </div>
+          <MarkdownField value={x.content} onChange={(v) => update(x.id, { content: v })} placeholder="Texte de la section…" />
+        </div>
+      ))}
+      {sections.length < 30 && (
+        <button className="btn btn-sm mt" onClick={() => onChange([...sections, { id: crypto.randomUUID().slice(0, 8), title: '', content: '' }])}>
+          + Ajouter une section
+        </button>
+      )}
+    </>
   );
 }
