@@ -36,11 +36,31 @@ describe('notes en vrac et frise des jalons', () => {
     expect(ofProject.map((n: any) => n.title)).toEqual(['Questions pour le comité']);
   });
 
-  it('garde les notes privées, même pour un administrateur', async () => {
+  it('garde les notes privées, sauf pour les administrateurs qui voient et ajoutent celles de tous', async () => {
+    const RESP = 'bruno.petit@exemple.fr';
+    await env.call('POST', '/users', { email: RESP, name: 'Bruno Petit', role: 'responsable' }, ADMIN);
+    // Un autre utilisateur, même responsable d'équipe, ne voit rien.
+    expect((await env.call('GET', '/notes', undefined, RESP)).json).toHaveLength(0);
+    expect((await env.call('GET', `/notes?user=${MEMBRE}`, undefined, RESP)).status).toBe(403);
+    expect((await env.call('POST', '/notes', { content: 'x', ownerId: MEMBRE }, RESP)).status).toBe(403);
+    expect((await env.call('PATCH', `/notes/${otherId}?owner=${MEMBRE}`, { title: 'X' }, RESP)).status).toBe(403);
+    expect((await env.call('PATCH', `/notes/${otherId}`, { title: 'X' }, RESP)).status).toBe(404);
+
+    // L'administrateur : ses propres notes par défaut, celles de Chloé ou de tout le monde sur demande.
     expect((await env.call('GET', '/notes', undefined, ADMIN)).json).toHaveLength(0);
-    expect((await env.call('GET', `/notes?projet=${projectId}`, undefined, ADMIN)).json).toHaveLength(0);
-    expect((await env.call('PATCH', `/notes/${otherId}`, { title: 'X' }, ADMIN)).status).toBe(404);
-    expect((await env.call('DELETE', `/notes/${otherId}`, undefined, ADMIN)).status).toBe(404);
+    expect((await env.call('GET', `/notes?user=${MEMBRE}`, undefined, ADMIN)).json).toHaveLength(2);
+    expect((await env.call('GET', `/notes?user=${MEMBRE}&projet=${projectId}`, undefined, ADMIN)).json.map((n: any) => n.id)).toEqual([otherId]);
+    const given = await env.call('POST', '/notes', { title: 'À voir avec moi', content: 'Point budget lundi', ownerId: MEMBRE }, ADMIN);
+    expect(given.status).toBe(201);
+    expect(given.json).toMatchObject({ ownerId: MEMBRE, createdBy: ADMIN });
+    await env.call('POST', '/notes', { content: 'Ma note d’admin' }, ADMIN);
+    expect((await env.call('GET', '/notes?user=all', undefined, ADMIN)).json).toHaveLength(4);
+    expect((await env.call('GET', '/notes', undefined, MEMBRE)).json.some((n: any) => n.title === 'À voir avec moi')).toBe(true);
+    expect((await env.call('POST', '/notes', { content: 'x', ownerId: 'inconnu@exemple.fr' }, ADMIN)).status).toBe(400);
+    expect((await env.call('POST', '/notes', { content: 'x', ownerId: 'all' }, ADMIN)).status).toBe(400);
+    // Modification et suppression chez quelqu'un d'autre : en désignant le titulaire.
+    expect((await env.call('PATCH', `/notes/${given.json.id}?owner=${MEMBRE}`, { pinned: true }, ADMIN)).json).toMatchObject({ pinned: true, updatedBy: ADMIN });
+    expect((await env.call('DELETE', `/notes/${given.json.id}?owner=${MEMBRE}`, undefined, ADMIN)).status).toBe(204);
   });
 
   it('rassemble les jalons de tous les projets pour la frise', async () => {
@@ -48,6 +68,14 @@ describe('notes en vrac et frise des jalons', () => {
     await env.call('POST', `/projects/${projectId}/items/jalons`, { label: 'Recette', date: '2026-12-01' }, ADMIN);
     await env.call('POST', `/projects/${second}/items/jalons`, { label: 'Mise en production', date: '2027-03-15' }, ADMIN);
     await env.call('POST', `/projects/${second}/items/jalons`, { label: 'Devis reçu', date: '2026-10-01', done: true }, ADMIN);
+    // Jalon sur une période : début avant la fin, fin obligatoire.
+    expect((await env.call('POST', `/projects/${second}/items/jalons`, { label: 'Recette', startDate: '2027-02-10', date: '2027-02-01' }, ADMIN)).status).toBe(400);
+    expect((await env.call('POST', `/projects/${second}/items/jalons`, { label: 'Recette', startDate: '2027-02-10' }, ADMIN)).status).toBe(400);
+    const recette = await env.call('POST', `/projects/${second}/items/jalons`, { label: 'Recette', startDate: '2027-02-01', date: '2027-02-28' }, ADMIN);
+    expect(recette.json).toMatchObject({ startDate: '2027-02-01', date: '2027-02-28', initialDate: '2027-02-28' });
+    // La to-do datée du projet apparaît sur la frise ; une tâche sans échéance, non.
+    await env.call('POST', '/todos', { title: 'Relancer le prestataire', projectId: second, dueDate: '2026-12-15' }, MEMBRE);
+    await env.call('POST', '/todos', { title: 'Sans échéance', projectId: second }, MEMBRE);
     const { json } = await env.call('GET', '/projects/jalons', undefined, MEMBRE);
     expect(json).toHaveLength(2);
     const erp = json.find((p: any) => p.id === projectId);
@@ -55,7 +83,9 @@ describe('notes en vrac et frise des jalons', () => {
     expect(erp.jalons.map((j: any) => j.label)).toEqual(['Recette']);
     const portail = json.find((p: any) => p.id === second);
     expect(portail).toMatchObject({ startDate: '2026-09-01', targetDate: '2027-03-31' });
-    expect(portail.jalons.map((j: any) => [j.label, j.done]).sort()).toEqual([['Devis reçu', true], ['Mise en production', false]]);
+    expect(portail.jalons.map((j: any) => [j.label, j.done]).sort()).toEqual([['Devis reçu', true], ['Mise en production', false], ['Recette', false]]);
+    expect(portail.todos).toEqual([expect.objectContaining({ title: 'Relancer le prestataire', dueDate: '2026-12-15', done: false, assigneeId: MEMBRE })]);
+    expect(erp.todos).toEqual([]);
   });
 
   it('détache la to-do et les notes d’un projet supprimé', async () => {

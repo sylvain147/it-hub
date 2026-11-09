@@ -76,6 +76,15 @@ function me(u: HubUser): Me {
 // Utilisateurs
 // ---------------------------------------------------------------------------
 
+/** Le backup est un autre utilisateur actif du hub. */
+async function assertBackup(backupId: string, email: string) {
+  if (!backupId) return;
+  if (backupId === email) throw new HttpError(400, 'Un utilisateur ne peut pas être son propre backup.');
+  const u = (await users.listUsers(true)).find((x) => x.email === backupId);
+  if (!u) throw new HttpError(400, 'Backup inconnu : choisissez un utilisateur du hub.');
+  if (!u.active) throw new HttpError(400, `${u.name} est désactivé : choisissez un autre backup.`);
+}
+
 /** Routes des utilisateurs (montées sous /api/users). */
 export function userRoutes() {
   const r = new Hono();
@@ -85,6 +94,7 @@ export function userRoutes() {
   r.post('/', async (c) => {
     requirePermission(c, 'manageUsers', 'gérer les utilisateurs');
     const b = await body(c, userInputSchema);
+    await assertBackup(b.backupId, b.email);
     const now = nowIso();
     const by = userName(c);
     const u: HubUser = { ...b, active: true, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by, lastSeenAt: null, invitedAt: null };
@@ -103,6 +113,7 @@ export function userRoutes() {
     const b = await body(c, userUpdateSchema);
     const by = userName(c);
     const before = await users.getUser(email);
+    if (b.backupId !== before.backupId) await assertBackup(b.backupId, email);
     if (email === by && !b.active) throw new HttpError(400, 'Vous ne pouvez pas désactiver votre propre accès.');
     const otherAdmins = (await users.listUsers(true)).filter((x) => x.email !== email && x.active && x.role === 'admin');
     if (before.role === 'admin' && before.active && (b.role !== 'admin' || !b.active) && !otherAdmins.length) {

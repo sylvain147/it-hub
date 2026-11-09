@@ -5,21 +5,24 @@ import { api } from '../api';
 import { formatDate, formatDateTime, toast } from '../components/ui';
 import { ItemModal, MarkdownField, MarkdownView } from '../projects/common';
 import { ProjectSelect, type ProjectRef } from '../tasks/tasks';
+import { useAuth } from '../auth';
+import { UserSelect, useUsers } from '../users/context';
 
 /**
- * Notes en vrac : le bloc-notes personnel (privé) de chacun, rattaché ou non à un projet.
+ * Notes en vrac : le bloc-notes personnel de chacun, rattaché ou non à un projet. Les administrateurs voient
+ * celles de tout le monde et peuvent en ajouter à quelqu'un.
  * Les comptes rendus et décisions partagés avec l'équipe vont, eux, dans le journal du projet.
  */
 
 /** Saisie rapide : on écrit, Ctrl/⌘ + Entrée pour enregistrer. */
-export function NoteQuickAdd({ projectId = '', onAdded }: { projectId?: string; onAdded: () => Promise<void> | void }) {
+export function NoteQuickAdd({ projectId = '', ownerId, onAdded }: { projectId?: string; ownerId?: string; onAdded: () => Promise<void> | void }) {
   const [v, setV] = useState('');
   const [busy, setBusy] = useState(false);
   async function add() {
     if (!v.trim() || busy) return;
     setBusy(true);
     try {
-      await api.createNote({ content: v.trim(), projectId });
+      await api.createNote({ content: v.trim(), projectId, ...(ownerId ? { ownerId } : {}) });
       setV('');
       await onAdded();
     } catch (e) {
@@ -57,9 +60,11 @@ export function NoteGrid({
   onOpen: (n: PersonalNote) => void;
   onChanged: () => Promise<void> | void;
 }) {
+  const { me } = useAuth();
+  const { name } = useUsers();
   async function pin(n: PersonalNote) {
     try {
-      await api.updateNote(n.id, { pinned: !n.pinned });
+      await api.updateNote(n, { pinned: !n.pinned });
       await onChanged();
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -81,6 +86,8 @@ export function NoteGrid({
               <MarkdownView markdown={n.content} />
             </div>
             <div className="note-foot muted small">
+              {n.ownerId !== me.email && <span className="badge" title={n.createdBy !== n.ownerId ? `Ajoutée par ${name(n.createdBy)}` : undefined}>{name(n.ownerId)}</span>}
+              {n.ownerId === me.email && n.createdBy !== me.email && <span title="Note ajoutée par un administrateur">✍ {name(n.createdBy)}</span>}
               {showProject && project && <Link to={`/projets/${project.id}?onglet=todo`}>📁 {project.name}</Link>}
               <span title={`Modifiée le ${formatDateTime(n.updatedAt)}`}>{formatDate(n.updatedAt.slice(0, 10))}</span>
             </div>
@@ -100,7 +107,7 @@ export function NoteModal({
   onSaved,
 }: {
   note: PersonalNote | null;
-  defaults?: { projectId?: string };
+  defaults?: { projectId?: string; ownerId?: string };
   projects: ProjectRef[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -112,17 +119,20 @@ export function NoteModal({
     pinned: note?.pinned ?? false,
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+  const { me } = useAuth();
+  const { name } = useUsers();
+  const [ownerId, setOwnerId] = useState(note?.ownerId ?? (defaults?.ownerId || me.email));
 
   async function save() {
-    if (note) await api.updateNote(note.id, f);
-    else await api.createNote(f);
+    if (note) await api.updateNote(note, f);
+    else await api.createNote({ ...f, ownerId });
     await onSaved();
   }
 
   async function remove() {
     if (!note || !confirm('Supprimer cette note ?')) return;
     try {
-      await api.deleteNote(note.id);
+      await api.deleteNote(note);
       toast('Note supprimée.');
       onClose();
       await onSaved();
@@ -142,11 +152,20 @@ export function NoteModal({
         note && (
           <>
             <button className="btn btn-danger-ghost" onClick={() => void remove()}>Supprimer</button>
-            <span className="muted small">Créée le {formatDate(note.createdAt.slice(0, 10))}</span>
+            <span className="muted small">
+              Créée le {formatDate(note.createdAt.slice(0, 10))}
+              {note.createdBy !== note.ownerId && ` par ${name(note.createdBy)}`}
+            </span>
           </>
         )
       }
     >
+      {me.permissions.manageAllNotes && (
+        <label className="field span-2">
+          <span>Note de</span>
+          {note ? <input className="input" value={name(note.ownerId)} disabled /> : <UserSelect value={ownerId} onChange={setOwnerId} />}
+        </label>
+      )}
       <label className="field">
         <span>Titre</span>
         <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="Facultatif" />
@@ -164,7 +183,9 @@ export function NoteModal({
           <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} /> Épinglée en tête de liste
         </label>
       </label>
-      <p className="muted small span-2">Vos notes sont personnelles : personne d’autre ne les voit.</p>
+      <p className="muted small span-2">
+        {ownerId === me.email ? 'Vos notes sont personnelles : seuls les administrateurs peuvent aussi les voir.' : `Note visible par ${name(ownerId)} et les administrateurs.`}
+      </p>
     </ItemModal>
   );
 }

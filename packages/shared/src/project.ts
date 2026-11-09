@@ -185,6 +185,7 @@ export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
   details: z.string().max(10_000).default(''),
   status: z.enum(TICKET_STATUSES).default('a_faire'),
+  priority: z.enum(PRIORITIES).default('normale'),
   sprintId: z.number().int().positive().nullable().default(null),
   /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou ticket antérieur aux utilisateurs). */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
@@ -199,6 +200,10 @@ export const taskInputSchema = z.object({
     .pipe(z.string().regex(/^\d{0,9}$/, 'Le numéro Desk ne contient que des chiffres (ex. 48213).'))
     .default(''),
 });
+
+/** Tri des tickets : priorité la plus haute d'abord, puis numéro. */
+export const byTicketPriority = (a: Pick<Task, 'priority' | 'number'>, b: Pick<Task, 'priority' | 'number'>) =>
+  PRIORITIES.indexOf(b.priority) - PRIORITIES.indexOf(a.priority) || a.number - b.number;
 
 /** Clé de comparaison d'un numéro Desk (sans « # » ni zéros en tête). */
 export const deskKey = (id: string) => id.trim().replace(/^#/, '').replace(/^0+(?=\d)/, '');
@@ -232,8 +237,14 @@ export function ticketKey(t: { number: number }): string {
   return t.number ? `T-${t.number}` : 'T-?';
 }
 
+/**
+ * Jalon : une date (`date`, l'échéance), ou une période quand `startDate` est renseignée (du début à `date`).
+ * Le retard et le glissement se mesurent sur `date`.
+ */
 export const jalonInputSchema = z.object({
   label: z.string().trim().min(1, 'Le libellé est obligatoire').max(200),
+  /** Début de la période (facultatif) ; vide : jalon ponctuel. */
+  startDate: isoDate.default(''),
   date: isoDate.default(''),
   done: z.boolean().default(false),
   notes: z.string().max(2000).default(''),
@@ -402,8 +413,8 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId'> {
-  const { priority: _p, ...rest } = raw as T & { priority?: unknown };
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId'> {
+  const { priority: p, ...rest } = raw as T & { priority?: unknown };
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
   return {
@@ -415,6 +426,8 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     statusChanges: Array.isArray(raw.statusChanges) ? (raw.statusChanges as StatusChange[]) : [],
     sprintChanges: Array.isArray(raw.sprintChanges) ? (raw.sprintChanges as SprintChange[]) : [],
     deskId: typeof raw.deskId === 'string' ? raw.deskId : '',
+    // Les tâches à cocher d'avant les sprints portaient déjà une priorité, de mêmes valeurs.
+    priority: (PRIORITIES as readonly unknown[]).includes(p) ? (p as Priority) : 'normale',
   };
 }
 
@@ -438,10 +451,27 @@ export interface PlanningProject {
   startDate: string;
   targetDate: string;
   jalons: ProjectJalon[];
+  /** Tâches de la to-do du projet qui ont une échéance. */
+  todos: PlanningTodo[];
+}
+
+/** Tâche de la to-do placée sur la frise (son échéance). */
+export interface PlanningTodo {
+  id: string;
+  title: string;
+  dueDate: string;
+  done: boolean;
+  assigneeId: string;
 }
 
 export function isJalonLate(j: Pick<ProjectJalon, 'done' | 'date'>, today = todayIso()): boolean {
   return !j.done && !!j.date && j.date < today;
+}
+
+/** Dates d'un jalon en clair : « 12 mars » ou « du 2 au 12 mars » (format des dates fourni). */
+export function jalonPeriod(j: Pick<ProjectJalon, 'startDate' | 'date'>, fmt: (iso: string) => string): string {
+  if (!j.date) return '';
+  return j.startDate ? `du ${fmt(j.startDate)} au ${fmt(j.date)}` : fmt(j.date);
 }
 
 /** Glissement d'un jalon par rapport à sa date initiale, en jours (positif = retard). */

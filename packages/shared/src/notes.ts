@@ -2,8 +2,9 @@ import { z } from 'zod';
 import type { ItemBase } from './project.js';
 
 /**
- * Notes en vrac : le bloc-notes personnel de chaque utilisateur. Une note appartient à son auteur (`ownerId`),
- * qui seul la voit ; elle peut être rattachée à un projet (`projectId`) pour la retrouver depuis sa page.
+ * Notes en vrac : le bloc-notes personnel de chaque utilisateur. Une note appartient à son titulaire (`ownerId`) :
+ * lui seul la voit, avec les administrateurs (droit `manageAllNotes`), qui peuvent aussi lui en ajouter (`createdBy`
+ * est alors l'administrateur). Elle peut être rattachée à un projet (`projectId`) pour la retrouver depuis sa page.
  * À ne pas confondre avec le journal d'un projet (comptes rendus, décisions), partagé par l'équipe.
  */
 export const personalNoteInputSchema = z

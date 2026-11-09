@@ -5,6 +5,7 @@ import {
   createSprintBody,
   DEFAULT_SPRINT_DAYS,
   parisDay,
+  planProjectBody,
   publishSprintDocBody,
   saveSprintDocBody,
   shortDay,
@@ -131,6 +132,18 @@ export function sprintRoutes() {
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
     for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
     return c.json({ moved: open.length, detail: await sprintDetail(id) });
+  });
+
+  /** Planifie dans le sprint tous les tickets ouverts d'un projet (ou hors projet) restés au backlog. */
+  r.post('/:sprintId/plan-project', async (c) => {
+    const id = idParam(c);
+    const b = await body(c, planProjectBody);
+    const user = userName(c);
+    await repo.assertPlannable(id);
+    const backlog = (await pr.listTickets()).filter((t) => t.projectId === b.projectId && t.sprintId === null && !t.done);
+    if (!backlog.length) throw new HttpError(400, 'Aucun ticket ouvert de ce projet au backlog.');
+    for (const t of backlog) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: id }, user);
+    return c.json({ planned: backlog.length });
   });
 
   /** Supprime un sprint à venir : ses tickets reviennent au backlog. */

@@ -220,7 +220,7 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect(old).toMatchObject({ number: 6, status: 'a_faire', sprintId: null, projectName: 'Paie' });
     const items = (await env.call('GET', `/projects/${p2}`)).json.items.tasks;
     expect(items.find((t: any) => t.id === 'old2')).toMatchObject({ number: 7, status: 'termine', done: true });
-    expect(items.find((t: any) => t.id === 'old2').priority).toBeUndefined();
+    expect(items.find((t: any) => t.id === 'old2').priority).toBe('haute'); // priorité reprise des anciennes tâches
     // Toujours modifiables, et désormais indexées comme tickets.
     expect((await env.call('PATCH', `/projects/${p2}/items/tasks/old1`, { status: 'en_cours' })).json.statusChanges).toHaveLength(1);
     expect((await env.call('GET', '/sprints')).json.tickets.filter((t: any) => t.id === 'old1')).toHaveLength(1);
@@ -257,5 +257,25 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect((await env.call('GET', `/projects/${p2}`)).json.items.tasks.some((t: any) => t.id === free.id)).toBe(false);
     expect((await patch('hors-projet', 'Mettre à jour la doc d’exploitation', { projectId: 'inconnu' })).status).toBe(404);
     expect((await env.call('DELETE', `/projects/hors-projet/items/tasks/${free.id}`)).status).toBe(204);
+  });
+
+  it('donne une priorité aux tickets et planifie tout un projet d’un coup', async () => {
+    const t = await ticket(p1, 'Corriger la TVA', { priority: 'critique' });
+    expect(t.priority).toBe('critique');
+    expect((await env.call('POST', `/projects/${p1}/items/tasks`, { title: 'X', priority: 'urgente' })).status).toBe(400);
+    expect((await patch(p1, 'Corriger la TVA', { priority: 'haute' })).json.priority).toBe('haute');
+    expect((await ticket(p1, 'Sans priorité')).priority).toBe('normale');
+
+    const s = (await env.call('POST', '/sprints', {})).json;
+    const before = (await env.call('GET', '/sprints')).json.tickets.filter((x: any) => x.projectId === p1 && x.sprintId === null && !x.done);
+    expect(before.length).toBeGreaterThanOrEqual(2);
+    const r = await env.call('POST', `/sprints/${s.id}/plan-project`, { projectId: p1 });
+    expect(r.json.planned).toBe(before.length);
+    const after = (await env.call('GET', '/sprints')).json.tickets.filter((x: any) => x.projectId === p1 && !x.done);
+    expect(after.filter((x: any) => x.sprintId === null)).toHaveLength(0);
+    expect(after.find((x: any) => x.id === t.id).sprintChanges.at(-1)).toMatchObject({ from: null, to: s.id });
+    // Plus rien à planifier ; un sprint clos refuse.
+    expect((await env.call('POST', `/sprints/${s.id}/plan-project`, { projectId: p1 })).status).toBe(400);
+    expect((await env.call('POST', '/sprints/1/plan-project', { projectId: p2 })).status).toBe(400);
   });
 });

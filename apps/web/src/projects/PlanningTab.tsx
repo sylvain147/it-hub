@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { isJalonLate, jalonDrift, type ProjectJalon } from '@samm/shared';
+import { isJalonLate, jalonDrift, jalonPeriod, type ProjectJalon } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, formatDate, toast } from '../components/ui';
 import { DueLabel, ItemModal, useItemActions, useProject } from './common';
@@ -52,7 +52,10 @@ export function PlanningTab() {
                       <button className="btn-link strong-link" onClick={() => setEditing(j)}>{j.label}</button>
                       {j.notes && <div className="muted small">{j.notes}</div>}
                     </td>
-                    <td>{j.date ? <DueLabel date={j.date} done={j.done} /> : <span className="muted">À définir</span>}</td>
+                    <td>
+                      {j.date ? <DueLabel date={j.date} done={j.done} /> : <span className="muted">À définir</span>}
+                      {j.startDate && <div className="muted small">{jalonPeriod(j, formatDate)}</div>}
+                    </td>
                     <td>
                       {drift !== 0 ? (
                         <span className={drift > 0 ? 'due-late' : 'ok-text'} title={`Date initiale : ${formatDate(j.initialDate)}`}>
@@ -80,12 +83,14 @@ export function PlanningTab() {
   );
 }
 
-/** Frise : début du projet, jalons, aujourd'hui, fin visée. */
+/** Frise : début du projet, jalons (ponctuels ou sur une période), aujourd'hui, fin visée. */
 function Timeline() {
   const { project } = useProject();
   const today = new Date().toISOString().slice(0, 10);
+  const jalons = project.items.jalons.filter((j) => j.date);
   const points = [
-    ...project.items.jalons.filter((j) => j.date).map((j) => ({ date: j.date, label: j.label, cls: j.done ? 'tl-done' : isJalonLate(j) ? 'tl-late' : 'tl-todo' })),
+    ...jalons.map((j) => ({ date: j.date, label: j.label, cls: j.done ? 'tl-done' : isJalonLate(j) ? 'tl-late' : 'tl-todo' })),
+    ...jalons.filter((j) => j.startDate).map((j) => ({ date: j.startDate, label: '', cls: 'tl-start-only' })),
     ...(project.startDate ? [{ date: project.startDate, label: 'Début', cls: 'tl-bound' }] : []),
     ...(project.targetDate ? [{ date: project.targetDate, label: 'Fin visée', cls: 'tl-bound' }] : []),
   ].sort((a, b) => a.date.localeCompare(b.date));
@@ -99,7 +104,10 @@ function Timeline() {
       <div className="timeline">
         <div className="tl-axis" />
         <div className="tl-today" style={{ left: `${pos(today)}%` }} title="Aujourd’hui"><span>Aujourd’hui</span></div>
-        {points.map((p, i) => (
+        {jalons.filter((j) => j.startDate).map((j) => (
+          <div key={`p${j.id}`} className={`tl-range ${j.done ? 'tl-done' : isJalonLate(j) ? 'tl-late' : 'tl-todo'}`} style={{ left: `${pos(j.startDate)}%`, width: `${pos(j.date) - pos(j.startDate)}%` }} title={`${j.label} — ${jalonPeriod(j, formatDate)}`} />
+        ))}
+        {points.filter((p) => p.label).map((p, i) => (
           <div key={i} className={`tl-point ${p.cls} ${i % 2 ? 'tl-below' : 'tl-above'}${pos(p.date) < 12 ? ' tl-start' : pos(p.date) > 88 ? ' tl-end' : ''}`} style={{ left: `${pos(p.date)}%` }} title={`${p.label} — ${formatDate(p.date)}`}>
             <span className="tl-dot" />
             <span className="tl-label">
@@ -117,10 +125,11 @@ function Timeline() {
 function JalonDialog({ jalon, onClose }: { jalon: ProjectJalon | null; onClose: () => void }) {
   const actions = useItemActions();
   const { lists } = useSettings();
-  const [f, setF] = useState({ label: jalon?.label ?? '', date: jalon?.date ?? '', done: jalon?.done ?? false, notes: jalon?.notes ?? '' });
+  const [f, setF] = useState({ label: jalon?.label ?? '', startDate: jalon?.startDate ?? '', date: jalon?.date ?? '', done: jalon?.done ?? false, notes: jalon?.notes ?? '' });
+  const badRange = !!f.startDate && (!f.date || f.startDate > f.date);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   return (
-    <ItemModal title={jalon ? 'Jalon' : 'Nouveau jalon'} onClose={onClose} canSave={!!f.label.trim()} onSave={() => actions.save('jalons', jalon?.id ?? null, f)}>
+    <ItemModal title={jalon ? 'Jalon' : 'Nouveau jalon'} onClose={onClose} canSave={!!f.label.trim() && !badRange} onSave={() => actions.save('jalons', jalon?.id ?? null, f)}>
       <label className="field span-2">
         <span>Libellé *</span>
         <input className="input" autoFocus value={f.label} onChange={(e) => set('label', e.target.value)} placeholder="ex. Recette, Mise en production" list="jalon-suggestions" />
@@ -129,8 +138,14 @@ function JalonDialog({ jalon, onClose }: { jalon: ProjectJalon | null; onClose: 
         </datalist>
       </label>
       <label className="field">
-        <span>Date</span>
+        <span>Date de début</span>
+        <input className="input" type="date" value={f.startDate} onChange={(e) => set('startDate', e.target.value)} />
+        <span className="muted small">Facultative : pour un jalon qui dure (recette, déploiement…).</span>
+      </label>
+      <label className="field">
+        <span>{f.startDate ? 'Date de fin' : 'Date'}</span>
         <input className="input" type="date" value={f.date} onChange={(e) => set('date', e.target.value)} />
+        {badRange && <span className="small due-late">{f.date ? 'La fin doit suivre le début.' : 'Renseignez la date de fin.'}</span>}
         {jalon?.initialDate && jalon.initialDate !== f.date && <span className="muted small">Date initiale : {formatDate(jalon.initialDate)}</span>}
       </label>
       <label className="field">

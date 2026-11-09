@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type HubUser, type Role } from '@samm/shared';
+import { PERIMETERS, PERIMETER_LABELS, ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type HubUser, type Perimeter, type Role } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { runtimeConfig } from '../config';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, toast } from '../components/ui';
-import { useUsers } from './context';
+import { UserSelect, useUsers } from './context';
 
 /** Gestion des utilisateurs (administrateurs). */
 export function UsersPage() {
   const { me } = useAuth();
-  const { users, reload } = useUsers();
+  const { users, reload, name } = useUsers();
   const [editing, setEditing] = useState<HubUser | 'new' | null>(null);
   const [showInactive, setShowInactive] = useState(false);
 
@@ -48,6 +48,8 @@ export function UsersPage() {
               <tr>
                 <th>Nom</th>
                 <th>E-mail</th>
+                <th>Poste et périmètre</th>
+                <th>Backup</th>
                 <th>Rôle</th>
                 <th>Dernière activité</th>
                 <th />
@@ -60,6 +62,15 @@ export function UsersPage() {
                     <strong>{u.name}</strong> {u.email === me.email && <span className="badge">vous</span>} {!u.active && <span className="badge badge-danger">désactivé</span>}
                   </td>
                   <td className="small">{u.email}</td>
+                  <td className="small">
+                    {u.jobTitle || <span className="muted">—</span>}
+                    {u.perimeters.length > 0 && (
+                      <div className="row-actions mt-xs">
+                        {u.perimeters.map((p) => <span key={p} className="badge badge-perimeter">{PERIMETER_LABELS[p]}</span>)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="small">{u.backupId ? name(u.backupId) : <span className="muted">—</span>}</td>
                   <td><span className={`badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span></td>
                   <td className="small">
                     {u.lastSeenAt ? formatDateTime(u.lastSeenAt) : <span className="muted">{u.invitedAt ? `invité le ${formatDateTime(u.invitedAt)}` : 'jamais connecté'}</span>}
@@ -99,7 +110,19 @@ export function UsersPage() {
 
 function UserForm({ user, onClose, onSaved }: { user: HubUser | null; onClose: () => void; onSaved: () => Promise<void> }) {
   const { me, reloadMe } = useAuth();
-  const [f, setF] = useState({ email: user?.email ?? '', name: user?.name ?? '', role: (user?.role ?? 'membre') as Role, active: user?.active ?? true });
+  const [f, setF] = useState({
+    email: user?.email ?? '',
+    name: user?.name ?? '',
+    role: (user?.role ?? 'membre') as Role,
+    active: user?.active ?? true,
+    jobTitle: user?.jobTitle ?? '',
+    backupId: user?.backupId ?? '',
+    perimeters: user?.perimeters ?? ([] as Perimeter[]),
+  });
+  const { active } = useUsers();
+  const profile = { jobTitle: f.jobTitle, backupId: f.backupId, perimeters: f.perimeters };
+  const togglePerimeter = (p: Perimeter) =>
+    setF((x) => ({ ...x, perimeters: x.perimeters.includes(p) ? x.perimeters.filter((y) => y !== p) : PERIMETERS.filter((y) => y === p || x.perimeters.includes(y)) }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const self = user?.email === me.email;
@@ -109,11 +132,11 @@ function UserForm({ user, onClose, onSaved }: { user: HubUser | null; onClose: (
     setError(null);
     try {
       if (user) {
-        await api.updateUser(user.email, { name: f.name, role: f.role, active: f.active });
+        await api.updateUser(user.email, { name: f.name, role: f.role, active: f.active, ...profile });
         toast('Utilisateur enregistré.');
         if (self) await reloadMe();
       } else {
-        const r = await api.createUser({ email: f.email, name: f.name, role: f.role });
+        const r = await api.createUser({ email: f.email, name: f.name, role: f.role, ...profile });
         toast(`${r.user.name} ajouté${r.user.invitedAt ? ' : invitation envoyée par e-mail' : ''}${r.linkedTasks ? ` ; ${r.linkedTasks} tâche(s) rattachée(s)` : ''}.`);
       }
       await onSaved();
@@ -147,6 +170,30 @@ function UserForm({ user, onClose, onSaved }: { user: HubUser | null; onClose: (
           <span>Nom affiché *</span>
           <input className="input" value={f.name} autoFocus={!!user} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Prénom Nom" />
         </label>
+        <label className="field">
+          <span>Poste</span>
+          <input className="input" value={f.jobTitle} onChange={(e) => setF({ ...f, jobTitle: e.target.value })} placeholder="ex. Chef de projet ERP" />
+        </label>
+        <label className="field">
+          <span>Backup</span>
+          <UserSelect
+            value={f.backupId}
+            onChange={(v) => setF({ ...f, backupId: v })}
+            allowEmpty
+            emptyLabel="Aucun"
+            only={active.filter((u) => u.email !== (user?.email ?? f.email.trim().toLowerCase())).map((u) => u.email)}
+          />
+        </label>
+        <div className="field span-2">
+          <span>Périmètre</span>
+          <div className="perimeter-choices">
+            {PERIMETERS.map((p) => (
+              <label key={p} className={f.perimeters.includes(p) ? 'choice-chip on' : 'choice-chip'}>
+                <input type="checkbox" checked={f.perimeters.includes(p)} onChange={() => togglePerimeter(p)} /> {PERIMETER_LABELS[p]}
+              </label>
+            ))}
+          </div>
+        </div>
         <div className="field span-2">
           <span>Rôle</span>
           <div className="role-choices">

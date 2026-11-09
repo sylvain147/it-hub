@@ -16,7 +16,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   membre: 'Chargé de projet',
 };
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do de toute l’équipe ; lit les retours sur l’application.',
+  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l’équipe ; lit les retours sur l’application.',
   responsable: 'Voit les to-do de toute l’équipe et peut en attribuer à chacun.',
   membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets (et leur to-do), les tickets et les sprints restent partagés par toute l’équipe.',
 };
@@ -29,6 +29,8 @@ export const PERMISSIONS = {
   seeAllTodos: ['admin', 'responsable'],
   /** Ajouter ou réattribuer une tâche de to-do à quelqu'un d'autre. */
   assignOthers: ['admin', 'responsable'],
+  /** Voir les notes de tout le monde et en ajouter à n'importe qui. */
+  manageAllNotes: ['admin'],
   /** Lire et traiter les retours des utilisateurs sur l'application. */
   manageFeedback: ['admin'],
 } as const satisfies Record<string, readonly Role[]>;
@@ -38,6 +40,11 @@ export function can(role: Role | undefined, perm: Permission): boolean {
   return !!role && (PERMISSIONS[perm] as readonly Role[]).includes(role);
 }
 
+/** Périmètres d'un utilisateur (domaines qu'il couvre) ; plusieurs possibles. */
+export const PERIMETERS = ['erp', 'logistique', 'securite', 'reseau', 'web'] as const;
+export type Perimeter = (typeof PERIMETERS)[number];
+export const PERIMETER_LABELS: Record<Perimeter, string> = { erp: 'ERP', logistique: 'Logistique', securite: 'Sécurité', reseau: 'Réseau', web: 'Web' };
+
 const email = z
   .string()
   .trim()
@@ -45,10 +52,19 @@ const email = z
   .email('Adresse e-mail invalide')
   .max(200);
 
+/** Fiche de l'utilisateur : poste, backup (un autre utilisateur du hub) et périmètres. */
+const profile = {
+  jobTitle: z.string().trim().max(120).default(''),
+  /** E-mail de l'utilisateur qui le remplace en son absence ; vide : aucun. */
+  backupId: z.string().trim().toLowerCase().max(200).default(''),
+  perimeters: z.array(z.enum(PERIMETERS)).max(PERIMETERS.length).default([]),
+};
+
 export const userInputSchema = z.object({
   email,
   name: z.string().trim().min(1, 'Le nom est obligatoire').max(120),
   role: z.enum(ROLES).default('membre'),
+  ...profile,
 });
 export type UserInput = z.input<typeof userInputSchema>;
 
@@ -56,6 +72,7 @@ export const userUpdateSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est obligatoire').max(120),
   role: z.enum(ROLES),
   active: z.boolean(),
+  ...profile,
 });
 export type UserUpdate = z.input<typeof userUpdateSchema>;
 
@@ -64,6 +81,9 @@ export interface HubUser {
   name: string;
   role: Role;
   active: boolean;
+  jobTitle: string;
+  backupId: string;
+  perimeters: Perimeter[];
   createdAt: string;
   createdBy: string;
   updatedAt: string;

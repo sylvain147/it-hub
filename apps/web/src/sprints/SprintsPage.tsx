@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { cardColor, describeCardRule, initials, isCardRuleComplete, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
+import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, toast } from '../components/ui';
-import { DueLabel, ItemModal } from '../projects/common';
+import { DueLabel, ItemModal, PriorityTag } from '../projects/common';
 import { useSettings } from '../settings/context';
 import { Swatch } from './charts';
-import { sprintLabel, TicketLine, TicketModal, type TicketRow } from './tickets';
+import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, type TicketRow } from './tickets';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
 const STATE_LABELS: Record<Sprint['state'], string> = { future: 'À venir', active: 'En cours', closed: 'Clos' };
@@ -207,7 +207,7 @@ function ActiveSprint({
       ) : (
         <div className="board" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(180px, 1fr))` }}>
           {columns.map((status) => {
-            const col = tickets.filter((t) => t.status === status);
+            const col = tickets.filter((t) => t.status === status).sort(byTicketPriority);
             return (
               <div
                 key={status}
@@ -249,6 +249,7 @@ function ActiveSprint({
                     <button className="board-card-title" onClick={() => onOpen(t)}>{t.title}</button>
                     <div className="board-card-meta">
                       <span className="ticket-key">{ticketKey(t)}</span>
+                      <PriorityTag priority={t.priority} hideNormal />
                       <span className="small muted board-card-project">{t.projectName}</span>
                       {t.deskId && <span className="small muted" title="Ticket Desk du prestataire">Desk #{t.deskId}</span>}
                       {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
@@ -317,7 +318,7 @@ function PlannedSprint({
   onEdit: () => void;
   onChanged: () => Promise<void>;
 }) {
-  const tickets = o.tickets.filter((t) => t.sprintId === sprint.id);
+  const tickets = o.tickets.filter((t) => t.sprintId === sprint.id).sort(byTicketPriority);
   const [busy, setBusy] = useState(false);
   async function start() {
     if (!confirm(`Démarrer « ${sprint.name} » avec ${tickets.length} ticket${tickets.length > 1 ? 's' : ''} ?`)) return;
@@ -365,7 +366,7 @@ function PlannedSprint({
 function Backlog({ o, open, onOpen, onAdd, onChanged }: { o: SprintsOverview; open: Sprint[]; onOpen: (t: TicketRow) => void; onAdd: () => void; onChanged: () => Promise<void> }) {
   const [projectId, setProjectId] = useState('');
   const all = o.tickets.filter((t) => t.sprintId === null && !t.done);
-  const tickets = all.filter((t) => !projectId || t.projectId === projectId);
+  const tickets = all.filter((t) => !projectId || t.projectId === projectId).sort(byTicketPriority);
   const projects = [...new Map(all.map((t) => [t.projectId, t.projectName])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
   return (
     <section className="card">
@@ -375,7 +376,7 @@ function Backlog({ o, open, onOpen, onAdd, onChanged }: { o: SprintsOverview; op
           <div className="muted small">{all.length} ticket{all.length > 1 ? 's' : ''} ouvert{all.length > 1 ? 's' : ''} hors sprint, tous projets confondus</div>
         </div>
         <div className="row-actions">
-          {projects.length > 1 && (
+          {projects.length > 0 && (
             <select className="input input-sm input-auto" value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Projet">
               <option value="">Tous les projets</option>
               {projects.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -384,6 +385,7 @@ function Backlog({ o, open, onOpen, onAdd, onChanged }: { o: SprintsOverview; op
           <button className="btn btn-sm" onClick={onAdd}>+ Ticket</button>
         </div>
       </div>
+      {projectId && <PlanProjectBar projectId={projectId} projectName={projects.find(([id]) => id === projectId)?.[1] ?? ''} count={tickets.length} open={open} onDone={onChanged} />}
       {tickets.length ? (
         <ul className="ticket-list">
           {tickets.map((t) => <TicketLine key={t.id} t={t} onOpen={onOpen} showProject extra={open.length ? <PlanSelect t={t} open={open} onChanged={onChanged} /> : undefined} />)}
