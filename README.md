@@ -4,6 +4,8 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 
 ## Modules
 
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). La to-do n'y figure pas : elle s'ouvre par le bouton « ✅ To-do » en haut à droite (« Tout voir » mène à la page complète). L'administration (utilisateurs, paramétrage, retours, consommation IA), « Faire un retour » et la déconnexion sont dans le menu de l'utilisateur, en bas.
+
 ### ✅ To-do
 
 - **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, avec les retards en évidence. On ajoute une tâche en une ligne et on la **range par glisser-déposer** (poignée ⠿, ou flèches du clavier) ; les tâches jamais déplacées suivent, par échéance.
@@ -153,8 +155,8 @@ Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond 
 
 ### 💬 Retours sur l'application
 
-- Bouton **« Faire un retour »** en bas du menu, sur toutes les pages : bug, idée ou remarque, avec la page en cours et l'auteur joints automatiquement.
-- Page **Retours** (Pilotage, administrateurs) : retours à traiter / traités, note de suivi, réouverture, suppression.
+- **« Faire un retour »** dans le menu de l'utilisateur (son nom, en bas du menu latéral), sur toutes les pages : bug, idée ou remarque, avec la page en cours et l'auteur joints automatiquement.
+- Page **Retours** (menu de l'utilisateur, administrateurs) : retours à traiter / traités, note de suivi, réouverture, suppression.
 
 ## Maîtrise des coûts IA (Bedrock)
 

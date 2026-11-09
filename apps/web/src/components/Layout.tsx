@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
-import { ADMIN_LINKS, MODULES } from '../modules';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { ADMIN_LINKS, MENU_SECTIONS, MODULES, type MenuSection } from '../modules';
 import { ROLE_LABELS } from '@samm/shared';
 import { useAuth } from '../auth';
 import { ToastHost } from './ui';
 import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
-import { FeedbackButton } from '../feedback/FeedbackButton';
+import { FeedbackModal } from '../feedback/FeedbackModal';
 import { BoutonRouge } from '../bouton/BoutonRouge';
 import { TodoButton } from '../tasks/TodoButton';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
@@ -40,30 +40,8 @@ export function Layout() {
           <span className="brand-logo">IT</span>
           <span>Hub IT</span>
         </NavLink>
-        <nav>
-          <div className="nav-title">Modules</div>
-          {MODULES.map((m) => (
-            <NavLink key={m.id} to={m.path} className="nav-link">
-              <span className="nav-icon">{m.icon}</span> {m.title}
-            </NavLink>
-          ))}
-          <div className="nav-title">Pilotage</div>
-          {ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission]).map((l) => (
-            <NavLink key={l.path} to={l.path} className="nav-link">
-              <span className="nav-icon">{l.icon}</span> {l.title}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <FeedbackButton />
-          <div className="user" title={me.email}>
-            <strong>{me.name}</strong>
-            <div className="small">{ROLE_LABELS[me.role]}</div>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
-            Se déconnecter
-          </button>
-        </div>
+        <SideNav />
+        <UserMenu name={me.name} email={me.email} role={ROLE_LABELS[me.role]} admin={ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission])} onSignOut={() => void signOut()} />
       </aside>
       <main className="content" ref={contentRef}>
         <SettingsProvider>
@@ -78,6 +56,90 @@ export function Layout() {
         </SettingsProvider>
       </main>
       <ToastHost />
+    </div>
+  );
+}
+
+const FOLDED_KEY = 'hub.menu.replie';
+
+/** Menu par sections, repliables (choix retenu sur le poste) ; la section de la page affichée reste ouverte. */
+function SideNav() {
+  const { pathname } = useLocation();
+  const [folded, setFolded] = useState<MenuSection[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '[]') as MenuSection[];
+    } catch {
+      return [];
+    }
+  });
+  const toggle = (id: MenuSection) => {
+    const next = folded.includes(id) ? folded.filter((x) => x !== id) : [...folded, id];
+    localStorage.setItem(FOLDED_KEY, JSON.stringify(next));
+    setFolded(next);
+  };
+  const isCurrent = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  return (
+    <nav className="side-nav">
+      {MENU_SECTIONS.map((sec) => {
+        const items = MODULES.filter((m) => m.section === sec.id && m.menu !== false);
+        if (!items.length) return null;
+        const current = items.some((m) => isCurrent(m.path));
+        const open = current || !folded.includes(sec.id);
+        return (
+          <div key={sec.id} className="nav-section">
+            <button className="nav-title" aria-expanded={open} onClick={() => toggle(sec.id)} disabled={current} title={current ? undefined : open ? 'Replier' : 'Déplier'}>
+              <span>{sec.title}</span>
+              {!current && <span className="nav-caret">{open ? '▾' : '▸'}</span>}
+            </button>
+            {open &&
+              items.map((m) => (
+                <NavLink key={m.id} to={m.path} className="nav-link">
+                  <span className="nav-icon">{m.icon}</span> {m.title}
+                </NavLink>
+              ))}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Bas du menu : l'utilisateur ; un clic ouvre l'administration, « Faire un retour » et la déconnexion. */
+function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email: string; role: string; admin: typeof ADMIN_LINKS; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [feedback, setFeedback] = useState(false);
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
+  const inAdmin = admin.some((l) => pathname.startsWith(l.path));
+  return (
+    <div className="sidebar-foot">
+      {open && <div className="user-menu-backdrop" onClick={() => setOpen(false)} />}
+      {open && (
+        <div className="user-menu" role="menu">
+          {admin.map((l) => (
+            <button key={l.path} role="menuitem" className={pathname.startsWith(l.path) ? 'active' : undefined} onClick={() => navigate(l.path)}>
+              <span className="nav-icon">{l.icon}</span> {l.title}
+            </button>
+          ))}
+          <hr />
+          <button role="menuitem" onClick={() => { setOpen(false); setFeedback(true); }}>
+            <span className="nav-icon">💬</span> Faire un retour
+          </button>
+          <button role="menuitem" onClick={onSignOut}>
+            <span className="nav-icon">↪</span> Se déconnecter
+          </button>
+        </div>
+      )}
+      <button className={`user-btn${inAdmin ? ' active' : ''}`} title={email} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="user-avatar">{name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+        <span className="user-id">
+          <strong>{name}</strong>
+          <span className="small">{role}</span>
+        </span>
+        <span className="nav-caret">⚙️</span>
+      </button>
+      {feedback && <FeedbackModal onClose={() => setFeedback(false)} />}
     </div>
   );
 }
