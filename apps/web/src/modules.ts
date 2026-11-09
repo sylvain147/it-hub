@@ -47,6 +47,14 @@ export const MODULES: HubModule[] = [
     section: 'quotidien',
   },
   {
+    id: 'assistant',
+    title: 'Assistant',
+    description: 'Un chat avec l’IA sur tout le hub : où en est un projet, quelles échéances arrivent, que faire en priorité aujourd’hui.',
+    path: '/assistant',
+    icon: '✨',
+    section: 'quotidien',
+  },
+  {
     id: 'reunion',
     title: 'Transcrire une réunion',
     description: 'Un clic au début de la réunion (Teams, Zoom…) : ce qui est dit s’écrit au fil de l’eau, sans enregistrer le son. L’assistant en fait ensuite le compte rendu dans le projet.',

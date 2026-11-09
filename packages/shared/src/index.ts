@@ -23,3 +23,4 @@ export * from './notes.js';
 export * from './bouton.js';
 export * from './ideas.js';
 export * from './themes.js';
+export * from './assistant.js';

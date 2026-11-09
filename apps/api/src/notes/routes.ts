@@ -9,7 +9,7 @@
  */
 import { Hono, type Context } from 'hono';
 import { DeleteCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { byPinnedThenRecent, personalNoteInputSchema, type PersonalNote } from '@samm/shared';
+import { NOTE_DEFAULT_HEIGHT, NOTE_LAYOUT_FIELDS, byPinnedThenRecent, personalNoteInputSchema, type PersonalNote } from '@samm/shared';
 import { requirePermission, userName } from '../auth.js';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
@@ -21,8 +21,8 @@ import * as users from '../users/repo.js';
 const key = (ownerId: string, id: string) => ({ pk: `NOTE#${ownerId}`, sk: `N#${id}` });
 
 type Item = PersonalNote & { pk: string; sk: string };
-/** Les notes enregistrées avant l'archivage n'ont pas ce champ. */
-const strip = ({ pk: _pk, sk: _sk, ...n }: Item): PersonalNote => ({ ...n, archived: n.archived ?? false });
+/** Les notes enregistrées avant l'archivage (ou avant le choix de leur taille) n'ont pas ces champs. */
+const strip = ({ pk: _pk, sk: _sk, ...n }: Item): PersonalNote => ({ ...n, archived: n.archived ?? false, width: n.width ?? 1, height: n.height ?? NOTE_DEFAULT_HEIGHT });
 
 export async function listNotes(ownerId: string): Promise<PersonalNote[]> {
   const items = await queryAll<Item>({
@@ -101,15 +101,20 @@ export function noteRoutes() {
     return c.json(await putNote({ ...b, id: newId(), ownerId: owner, createdAt: now, createdBy: current, updatedAt: now, updatedBy: current }), 201);
   });
 
-  /** `?owner=` : titulaire de la note, si ce n'est pas soi (administrateurs). */
+  /**
+   * `?owner=` : titulaire de la note, si ce n'est pas soi (administrateurs). Changer seulement la taille du post-it
+   * (`width`, `height`) ne compte pas comme une modification : la note garde sa place dans la liste.
+   */
   r.patch('/:id', async (c) => {
     const current = userName(c);
     const owner = ownerParam(c, c.req.query('owner'), 'modifier les notes des autres');
     const before = await getNote(owner, c.req.param('id'));
     const raw = await rawJson(c);
-    const merged = parseBody(personalNoteInputSchema, { title: before.title, content: before.content, projectId: before.projectId, pinned: before.pinned, archived: before.archived ?? false, ...raw });
+    const { title, content, projectId, pinned, archived, width, height } = before;
+    const merged = parseBody(personalNoteInputSchema, { title, content, projectId, pinned, archived, width, height, ...raw });
     if (merged.projectId !== before.projectId) await pr.assertProjectRef(merged.projectId);
-    return c.json(await putNote({ ...before, ...merged, updatedAt: nowIso(), updatedBy: current }));
+    const layoutOnly = Object.keys(raw).every((k) => (NOTE_LAYOUT_FIELDS as readonly string[]).includes(k));
+    return c.json(await putNote({ ...before, ...merged, ...(layoutOnly ? {} : { updatedAt: nowIso(), updatedBy: current }) }));
   });
 
   r.delete('/:id', async (c) => {

@@ -125,6 +125,26 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('DELETE', `/todos/${own.json.id}`, undefined, MEMBRE)).status).toBe(204);
   });
 
+  it('découpe une tâche de la to-do en sous-tâches', async () => {
+    const t = (await env.call('POST', '/todos', { title: 'Préparer le comité', subtasks: [{ id: 'a', title: 'Relire le budget' }] }, MEMBRE)).json;
+    expect(t.subtasks).toEqual([{ id: 'a', title: 'Relire le budget', done: false }]);
+    expect((await env.call('PATCH', `/todos/${t.id}`, { subtasks: [{ id: 'a', title: '  ' }] }, MEMBRE)).status).toBe(400);
+    expect((await env.call('PATCH', `/todos/${t.id}`, { subtasks: [{ id: 'a', title: 'X' }, { id: 'a', title: 'Y' }] }, MEMBRE)).status).toBe(400);
+    const steps = [
+      { id: 'a', title: 'Relire le budget', done: true },
+      { id: 'b', title: 'Envoyer l’ordre du jour', done: false },
+    ];
+    const upd = await env.call('PATCH', `/todos/${t.id}`, { subtasks: steps }, MEMBRE);
+    expect(upd.json).toMatchObject({ subtasks: steps, done: false });
+    // Cocher la tâche ou la modifier garde ses sous-tâches.
+    expect((await env.call('PATCH', `/todos/${t.id}`, { done: true, title: 'Préparer le comité de pilotage' }, MEMBRE)).json.subtasks).toEqual(steps);
+    expect((await env.call('POST', '/todos', { title: 'Trop', subtasks: Array.from({ length: 51 }, (_, i) => ({ id: `s${i}`, title: 'x' })) }, MEMBRE)).status).toBe(400);
+    // Les tâches enregistrées avant les sous-tâches en ont une liste vide.
+    expect((await env.call('POST', '/todos', { title: 'Sans étapes' }, MEMBRE)).json.subtasks).toEqual([]);
+    for (const x of (await env.call('GET', '/todos', undefined, MEMBRE)).json.personal.filter((x: any) => ['Préparer le comité de pilotage', 'Sans étapes'].includes(x.title)))
+      await env.call('DELETE', `/todos/${x.id}`, undefined, MEMBRE);
+  });
+
   it('range la to-do dans l’ordre choisi par glisser-déposer', async () => {
     const titles = ['Premier', 'Deuxième', 'Troisième'];
     const ids: string[] = [];

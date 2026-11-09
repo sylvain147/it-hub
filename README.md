@@ -4,11 +4,12 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). La to-do n'y figure pas : elle s'ouvre par le bouton « ✅ To-do » en haut à droite (« Tout voir » mène à la page complète). L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur**, « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (notes, assistant, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). La to-do n'y figure pas : elle s'ouvre par le bouton « ✅ To-do » en haut à droite (« Tout voir » mène à la page complète). L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur**, « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 
 - **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, avec les retards en évidence. On ajoute une tâche en une ligne et on la **range par glisser-déposer** (poignée ⠿, ou flèches du clavier) ; les tâches jamais déplacées suivent, par échéance.
+- **Sous-tâches** : une tâche se découpe en étapes (bouton ＋ sur la ligne, ou dans sa fiche où on les renomme et les range), cochées une à une sous la tâche ; l'avancement (« ☑ 2/5 ») s'affiche sur la ligne et dans le bouton To-do.
 - La to-do est **séparée des tickets** : une tâche n'a ni statut ni sprint, et ne se planifie pas. Le travail à planifier se crée en ticket (module Sprints).
 - Une tâche se **rattache à un projet** ou reste personnelle. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
 - **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
@@ -20,6 +21,13 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - **Un bloc-notes personnel**, en vrac : titre facultatif, texte mis en forme, rattaché ou non à un projet. Saisie rapide en une zone de texte (Ctrl + Entrée).
 - Les notes sont **personnelles** : seul leur titulaire les voit, avec les **administrateurs**, qui consultent celles d'une personne ou de toute l'équipe et peuvent **ajouter une note à quelqu'un** (« ajoutée par … »). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
 - **Épingler** une note la garde en tête ; **archiver** la range à part (onglet « Archivées », d'où on la ressort) sans la supprimer ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
+- **Taille des post-it** : la poignée en bas à droite d'une note l'agrandit (jusqu'à trois colonnes de large, hauteur libre) pour la lire sans l'ouvrir ; double-clic : la note entière, ou de nouveau la taille normale (flèches du clavier sur la poignée). La taille est retenue pour chaque note.
+
+### ✨ Assistant
+
+- **Un chat avec l'IA sur tout le hub** : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.
+- Il s'appuie sur les **données du hub, rassemblées par l'application** : projets et leurs indicateurs, jalons en retard et à venir, sprint en cours, mes tickets et les tickets en retard, ma to-do (avec ses sous-tâches) et celle des projets, mes notes. Un projet cité par son nom ou son code (dans la question ou les échanges précédents) est envoyé en détail. Jamais les notes ni la to-do personnelle des autres.
+- **Il ne modifie rien**. La conversation reste dans l'onglet du navigateur (rien n'est enregistré) ; chaque question est un appel au modèle rapide, compté dans la consommation IA.
 
 ### 🗓️ Planning
 

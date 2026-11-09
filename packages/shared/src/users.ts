@@ -113,6 +113,14 @@ export function initials(name: string): string {
 // To-do : tâches personnelles à cocher
 // ---------------------------------------------------------------------------
 
+/** Sous-tâche : une étape de la tâche, cochée à part (l'identifiant est choisi par le navigateur). */
+export const todoSubtaskSchema = z.object({
+  id: z.string().trim().min(1).max(40),
+  title: z.string().trim().min(1, 'L’intitulé de la sous-tâche est obligatoire').max(300),
+  done: z.boolean().default(false),
+});
+export type TodoSubtask = z.infer<typeof todoSubtaskSchema>;
+
 /**
  * Tâche de la to-do d'une personne : une simple chose à faire que l'on coche, rattachée ou non à un projet
  * (`projectId`). La to-do est indépendante des tickets : une tâche ne se planifie pas dans un sprint.
@@ -123,6 +131,12 @@ export const todoInputSchema = taskInputSchema.pick({ title: true, details: true
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
   /** Projet concerné (vide : tâche hors projet). */
   projectId: z.string().max(40).default(''),
+  /** Étapes de la tâche, dans l'ordre. Les cocher toutes ne coche pas la tâche. */
+  subtasks: z
+    .array(todoSubtaskSchema)
+    .max(50, '50 sous-tâches au plus.')
+    .refine((l) => new Set(l.map((x) => x.id)).size === l.length, { message: 'Sous-tâches en double.' })
+    .default([]),
 });
 export type TodoInput = z.input<typeof todoInputSchema>;
 
@@ -132,6 +146,12 @@ export type PersonalTask = z.infer<typeof todoInputSchema> &
     /** Rang choisi par glisser-déposer (le plus petit en tête) ; absent : après les tâches classées, par échéance. */
     position?: number;
   };
+
+/** Avancement des sous-tâches (« 2/5 ») ; null : aucune sous-tâche. */
+export function subtaskProgress(t: Pick<PersonalTask, 'subtasks'>): { done: number; total: number } | null {
+  const l = t.subtasks ?? [];
+  return l.length ? { done: l.filter((x) => x.done).length, total: l.length } : null;
+}
 
 /** Nouvel ordre de la to-do : les tâches, de la première à la dernière. */
 export const todoOrderBody = z.object({ ids: z.array(z.string().min(1).max(40)).min(1).max(500) });

@@ -1,4 +1,6 @@
 import type {
+  AssistantAnswer,
+  AssistantAskBody,
   MePreferences,
   Feedback,
   FeedbackInput,
@@ -132,6 +134,8 @@ export const api = {
   createNote: (b: PersonalNoteInput & { ownerId?: string }) => request<PersonalNote>('POST', '/notes', b),
   updateNote: (n: Pick<PersonalNote, 'id' | 'ownerId'>, patch: Partial<PersonalNoteInput>) => request<PersonalNote>('PATCH', `/notes/${n.id}?owner=${encodeURIComponent(n.ownerId)}`, patch),
   deleteNote: (n: Pick<PersonalNote, 'id' | 'ownerId'>) => request<null>('DELETE', `/notes/${n.id}?owner=${encodeURIComponent(n.ownerId)}`),
+  /** Assistant : une question (et les derniers échanges), une réponse. Chaque appel consomme de l'IA. */
+  askAssistant: (b: AssistantAskBody) => request<AssistantAnswer>('POST', '/assistant', b),
   boutonRouge: () => request<BoutonRougeScores>('GET', '/bouton-rouge'),
   clicBoutonRouge: () => request<BoutonRougeScores>('POST', '/bouton-rouge/clic'),
 

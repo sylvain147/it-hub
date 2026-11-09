@@ -21,7 +21,7 @@ export class BedrockProvider implements LlmProvider {
     const response =
       call.maxTokens > 16000
         ? await this.client.messages.stream(params, { timeout: 7 * 60 * 1000, maxRetries: 0 }).finalMessage()
-        : await this.client.messages.parse(params);
+        : await this.client.messages.parse(params, call.timeoutMs ? { timeout: call.timeoutMs, maxRetries: 0 } : undefined);
 
     if (response.stop_reason === 'refusal') {
       throw new Error('Le modèle a refusé de traiter la demande. Reformulez ou retirez le contenu sensible.');

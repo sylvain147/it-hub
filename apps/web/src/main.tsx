@@ -28,6 +28,7 @@ import { TmaThemesPage } from './tma/TmaThemesPage';
 import { MurDeLaHonte } from './bouton/BoutonRouge';
 import { IdeasPage } from './ideas/IdeasPage';
 import { MeetingPage } from './meetings/MeetingPage';
+import { AssistantPage } from './assistant/AssistantPage';
 import { applyStoredTheme } from './theme';
 import './styles.css';
 
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
       { path: 'planning', element: <GlobalPlanningPage /> },
       { path: 'idees', element: <IdeasPage /> },
       { path: 'reunion', element: <MeetingPage /> },
+      { path: 'assistant', element: <AssistantPage /> },
       { path: 'notes', element: <NotesPage /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.

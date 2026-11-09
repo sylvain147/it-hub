@@ -14,6 +14,7 @@ import {
   type RichDoc,
   type RichNode,
 } from '@samm/shared';
+import { Link } from 'react-router';
 import { api } from '../api';
 import { useSettings } from '../settings/context';
 import { RichEditor } from '../editor/RichEditor';
@@ -184,7 +185,8 @@ function renderNode(n: RichNode): ReactNode {
         else if (m.type === 'code') el = <code>{el}</code>;
         else if (m.type === 'link') {
           const href = String(m.attrs?.href ?? '');
-          el = /^(https?:|mailto:)/i.test(href) ? <a href={href} target="_blank" rel="noreferrer">{el}</a> : el;
+          // Adresse du hub (« /projets/… », réponses de l'assistant) : ouverte dans l'application.
+          el = /^(https?:|mailto:)/i.test(href) ? <a href={href} target="_blank" rel="noreferrer">{el}</a> : /^\/[a-z]/i.test(href) ? <Link to={href}>{el}</Link> : el;
         }
       }
       return el;

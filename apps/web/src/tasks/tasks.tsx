@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { CLOSED_PROJECT_STATUSES, type PersonalTask } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, subtaskProgress, type PersonalTask, type TodoSubtask } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -45,8 +45,99 @@ function moveTo(ids: string[], id: string, to: number): string[] {
   return rest;
 }
 
+/** Identifiant d'une nouvelle sous-tâche (unique dans sa tâche). */
+export function newSubtaskId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
+}
+
+/** Avancement des sous-tâches (« ☑ 2/5 »), complet en vert. */
+export function SubtaskProgress({ task }: { task: Pick<PersonalTask, 'subtasks'> }) {
+  const p = subtaskProgress(task);
+  if (!p) return null;
+  return (
+    <span className={p.done === p.total ? 'subtask-progress complete' : 'subtask-progress'} title={`${p.done} sous-tâche${p.done > 1 ? 's' : ''} faite${p.done > 1 ? 's' : ''} sur ${p.total}`}>
+      ☑ {p.done}/{p.total}
+    </span>
+  );
+}
+
 /**
- * Liste à cocher. Un clic sur l'intitulé déplie les détails. Avec `reorderable`, la poignée ⠿ range les tâches par
+ * Sous-tâches d'une tâche, à cocher sur place, et saisie rapide d'une nouvelle étape (Entrée : ajoute et reste
+ * ouverte pour la suivante ; Échap : ferme).
+ */
+function SubtaskChecklist({ task, adding, onCloseAdd, onChanged }: { task: TaskRow; adding: boolean; onCloseAdd: () => void; onChanged: () => Promise<void> | void }) {
+  // Affichage immédiat, en attendant le rechargement.
+  const [local, setLocal] = useState<TodoSubtask[] | null>(null);
+  const [title, setTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const key = JSON.stringify(task.subtasks ?? []);
+  useEffect(() => setLocal(null), [key]);
+  const list = local ?? task.subtasks ?? [];
+
+  async function save(next: TodoSubtask[]) {
+    setLocal(next);
+    try {
+      await api.updateTodo(task.id, { subtasks: next });
+      await onChanged();
+    } catch (e) {
+      setLocal(null);
+      toast((e as Error).message, 'error');
+      throw e;
+    }
+  }
+
+  async function add() {
+    const v = title.trim();
+    if (!v || busy) return;
+    setBusy(true);
+    try {
+      await save([...list, { id: newSubtaskId(), title: v, done: false }]);
+      setTitle('');
+    } catch {
+      /* déjà signalé */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!list.length && !adding) return null;
+  return (
+    <div className="subtasks">
+      {list.length > 0 && (
+        <ul className="subtask-list">
+          {list.map((st) => (
+            <li key={st.id} className={st.done ? 'done' : undefined}>
+              <label>
+                <input type="checkbox" checked={st.done} onChange={() => void save(list.map((x) => (x.id === st.id ? { ...x, done: !x.done } : x))).catch(() => {})} />
+                <span>{st.title}</span>
+              </label>
+              <button className="btn-icon subtask-remove" title="Supprimer la sous-tâche" aria-label={`Supprimer « ${st.title} »`} onClick={() => void save(list.filter((x) => x.id !== st.id)).catch(() => {})}>×</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding && (
+        <input
+          className="input input-sm subtask-add"
+          autoFocus
+          value={title}
+          disabled={busy}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void add();
+            if (e.key === 'Escape') onCloseAdd();
+          }}
+          onBlur={() => !title.trim() && onCloseAdd()}
+          placeholder="Nouvelle sous-tâche, puis Entrée (Échap pour finir)"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Liste à cocher. Un clic sur l'intitulé déplie les détails. Les sous-tâches s'affichent sous la tâche et se cochent
+ * sur place ; ＋ en ajoute une. Avec `reorderable`, la poignée ⠿ range les tâches par
  * glisser-déposer (souris ou doigt), ou au clavier avec les flèches.
  */
 export function TaskChecklist({
@@ -69,6 +160,8 @@ export function TaskChecklist({
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  // Tâche dont on saisit une sous-tâche.
+  const [addingTo, setAddingTo] = useState<string | null>(null);
   const { email } = useAuth();
   const listRef = useRef<HTMLUListElement>(null);
   // Ordre affiché pendant et juste après un déplacement, en attendant le rechargement.
@@ -183,6 +276,7 @@ export function TaskChecklist({
                   {t.details.trim() && <span className="check-more">{expanded ? ' ▾' : ' ▸'}</span>}
                 </button>
                 <span className="check-meta">
+                  <SubtaskProgress task={t} />
                   {showProject && t.project && (
                     <Link to={`/projets/${t.project.id}?onglet=todo`} className="small" title="Voir la to-do du projet">
                       📁 {t.project.name}
@@ -190,10 +284,12 @@ export function TaskChecklist({
                   )}
                   {showAssignee && t.assignee && t.assigneeId !== email && <span className="badge" title={t.assigneeId}>{t.assignee}</span>}
                   {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
+                  <button className="btn-icon" title="Ajouter une sous-tâche" aria-label={`Ajouter une sous-tâche à « ${t.title} »`} onClick={() => setAddingTo(t.id)}>＋</button>
                   <button className="btn-icon" title="Modifier" onClick={() => onEdit(t)}>✎</button>
                 </span>
               </div>
               {expanded && <MarkdownView markdown={t.details} className="check-details" />}
+              <SubtaskChecklist task={t} adding={addingTo === t.id} onCloseAdd={() => setAddingTo((x) => (x === t.id ? null : x))} onChanged={onChanged} />
             </div>
           </li>
         );
@@ -250,13 +346,15 @@ export function TaskModal({
     done: task?.done ?? false,
     assigneeId: task ? task.assigneeId : defaults.assigneeId,
     projectId: task ? task.projectId : (defaults.projectId ?? ''),
+    subtasks: task?.subtasks ?? [],
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   // Seul un rôle habilité confie une tâche à un autre.
   const restrict = !me.permissions.assignOthers ? [me.email, ...(task?.assigneeId ? [task.assigneeId] : [])] : undefined;
 
   async function save() {
-    const fields = { ...f, assigneeId: f.assigneeId || me.email };
+    // Une sous-tâche vidée est retirée.
+    const fields = { ...f, assigneeId: f.assigneeId || me.email, subtasks: f.subtasks.map((x) => ({ ...x, title: x.title.trim() })).filter((x) => x.title) };
     if (task) await api.updateTodo(task.id, fields);
     else await api.createTodo(fields);
     await onSaved();
@@ -317,10 +415,61 @@ export function TaskModal({
         </label>
       </label>
       <div className="field span-2">
+        <span>Sous-tâches</span>
+        <SubtaskEditor value={f.subtasks} onChange={(v) => set('subtasks', v)} />
+      </div>
+      <div className="field span-2">
         <span>Détails</span>
-        <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Précisions, liens, étapes…" resetKey={task?.id ?? 'nouvelle'} />
+        <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Précisions, liens…" resetKey={task?.id ?? 'nouvelle'} />
       </div>
     </ItemModal>
+  );
+}
+
+/** Sous-tâches dans la fiche d'une tâche : cocher, renommer, ranger (↑ ↓), supprimer, ajouter. */
+function SubtaskEditor({ value, onChange }: { value: TodoSubtask[]; onChange: (v: TodoSubtask[]) => void }) {
+  const [title, setTitle] = useState('');
+  const patch = (id: string, p: Partial<TodoSubtask>) => onChange(value.map((x) => (x.id === id ? { ...x, ...p } : x)));
+  const move = (i: number, d: number) => {
+    const next = [...value];
+    const [x] = next.splice(i, 1);
+    next.splice(i + d, 0, x!);
+    onChange(next);
+  };
+  const add = () => {
+    if (!title.trim()) return;
+    onChange([...value, { id: newSubtaskId(), title: title.trim(), done: false }]);
+    setTitle('');
+  };
+  return (
+    <div className="subtask-editor">
+      {value.map((st, i) => (
+        <div key={st.id} className={st.done ? 'subtask-row done' : 'subtask-row'}>
+          <input type="checkbox" checked={st.done} onChange={(e) => patch(st.id, { done: e.target.checked })} aria-label={st.done ? 'Marquer comme à faire' : 'Marquer comme faite'} />
+          <input className="input input-sm" value={st.title} maxLength={300} onChange={(e) => patch(st.id, { title: e.target.value })} aria-label={`Sous-tâche ${i + 1}`} />
+          <button type="button" className="btn-icon" title="Monter" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+          <button type="button" className="btn-icon" title="Descendre" disabled={i === value.length - 1} onClick={() => move(i, 1)}>↓</button>
+          <button type="button" className="btn-icon" title="Supprimer" onClick={() => onChange(value.filter((x) => x.id !== st.id))}>×</button>
+        </div>
+      ))}
+      <div className="subtask-row">
+        <span className="subtask-plus">＋</span>
+        <input
+          className="input input-sm"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          onBlur={add}
+          placeholder={value.length ? 'Étape suivante, puis Entrée' : 'Découper la tâche en étapes : première étape, puis Entrée'}
+          maxLength={300}
+        />
+      </div>
+    </div>
   );
 }
 
