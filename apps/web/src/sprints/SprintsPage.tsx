@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
+import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
@@ -37,7 +37,7 @@ export function SprintsPage() {
   const data = useLoad(() => api.sprints(), []);
   const [editing, setEditing] = useState<{ ticket: TicketRow | null; sprintId?: number | null; status?: TicketStatus } | null>(null);
   const [sprintForm, setSprintForm] = useState<Sprint | 'new' | null>(null);
-  const [closing, setClosing] = useState<SprintListItem | null>(null);
+  const [closing, setClosing] = useState<{ sprint: SprintListItem; past: boolean } | null>(null);
   const o = data.data;
   const reload = async () => {
     await data.reload();
@@ -45,6 +45,9 @@ export function SprintsPage() {
 
   const active = o?.sprints.find((s) => s.state === 'active');
   const future = o?.sprints.filter((s) => s.state === 'future') ?? [];
+  // Sprints à venir dont la fin est dépassée (créés après coup) : à classer comme sprints passés, pas à démarrer.
+  const today = parisDay(Date.now());
+  const upcoming = future.filter((s) => !isPastSprint(s, today));
   const closed = o?.sprints.filter((s) => s.state === 'closed') ?? [];
   const open = o ? o.sprints.filter((s) => s.state !== 'closed') : [];
   const open_ = (t: TicketRow) => setEditing({ ticket: t });
@@ -69,12 +72,12 @@ export function SprintsPage() {
       {o && (
         <>
           {active ? (
-            <ActiveSprint o={o} sprint={active} onOpen={open_} onAdd={(status) => setEditing({ ticket: null, sprintId: active.id, status })} onChanged={reload} onEdit={() => setSprintForm(active)} onClose={() => setClosing(active)} />
+            <ActiveSprint o={o} sprint={active} onOpen={open_} onAdd={(status) => setEditing({ ticket: null, sprintId: active.id, status })} onChanged={reload} onEdit={() => setSprintForm(active)} onClose={() => setClosing({ sprint: active, past: false })} />
           ) : (
             <section className="card">
               <h2>Aucun sprint en cours</h2>
               <p className="muted small">
-                {future.length ? 'Démarrez le prochain sprint quand ses tickets sont planifiés.' : 'Créez un sprint, planifiez-y des tickets du backlog, puis démarrez-le.'}
+                {upcoming.length ? 'Démarrez le prochain sprint quand ses tickets sont planifiés.' : 'Créez un sprint, planifiez-y des tickets du backlog, puis démarrez-le.'}
               </p>
             </section>
           )}
@@ -87,10 +90,12 @@ export function SprintsPage() {
                 o={o}
                 sprint={s}
                 open={open}
-                canStart={!active && s.id === future[0]!.id}
+                past={isPastSprint(s, today)}
+                canStart={!active && s.id === upcoming[0]?.id}
                 onOpen={open_}
                 onAdd={() => setEditing({ ticket: null, sprintId: s.id })}
                 onEdit={() => setSprintForm(s)}
+                onPast={() => setClosing({ sprint: s, past: true })}
                 onChanged={reload}
               />
             ))}
@@ -117,7 +122,15 @@ export function SprintsPage() {
         <TicketModal ticket={editing.ticket} defaults={{ sprintId: editing.sprintId, status: editing.status }} sprints={open} onClose={() => setEditing(null)} onSaved={reload} />
       )}
       {sprintForm && <SprintFormModal sprint={sprintForm === 'new' ? null : sprintForm} onClose={() => setSprintForm(null)} onSaved={reload} />}
-      {closing && <CloseSprintModal sprint={closing} future={future} onClose={() => setClosing(null)} onClosed={reload} />}
+      {closing && (
+        <CloseSprintModal
+          sprint={closing.sprint}
+          past={closing.past}
+          destinations={o?.sprints.filter((s) => s.state !== 'closed' && s.id !== closing.sprint.id && !isPastSprint(s, today)) ?? []}
+          onClose={() => setClosing(null)}
+          onClosed={reload}
+        />
+      )}
     </div>
   );
 }
@@ -303,19 +316,24 @@ function PlannedSprint({
   o,
   sprint,
   open,
+  past,
   canStart,
   onOpen,
   onAdd,
   onEdit,
+  onPast,
   onChanged,
 }: {
   o: SprintsOverview;
   sprint: SprintListItem;
   open: Sprint[];
+  /** Fin dépassée : sprint créé après coup, à classer comme sprint passé. */
+  past: boolean;
   canStart: boolean;
   onOpen: (t: TicketRow) => void;
   onAdd: () => void;
   onEdit: () => void;
+  onPast: () => void;
   onChanged: () => Promise<void>;
 }) {
   const tickets = o.tickets.filter((t) => t.sprintId === sprint.id).sort(byTicketPriority);
@@ -345,12 +363,19 @@ function PlannedSprint({
           {sprint.goal && <div className="small mt-xs">🎯 {sprint.goal}</div>}
         </div>
         <div className="row-actions">
-          <Link to={`/sprints/${sprint.id}`} className="btn btn-sm">Préparation</Link>
+          {!past && <Link to={`/sprints/${sprint.id}`} className="btn btn-sm">Préparation</Link>}
           <button className="btn btn-sm btn-ghost" onClick={onEdit}>Modifier</button>
           <button className="btn btn-sm btn-ghost" onClick={() => void remove()}>Supprimer</button>
+          {past && <button className="btn btn-sm btn-primary" onClick={onPast}>Classer comme sprint passé</button>}
           {canStart && <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void start()}>{busy && <Spinner small />} Démarrer</button>}
         </div>
       </div>
+      {past && (
+        <p className="alert alert-warn small">
+          Ce sprint s’est terminé le {shortDay(sprint.endDate)} : il n’y a plus rien à planifier ni à préparer. Classez-le comme sprint passé pour le retrouver avec les
+          sprints clos.
+        </p>
+      )}
       {tickets.length ? (
         <ul className="ticket-list">
           {tickets.map((t) => <TicketLine key={t.id} t={t} onOpen={onOpen} showProject extra={<PlanSelect t={t} open={open} onChanged={onChanged} />} />)}
@@ -432,48 +457,76 @@ export function SprintFormModal({ sprint, onClose, onSaved }: { sprint: Sprint |
         <span>Objectif</span>
         <textarea className="input" rows={2} value={f.goal} onChange={(e) => set('goal', e.target.value)} placeholder="Ce que le sprint doit livrer" />
       </label>
-      {!sprint && <p className="muted small span-2">Sans dates, le sprint dure deux semaines à la suite du dernier sprint prévu.</p>}
+      {!sprint && f.endDate && f.endDate < parisDay(Date.now()) ? (
+        <p className="alert alert-warn small span-2">
+          Fin déjà passée : le sprint sera enregistré directement comme <strong>sprint clos</strong>, pour l’historique (ni planification, ni préparation). Ses chiffres
+          viennent de l’historique réel des tickets : un sprint ajouté après coup reste vide.
+        </p>
+      ) : (
+        !sprint && <p className="muted small span-2">Sans dates, le sprint dure deux semaines à la suite du dernier sprint prévu.</p>
+      )}
     </ItemModal>
   );
 }
 
-function CloseSprintModal({ sprint, future, onClose, onClosed }: { sprint: SprintListItem; future: SprintListItem[]; onClose: () => void; onClosed: () => Promise<void> }) {
-  const [moveTo, setMoveTo] = useState<number | null>(future[0]?.id ?? null);
+function CloseSprintModal({
+  sprint,
+  past,
+  destinations,
+  onClose,
+  onClosed,
+}: {
+  sprint: SprintListItem;
+  /** Classement d'un sprint passé (créé après coup) plutôt que clôture du sprint en cours. */
+  past: boolean;
+  /** Sprints où envoyer les tickets non terminés. */
+  destinations: SprintListItem[];
+  onClose: () => void;
+  onClosed: () => Promise<void>;
+}) {
+  const [moveTo, setMoveTo] = useState<number | null>(destinations.find((s) => s.state === 'future')?.id ?? destinations[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
   async function close() {
     setBusy(true);
     await attempt(async () => {
-      const res = await api.closeSprint(sprint.id, moveTo);
+      const res = past ? await api.pastSprint(sprint.id, moveTo) : await api.closeSprint(sprint.id, moveTo);
       await onClosed();
       onClose();
-      toast(`${sprint.name} clôturé${res.moved ? ` : ${res.moved} ticket${res.moved > 1 ? 's' : ''} déplacé${res.moved > 1 ? 's' : ''}` : ''}.`);
+      toast(`${sprint.name} ${past ? 'classé avec les sprints clos' : 'clôturé'}${res.moved ? ` : ${res.moved} ticket${res.moved > 1 ? 's' : ''} déplacé${res.moved > 1 ? 's' : ''}` : ''}.`);
     });
     setBusy(false);
   }
   return (
     <Modal
-      title={`Clôturer « ${sprint.name} »`}
+      title={past ? `Classer « ${sprint.name} » comme sprint passé` : `Clôturer « ${sprint.name} »`}
       onClose={onClose}
       footer={
         <>
           <span className="tb-flex" />
           <button className="btn" onClick={onClose}>Annuler</button>
-          <button className="btn btn-primary" disabled={busy} onClick={() => void close()}>{busy && <Spinner small />} Clôturer</button>
+          <button className="btn btn-primary" disabled={busy} onClick={() => void close()}>{busy && <Spinner small />} {past ? 'Classer' : 'Clôturer'}</button>
         </>
       }
     >
-      <p>
-        {sprint.openCount
-          ? `${sprint.openCount} ticket${sprint.openCount > 1 ? 's' : ''} non terminé${sprint.openCount > 1 ? 's' : ''} sur ${sprint.ticketCount}. Où les envoyer ?`
-          : `Les ${sprint.ticketCount} tickets sont terminés.`}
-      </p>
+      {past && <p>Le sprint est enregistré comme clos à ses dates ({sprintDates(sprint)}), sans passer par « en cours ».</p>}
+      {(sprint.ticketCount > 0 || !past) && (
+        <p>
+          {sprint.openCount
+            ? `${sprint.openCount} ticket${sprint.openCount > 1 ? 's' : ''} non terminé${sprint.openCount > 1 ? 's' : ''} sur ${sprint.ticketCount}. Où les envoyer ?`
+            : `Les ${sprint.ticketCount} tickets sont terminés.`}
+        </p>
+      )}
       {sprint.openCount > 0 && (
         <select className="input" value={moveTo ?? ''} onChange={(e) => setMoveTo(e.target.value ? Number(e.target.value) : null)}>
-          {future.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          {destinations.map((s) => <option key={s.id} value={s.id}>{s.name}{s.state === 'active' ? ' (en cours)' : ''}</option>)}
           <option value="">Backlog</option>
         </select>
       )}
-      <p className="muted small mt">Les chiffres du sprint sont figés à la clôture : vous pourrez ensuite faire rédiger son compte rendu.</p>
+      <p className="muted small mt">
+        {past
+          ? 'Ses chiffres viennent de l’historique réel des tickets (changements de statut et de sprint horodatés) : un sprint ajouté après coup reste vide, seuls les sprints réellement menés dans le hub ont une revue chiffrée.'
+          : 'Les chiffres du sprint sont figés à la clôture : vous pourrez ensuite faire rédiger son compte rendu.'}
+      </p>
     </Modal>
   );
 }

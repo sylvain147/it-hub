@@ -4,6 +4,8 @@ import {
   closeSprintBody,
   createSprintBody,
   DEFAULT_SPRINT_DAYS,
+  isPastSprint,
+  pastSprintTimes,
   parisDay,
   planProjectBody,
   publishSprintDocBody,
@@ -80,7 +82,7 @@ export function sprintRoutes() {
 
   r.get('/', async (c) => c.json(await overview()));
 
-  /** Nouveau sprint, à la suite du dernier : « Sprint N », deux semaines. */
+  /** Nouveau sprint, à la suite du dernier : « Sprint N », deux semaines. Déjà terminé (fin passée) : enregistré clos. */
   r.post('/', async (c) => {
     const b = await body(c, createSprintBody);
     const last = (await repo.listSprintItems()).filter((s) => s.state !== 'closed').at(-1);
@@ -88,7 +90,7 @@ export function sprintRoutes() {
     const startDate = b.startDate || (last?.endDate && last.endDate >= today ? addDays(last.endDate, 1) : today);
     const endDate = b.endDate || addDays(startDate, DEFAULT_SPRINT_DAYS - 1);
     if (endDate < startDate) throw new HttpError(400, 'La fin du sprint doit suivre son début.');
-    return c.json(await repo.createSprint({ ...b, startDate, endDate }, userName(c)), 201);
+    return c.json(await repo.createSprint({ ...b, startDate, endDate }, userName(c), endDate < today), 201);
   });
 
   r.get('/:sprintId', async (c) => c.json(await sprintDetail(idParam(c))));
@@ -129,6 +131,27 @@ export function sprintRoutes() {
     }
     // La clôture précède les déplacements : les chiffres du sprint s'arrêtent avant que ses tickets ne le quittent.
     await repo.setSprintFields(id, { state: 'closed', completedAt: nowIso() }, user);
+    const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
+    for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
+    return c.json({ moved: open.length, detail: await sprintDetail(id) });
+  });
+
+  /**
+   * Classe comme sprint passé un sprint à venir dont la fin est dépassée (créé après coup pour l'historique) : il est
+   * clos à ses dates, sans passer par « en cours ». Ses tickets non terminés partent comme à une clôture.
+   */
+  r.post('/:sprintId/past', async (c) => {
+    const id = idParam(c);
+    const b = await body(c, closeSprintBody);
+    const user = userName(c);
+    const it = await repo.requireSprintItem(id);
+    if (it.state !== 'future') throw new HttpError(400, `Le sprint « ${it.name} » est ${it.state === 'active' ? 'en cours : clôturez-le' : 'déjà clos'}.`);
+    if (!isPastSprint(it, parisDay(Date.now()))) throw new HttpError(400, `Le sprint « ${it.name} » n’est pas terminé : sa date de fin n’est pas passée.`);
+    if (b.moveTo !== null) {
+      const dest = await repo.getSprintItem(b.moveTo);
+      if (!dest || dest.state === 'closed' || dest.id === id) throw new HttpError(400, 'Choisissez un sprint en cours ou à venir, ou le backlog, pour les tickets non terminés.');
+    }
+    await repo.setSprintFields(id, { state: 'closed', ...pastSprintTimes(it.startDate, it.endDate) }, user);
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
     for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
     return c.json({ moved: open.length, detail: await sprintDetail(id) });

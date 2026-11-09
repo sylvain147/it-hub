@@ -4,6 +4,8 @@ import {
   NO_PROJECT_ID,
   NO_PROJECT_LABEL,
   movementLabel,
+  isPastSprint,
+  parisDay,
   shortDay,
   sprintDocKinds,
   SPRINT_DOC_LABELS,
@@ -99,6 +101,12 @@ export function SprintPage() {
           <button className="btn" onClick={() => window.print()}>Imprimer / PDF</button>
         </div>
       </div>
+      {isPastSprint(sprint, parisDay(Date.now())) && (
+        <p className="alert alert-warn small no-print">
+          Ce sprint s’est terminé le {shortDay(sprint.endDate)} sans avoir été démarré : il n’y a rien à préparer. Classez-le comme sprint passé depuis la page{' '}
+          <Link to="/sprints">Sprints</Link>.
+        </p>
+      )}
       <p className="muted small no-print">Tous les chiffres sont calculés à partir des tickets et de l’historique de leurs statuts et de leurs sprints.</p>
 
       <SprintDocCard key={view} d={d} sid={sid} kind={view} jobId={jobId} jobStep={job?.step ?? null} onJob={setJobId} onSaved={setD} />

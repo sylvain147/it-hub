@@ -63,6 +63,7 @@ Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté
 - **Tableau du sprint en cours** : une colonne par statut, on **glisse** les tickets d'une colonne à l'autre (sur mobile : menu de statut sur la carte) ; filtres par projet et « seulement les miens ».
 - **Fonds conditionnels des cartes** (Paramétrage → Tableau des sprints) : des règles colorent le fond des cartes — échéance dépassée, échéance dans les N jours, même statut depuis plus de N jours, projet, responsable, personne extérieure, sans ticket Desk. La première règle qui correspond l'emporte ; une légende les rappelle au-dessus du tableau.
 - **Clôturer** le sprint : les tickets non terminés partent dans le sprint suivant (ou au backlog) ; les chiffres du sprint clos sont figés.
+- **Sprint passé** : un sprint créé avec une date de fin déjà passée est enregistré directement comme clos, rangé à sa date parmi les sprints clos. Un sprint à venir dont la fin est dépassée ne se démarre ni ne se prépare : on le **classe comme sprint passé**. Les chiffres venant de l'historique réel des tickets, un sprint ajouté après coup reste vide.
 - **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique des statuts et des sprints de chaque ticket :
   - chiffres clés : tickets actifs, terminés (avec et sans la recette), ajouts en cours de sprint, échéances dépassées ;
   - graphiques : avancement, charge par personne, périmètre et clôtures jour par jour, temps passé par statut ;

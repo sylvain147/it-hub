@@ -22,10 +22,13 @@ export async function ticketLabels(): Promise<StatusLabels> {
   return statusLabels(await getLists(), 'ticket') as StatusLabels;
 }
 
+/** Clos : du plus récent au plus ancien, selon la clôture (un sprint passé créé après coup se range à sa date). */
+const byRecentClosure = (a: Sprint, b: Sprint) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '') || b.id - a.id;
+
 /** En cours, puis à venir (dans l'ordre), puis clos du plus récent au plus ancien. */
 function sprintOrder(a: Sprint, b: Sprint): number {
   const rank = { active: 0, future: 1, closed: 2 } as const;
-  return rank[a.state] - rank[b.state] || (a.state === 'closed' ? b.id - a.id : a.id - b.id);
+  return rank[a.state] - rank[b.state] || (a.state === 'closed' ? byRecentClosure(a, b) : a.id - b.id);
 }
 
 export async function overview(): Promise<SprintsOverview> {
@@ -47,7 +50,7 @@ function history(sprints: Sprint[], tickets: TicketView[], labels: StatusLabels,
   const names = Object.fromEntries(sprints.map((s) => [s.id, s.name]));
   return sprints
     .filter((s) => s.state === 'closed')
-    .sort((a, b) => b.id - a.id)
+    .sort(byRecentClosure)
     .slice(0, 3)
     .map((s) => {
       const r = buildSprintReport({ sprint: s, tickets, sprintNames: names, now, labels });

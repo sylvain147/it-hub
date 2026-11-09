@@ -43,6 +43,19 @@ export interface Sprint extends z.infer<typeof sprintInputSchema> {
   updatedBy: string;
 }
 
+/**
+ * Sprint passé : sa fin prévue est avant `today` (AAAA-MM-JJ). Un tel sprint ne se planifie plus : créé après coup
+ * (pour garder l'historique), il est enregistré directement comme clos ; à venir, il se classe comme sprint passé.
+ */
+export function isPastSprint(s: Pick<Sprint, 'state' | 'endDate'>, today: string): boolean {
+  return s.state !== 'closed' && !!s.endDate && s.endDate < today;
+}
+
+/** Lancement et clôture d'un sprint passé, tirés de ses dates (le matin du premier jour, le soir du dernier). */
+export function pastSprintTimes(startDate: string, endDate: string): Pick<Sprint, 'startedAt' | 'completedAt'> {
+  return { startedAt: `${startDate || endDate}T07:00:00.000Z`, completedAt: `${endDate}T19:00:00.000Z` };
+}
+
 /** Durée proposée pour un nouveau sprint (jours). */
 export const DEFAULT_SPRINT_DAYS = 14;
 

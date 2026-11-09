@@ -216,6 +216,8 @@ export const api = {
   updateSprint: (sprintId: number, b: SprintInput) => request<SprintDetail>('PUT', `/sprints/${sprintId}`, b),
   startSprint: (sprintId: number) => request<SprintDetail>('POST', `/sprints/${sprintId}/start`),
   closeSprint: (sprintId: number, moveTo: number | null) => request<{ moved: number; detail: SprintDetail }>('POST', `/sprints/${sprintId}/close`, { moveTo }),
+  /** Classe comme sprint passé un sprint à venir dont la fin est dépassée. */
+  pastSprint: (sprintId: number, moveTo: number | null) => request<{ moved: number; detail: SprintDetail }>('POST', `/sprints/${sprintId}/past`, { moveTo }),
   deleteSprint: (sprintId: number) => request<null>('DELETE', `/sprints/${sprintId}`),
   getSprint: (sprintId: number) => request<SprintDetail>('GET', `/sprints/${sprintId}`),
   writeSprintDoc: (sprintId: number, kind: SprintDocKind) => request<JobInfo>('POST', `/sprints/${sprintId}/documents/${kind}`),
