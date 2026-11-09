@@ -185,6 +185,15 @@ export interface ProjectSummary extends ProjectFields {
  * Ticket : travail planifié d'un projet, qui suit les statuts du tableau et se range dans un sprint
  * (`sprintId` null : backlog). La description est en Markdown. Les tâches personnelles (to-do) sont à part (`users.ts`).
  */
+/** Durée en heures (au quart d'heure), vide : non renseignée. */
+const hours = z
+  .number({ message: 'Durée invalide (en heures)' })
+  .min(0, 'Une durée ne peut pas être négative')
+  .max(10_000, 'Durée trop grande')
+  .transform((h) => Math.round(h * 4) / 4)
+  .nullable()
+  .default(null);
+
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
   details: z.string().max(10_000).default(''),
@@ -203,6 +212,10 @@ export const taskInputSchema = z.object({
     .transform((v) => v.replace(/^#/, ''))
     .pipe(z.string().regex(/^\d{0,9}$/, 'Le numéro Desk ne contient que des chiffres (ex. 48213).'))
     .default(''),
+  /** Temps estimé, en heures (null : non estimé). Deux champs indépendants, pour les statistiques. */
+  estimatedHours: hours,
+  /** Temps passé, en heures (null : non renseigné). */
+  spentHours: hours,
 });
 
 /** Tri des tickets : priorité la plus haute d'abord, puis numéro. */
@@ -417,7 +430,7 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours'> {
   const { priority: p, ...rest } = raw as T & { priority?: unknown };
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
@@ -430,6 +443,8 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     statusChanges: Array.isArray(raw.statusChanges) ? (raw.statusChanges as StatusChange[]) : [],
     sprintChanges: Array.isArray(raw.sprintChanges) ? (raw.sprintChanges as SprintChange[]) : [],
     deskId: typeof raw.deskId === 'string' ? raw.deskId : '',
+    estimatedHours: typeof raw.estimatedHours === 'number' ? raw.estimatedHours : null,
+    spentHours: typeof raw.spentHours === 'number' ? raw.spentHours : null,
     // Les tâches à cocher d'avant les sprints portaient déjà une priorité, de mêmes valeurs.
     priority: (PRIORITIES as readonly unknown[]).includes(p) ? (p as Priority) : 'normale',
   };

@@ -1008,3 +1008,7 @@ a.gp-range:hover { filter: brightness(0.92); }
 .meeting-interim { margin: 6px 0 0; color: var(--muted); font-style: italic; }
 .rec-pill { position: fixed; top: 14px; right: 130px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: #fef3f2; border: 1px solid #fda29b; color: var(--danger); font-weight: 600; font-size: 13px; text-decoration: none !important; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); }
 @media (max-width: 900px) { .rec-pill { top: 8px; right: 64px; padding: 6px 10px; font-size: 12px; } }
+/* Temps estimé / passé des tickets */
+.hours-input { display: inline-flex; align-items: center; gap: 6px; }
+.hours-input .input { width: 90px; }
+.ticket-times { white-space: nowrap; }

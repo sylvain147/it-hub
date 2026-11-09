@@ -157,9 +157,24 @@ describe('module Projets', () => {
     const legacy = (await env.call('GET', `/projects/${id}`)).json.items.tasks.find((x: any) => x.id === 'ancienne');
     expect(legacy).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4, sprintId: null });
     expect(legacy.priority).toBe('haute'); // la priorité des anciennes tâches est reprise
+    expect(legacy).toMatchObject({ estimatedHours: null, spentHours: null });
     const renamed = await env.call('PATCH', `/projects/${id}/items/tasks/ancienne`, { title: 'Ancienne tâche (renommée)' });
     expect(renamed.json).toMatchObject({ status: 'termine', done: true, doneAt: '2026-01-02T00:00:00.000Z', number: 4 });
     await env.call('DELETE', `/projects/${id}/items/tasks/ancienne`);
+  });
+
+  it('enregistre le temps estimé et le temps passé d’un ticket, indépendamment', async () => {
+    const t = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Paramétrer les tarifs', estimatedHours: 6 });
+    expect(t.status).toBe(201);
+    expect(t.json).toMatchObject({ estimatedHours: 6, spentHours: null });
+    const spent = await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { spentHours: 7.3 });
+    expect(spent.json).toMatchObject({ estimatedHours: 6, spentHours: 7.25 }); // arrondi au quart d'heure
+    expect((await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { spentHours: -1 })).status).toBe(400);
+    const cleared = await env.call('PATCH', `/projects/${id}/items/tasks/${t.json.id}`, { estimatedHours: null });
+    expect(cleared.json).toMatchObject({ estimatedHours: null, spentHours: 7.25 });
+    const { json: o } = await env.call('GET', '/sprints');
+    expect(o.tickets.find((x: any) => x.id === t.json.id)).toMatchObject({ estimatedHours: null, spentHours: 7.25 });
+    await env.call('DELETE', `/projects/${id}/items/tasks/${t.json.id}`);
   });
 
   it('liste les tickets ouverts de tous les projets et l’activité récente', async () => {
