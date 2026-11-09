@@ -80,6 +80,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource/almendra':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@samm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -646,6 +649,9 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource/almendra@5.3.0':
+    resolution: {integrity: sha512-edtEANMc9SKccDhYmtcxmlrvzzjHTQ/enLiOgWc4ODQDjdMf6zfoUdwpBHPPw+0pekeI7PyBsP4JqjyviiIuGg==}
 
   '@hono/node-server@2.1.6':
     resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
@@ -2785,6 +2791,8 @@ snapshots:
 
   '@floating-ui/utils@0.2.12':
     optional: true
+
+  '@fontsource/almendra@5.3.0': {}
 
   '@hono/node-server@2.1.6(hono@4.13.16)':
     dependencies:
