@@ -21,3 +21,4 @@ export * from './users.js';
 export * from './feedback.js';
 export * from './notes.js';
 export * from './bouton.js';
+export * from './ideas.js';

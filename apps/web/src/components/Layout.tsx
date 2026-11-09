@@ -8,6 +8,8 @@ import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
 import { FeedbackButton } from '../feedback/FeedbackButton';
 import { BoutonRouge } from '../bouton/BoutonRouge';
+import { TodoButton } from '../tasks/TodoButton';
+import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
 
 export function Layout() {
   const { me, signOut } = useAuth();
@@ -66,8 +68,12 @@ export function Layout() {
       <main className="content" ref={contentRef}>
         <SettingsProvider>
           <UsersProvider>
-            <Outlet />
-            <BoutonRouge />
+            <MeetingRecorderProvider>
+              <Outlet />
+              <TodoButton />
+              <RecordingPill />
+              <BoutonRouge />
+            </MeetingRecorderProvider>
           </UsersProvider>
         </SettingsProvider>
       </main>

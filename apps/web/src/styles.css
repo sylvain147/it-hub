@@ -62,6 +62,7 @@ a:hover { text-decoration: underline; }
 .btn-ai { color: var(--ai); border-color: #d9d0f5; background: #f9f5ff; }
 .btn-ai:hover:not(:disabled) { background: #f1eafe; }
 .btn-sm { padding: 4px 10px; font-size: 12.5px; }
+.btn-following { color: #b7791f; border-color: #e9c46a; border-style: solid; }
 .btn-block { width: 100%; justify-content: center; }
 .btn-icon { background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 6px; color: var(--muted); font-size: 14px; }
 .btn-icon:hover:not(:disabled) { background: #f2f4f7; color: var(--ink); }
@@ -946,3 +947,52 @@ a.gp-range:hover { filter: brightness(0.92); }
 .br-ranking li > span { display: inline-block; min-width: 200px; }
 .br-ranking li.me { font-weight: 700; color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .br-button, .br-face, .br-tear, .br-scene::before, .br-sigh { animation: none; } .br-tear { opacity: 1; } }
+.br-wall { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.br-wall-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; }
+.br-wall-row:first-child { border-color: #fda29b; background: #fef3f2; }
+.br-wall-row.me { box-shadow: inset 4px 0 0 var(--danger); }
+.br-wall-rank { font-size: 24px; min-width: 36px; text-align: center; }
+.br-wall-name, .br-wall-count { display: flex; flex-direction: column; }
+.br-wall-name { flex: 1; }
+.br-wall-count { text-align: right; }
+.br-wall-count strong { font-size: 18px; color: var(--danger); }
+/* Idées d'amélioration */
+.idea-quick { margin-bottom: 12px; }
+.row-muted td { opacity: 0.6; }
+.prio-critique { color: var(--danger); font-weight: 600; }
+.prio-haute { color: #b54708; font-weight: 600; }
+.prio-basse { color: var(--muted); }
+.import-preview { max-height: 280px; overflow: auto; }
+.clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* Bouton To-do toujours visible (en haut à droite) */
+.todo-fab { position: fixed; top: 14px; right: 18px; z-index: 45; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid #d0d5dd; background: #fff; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); cursor: pointer; font: inherit; font-weight: 600; }
+.todo-fab:hover, .todo-fab.open { background: #f5f8ff; border-color: var(--blue); }
+.todo-fab-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.todo-pop-backdrop { position: fixed; inset: 0; z-index: 46; }
+.todo-pop { position: fixed; top: 58px; right: 18px; z-index: 47; width: min(380px, calc(100vw - 24px)); max-height: min(70vh, 560px); overflow: auto; background: #fff; border: 1px solid #e4e7ec; border-radius: 12px; box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18); padding: 12px 14px; }
+.todo-pop-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.todo-pop-add { margin-bottom: 8px; }
+.todo-pop-add .input { width: 100%; }
+.todo-pop-list { list-style: none; margin: 0; padding: 0; }
+.todo-pop-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #f2f4f7; }
+.todo-pop-list li a { flex: 1; color: inherit; }
+.todo-pop-list li.due a { font-weight: 600; }
+/* Place réservée au bouton en haut à droite des en-têtes. */
+@media (min-width: 901px) {
+  .page-head, .editor-bar { padding-right: 120px; }
+}
+@media (max-width: 900px) {
+  .todo-fab { top: 8px; right: 10px; padding: 6px 10px; }
+  .todo-fab-label { display: none; }
+  .todo-pop { top: 52px; right: 10px; }
+}
+/* Transcription de réunion */
+.meeting-rec { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 12px 0 6px; }
+.btn-rec { font-size: 15px; padding: 10px 18px; border-color: var(--danger); color: var(--danger); }
+.btn-rec.on { background: #fef3f2; }
+.rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); animation: rec-blink 1.2s ease-in-out infinite; }
+@keyframes rec-blink { 50% { opacity: 0.25; } }
+.meeting-text { min-height: 380px; width: 100%; }
+.meeting-interim { margin: 6px 0 0; color: var(--muted); font-style: italic; }
+.rec-pill { position: fixed; top: 14px; right: 130px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: #fef3f2; border: 1px solid #fda29b; color: var(--danger); font-weight: 600; font-size: 13px; text-decoration: none !important; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); }
+@media (max-width: 900px) { .rec-pill { top: 8px; right: 64px; padding: 6px 10px; font-size: 12px; } }

@@ -15,6 +15,7 @@ import { DocumentsTab } from './DocumentsTab';
 import { JournalTab } from './JournalTab';
 import { RisksTab } from './RisksTab';
 import { CdcTab } from './CdcTab';
+import { FollowButton } from './mine';
 
 const TABS = [
   { id: 'apercu', label: 'Aperçu' },
@@ -121,6 +122,8 @@ export function ProjectPage() {
             </div>
           </div>
           <div className="row-actions">
+            <FollowButton project={project} onChange={(followers) => setProject((p) => p && { ...p, followers })} />
+            <button className="btn" onClick={() => navigate(`/reunion?projet=${project.id}`)} title="Transcrire en direct une réunion de ce projet">🎙️ Transcrire</button>
             <button className="btn" onClick={() => navigate(`/projets/${project.id}?onglet=journal&analyser=1`)} disabled={!!jobId}>📝 Analyser une réunion</button>
             <button className="btn btn-primary" onClick={() => goTab('cdc')}>📄 Cahier des charges</button>
           </div>

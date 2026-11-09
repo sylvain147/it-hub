@@ -1,6 +1,10 @@
 import type {
   Feedback,
   FeedbackInput,
+  Idea,
+  IdeaInput,
+  ImportIdeasBody,
+  UpdateIdeaBody,
   UpdateFeedbackBody,
   SprintDocKind,
   SprintPromptExport,
@@ -98,6 +102,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+/** Évènement émis à chaque modification de la to-do (pastille du bouton « To-do », listes ouvertes). */
+export const TODOS_CHANGED = 'hub:todos-changed';
+function todosChanged<T>(r: T): T {
+  window.dispatchEvent(new Event(TODOS_CHANGED));
+  return r;
+}
+
 export const api = {
   me: () => request<Me>('GET', '/me'),
 
@@ -107,9 +118,9 @@ export const api = {
   resendInvitation: (email: string) => request<HubUser>('POST', `/users/${encodeURIComponent(email)}/invitation`),
   todos: (user?: string) => request<TodosResponse>('GET', `/todos${user ? `?user=${encodeURIComponent(user)}` : ''}`),
   projectTodos: (projectId: string) => request<TodosResponse>('GET', `/todos?projet=${encodeURIComponent(projectId)}`),
-  createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b),
-  updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch),
-  deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`),
+  createTodo: (b: TodoInput) => request<PersonalTask>('POST', '/todos', b).then(todosChanged),
+  updateTodo: (id: string, patch: Partial<TodoInput>) => request<PersonalTask>('PATCH', `/todos/${id}`, patch).then(todosChanged),
+  deleteTodo: (id: string) => request<null>('DELETE', `/todos/${id}`).then(todosChanged),
   /** Nouvel ordre de la to-do (glisser-déposer). */
   reorderTodos: (ids: string[]) => request<null>('PUT', '/todos/ordre', { ids } satisfies TodoOrderBody),
   /** Notes : les miennes par défaut ; `user` (e-mail ou « all ») réservé aux administrateurs. */
@@ -194,6 +205,7 @@ export const api = {
   createProject: (b: CreateProjectBody) => request<ProjectDetail>('POST', '/projects', b),
   updateProject: (id: string, rev: number, fields: ProjectFields) => request<ProjectDetail>('PUT', `/projects/${id}`, { rev, fields }),
   deleteProject: (id: string) => request<null>('DELETE', `/projects/${id}`),
+  followProject: (id: string, follow: boolean) => request<{ followers: string[] }>('PUT', `/projects/${id}/suivi`, { follow }),
   createItem: <K extends ProjectItemKind>(id: string, kind: K, data: Record<string, unknown>) =>
     request<ProjectItem<K>>('POST', `/projects/${id}/items/${kind}`, data),
   updateItem: <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) =>
@@ -225,6 +237,13 @@ export const api = {
   publishSprintDoc: (sprintId: number, kind: SprintDocKind, projectId: string) => request<Note>('POST', `/sprints/${sprintId}/documents/${kind}/journal`, { projectId }),
   sprintDocPrompt: (sprintId: number, kind: SprintDocKind) => request<SprintPromptExport>('GET', `/sprints/${sprintId}/documents/${kind}/prompt`),
   sprintDocWord: (sprintId: number, kind: SprintDocKind) => request<{ url: string; fileName: string }>('POST', `/sprints/${sprintId}/documents/${kind}/word`),
+  ideas: () => request<Idea[]>('GET', '/idees'),
+  createIdea: (b: IdeaInput) => request<Idea>('POST', '/idees', b),
+  updateIdea: (id: string, b: UpdateIdeaBody) => request<Idea>('PATCH', `/idees/${id}`, b),
+  deleteIdea: (id: string) => request<null>('DELETE', `/idees/${id}`),
+  voteIdea: (id: string, vote: boolean) => request<Idea>('PUT', `/idees/${id}/vote`, { vote }),
+  importIdeas: (b: ImportIdeasBody) => request<{ created: number; skipped: number }>('POST', '/idees/import', b),
+  ideaTicket: (id: string, projectId: string) => request<Idea>('POST', `/idees/${id}/ticket`, { projectId }),
   sendFeedback: (b: FeedbackInput) => request<Feedback>('POST', '/feedback', b),
   listFeedback: () => request<Feedback[]>('GET', '/feedback'),
   updateFeedback: (id: string, b: UpdateFeedbackBody) => request<Feedback>('PATCH', `/feedback/${id}`, b),

@@ -28,12 +28,26 @@ export const MODULES: HubModule[] = [
     icon: '📝',
   },
   {
+    id: 'reunion',
+    title: 'Transcrire une réunion',
+    description: 'Un clic au début de la réunion (Teams, Zoom…) : ce qui est dit s’écrit au fil de l’eau, sans enregistrer le son. L’assistant en fait ensuite le compte rendu dans le projet.',
+    path: '/reunion',
+    icon: '🎙️',
+  },
+  {
     id: 'projets',
     title: 'Projets',
     description:
       'Suivre chaque projet : intervenants, prestations et budget, tickets, planning, documents et liens, journal, risques. Les cahiers des charges se rédigent depuis le projet.',
     path: '/projets',
     icon: '📁',
+  },
+  {
+    id: 'idees',
+    title: 'Idées d’amélioration',
+    description: 'La liste des idées d’amélioration de l’équipe (ERP, outils…), classées par priorité. Une idée retenue devient un ticket en un clic ; une liste Notion s’importe en un copier-coller.',
+    path: '/idees',
+    icon: '💡',
   },
   {
     id: 'planning',

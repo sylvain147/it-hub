@@ -122,6 +122,8 @@ interface MetaItem extends ProjectFields {
   id: string;
   rev: number;
   stats: ProjectStats;
+  /** Absent des projets créés avant le suivi. */
+  followers?: string[];
   activeJobId: string | null;
   activeJobAt: string | null;
   createdAt: string;
@@ -133,7 +135,7 @@ interface MetaItem extends ProjectFields {
 function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
   const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, ...rest } = it;
   const stale = it.activeJobAt && (Date.now() - Date.parse(it.activeJobAt)) / 60000 > config.staleJobMinutes;
-  return { ...rest, activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
+  return { ...rest, chefDeProjetId: it.chefDeProjetId ?? '', followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
 }
 
 async function getMeta(id: string): Promise<MetaItem | null> {
@@ -173,6 +175,7 @@ export async function createProject(fields: ProjectFields, user: string): Promis
     ...fields,
     rev: 1,
     stats: computeStats(emptyItems()),
+    followers: [],
     activeJobId: null,
     activeJobAt: null,
     createdAt: now,
@@ -218,7 +221,39 @@ export async function updateProject(id: string, rev: number, fields: ProjectFiel
   if (before.status !== fields.status) changes.push('le statut');
   if (before.health !== fields.health) changes.push('la météo');
   if (before.targetDate !== fields.targetDate) changes.push('la date cible');
+  if ((before.chefDeProjetId ?? '') !== fields.chefDeProjetId || before.chefDeProjet !== fields.chefDeProjet) changes.push('le chef de projet');
   await logActivity(id, fields.name, user, changes.length ? `a modifié ${changes.join(', ')} du projet` : 'a modifié la fiche du projet');
+}
+
+/** Suit (ou ne suit plus) un projet : hors fiche, sans révision ni historique. */
+export async function setFollower(id: string, email: string, follow: boolean): Promise<string[]> {
+  const before = await getMeta(id);
+  if (!before) throw notFound('Projet');
+  const rest = (before.followers ?? []).filter((e) => e !== email);
+  const followers = follow ? [...rest, email] : rest;
+  await ddb().send(
+    new UpdateCommand({
+      TableName: T(),
+      Key: projectKeys.meta(id),
+      ConditionExpression: 'attribute_exists(pk)',
+      UpdateExpression: 'SET followers = :f',
+      ExpressionAttributeValues: { ':f': followers },
+    }),
+  );
+  return followers;
+}
+
+/** Recopie le chef de projet (rattachement d'un ancien projet, renommage de l'utilisateur), sans révision ni historique. */
+export async function setChef(id: string, chefDeProjetId: string, chefDeProjet: string): Promise<void> {
+  await ddb().send(
+    new UpdateCommand({
+      TableName: T(),
+      Key: projectKeys.meta(id),
+      ConditionExpression: 'attribute_exists(pk)',
+      UpdateExpression: 'SET chefDeProjetId = :id, chefDeProjet = :name',
+      ExpressionAttributeValues: { ':id': chefDeProjetId, ':name': chefDeProjet },
+    }),
+  );
 }
 
 export async function deleteProject(id: string): Promise<void> {

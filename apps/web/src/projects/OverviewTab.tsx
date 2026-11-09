@@ -19,6 +19,7 @@ import { ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast 
 import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
 import { hasPending } from './ProjectPage';
 import { StatusOptions } from '../settings/context';
+import { UserSelect, useUsers } from '../users/context';
 
 export function fieldsOf(p: ProjectDetail): ProjectFields {
   return projectFieldsSchema.parse(p);
@@ -26,6 +27,7 @@ export function fieldsOf(p: ProjectDetail): ProjectFields {
 
 export function OverviewTab() {
   const { project: p, goTab } = useProject();
+  const { name } = useUsers();
   const [editing, setEditing] = useState(false);
   const [weather, setWeather] = useState(false);
   const [allActivity, setAllActivity] = useState(false);
@@ -55,7 +57,8 @@ export function OverviewTab() {
             <button className="btn btn-sm" onClick={() => setEditing(true)}>✏️ Modifier</button>
           </div>
           <dl className="facts">
-            <div><dt>Chef de projet</dt><dd>{p.chefDeProjet || '—'}</dd></div>
+            <div><dt>Chef de projet</dt><dd>{p.chefDeProjetId ? name(p.chefDeProjetId) : p.chefDeProjet ? <>{p.chefDeProjet} <span className="muted small">(hors annuaire)</span></> : '—'}</dd></div>
+            <div><dt>Suivi par</dt><dd>{p.followers.length ? p.followers.map(name).join(', ') : '—'}</dd></div>
             <div><dt>Demandeur</dt><dd>{p.demandeur || '—'}</dd></div>
             <div><dt>Début</dt><dd>{p.startDate ? formatDate(p.startDate) : '—'}</dd></div>
             <div><dt>Fin visée</dt><dd>{p.targetDate ? <DueLabel date={p.targetDate} done={p.status === 'termine'} /> : '—'}</dd></div>
@@ -364,7 +367,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
         </label>
         <label className="field">
           <span>Chef de projet</span>
-          <input className="input" value={f.chefDeProjet} onChange={(e) => set('chefDeProjet', e.target.value)} />
+          <UserSelect value={f.chefDeProjetId} onChange={(v) => setF((x) => ({ ...x, chefDeProjetId: v, chefDeProjet: '' }))} allowEmpty emptyLabel={!f.chefDeProjetId && f.chefDeProjet ? `${f.chefDeProjet} (hors annuaire)` : '— Aucun —'} />
         </label>
         <label className="field">
           <span>Demandeur</span>

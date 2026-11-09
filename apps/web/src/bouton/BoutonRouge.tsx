@@ -3,7 +3,8 @@ import { useLocation } from 'react-router';
 import { BOUTON_ROUGE_CHANCE, BOUTON_ROUGE_PAUSE_MIN, type BoutonRougeScores } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { Modal, toast } from '../components/ui';
+import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, toast } from '../components/ui';
+import { useLoad } from '../hooks';
 import { useUsers } from '../users/context';
 
 /**
@@ -131,5 +132,50 @@ function Deception({ scores, onClose }: { scores: BoutonRougeScores; onClose: ()
         </>
       )}
     </Modal>
+  );
+}
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+/** Mur de la honte : le classement complet des clics, page cachée (`/mur-de-la-honte`, aucun lien n'y mène). */
+export function MurDeLaHonte() {
+  const { me } = useAuth();
+  const { name } = useUsers();
+  const { data, error, loading } = useLoad(() => api.boutonRouge(), []);
+  const total = data?.ranking.reduce((n, s) => n + s.count, 0) ?? 0;
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>🧱 Mur de la honte</h1>
+          <p className="muted">
+            Ceux qui ont cliqué sur le bouton rouge « NE PAS CLIQUER ». Il y avait pourtant écrit dessus.
+            {total > 0 && <> {total} clic{total > 1 ? 's' : ''} au total.</>}
+          </p>
+        </div>
+      </div>
+      <ErrorBox error={error} />
+      {loading && !data ? (
+        <Spinner />
+      ) : !data?.ranking.length ? (
+        <EmptyState>Personne n’a encore cliqué. L’équipe est exemplaire… pour l’instant.</EmptyState>
+      ) : (
+        <ol className="br-wall">
+          {data.ranking.map((s, i) => (
+            <li key={s.email} className={s.email === me.email ? 'br-wall-row me' : 'br-wall-row'}>
+              <span className="br-wall-rank">{MEDALS[i] ?? `${i + 1}.`}</span>
+              <span className="br-wall-name">
+                <strong>{name(s.email)}</strong>
+                <span className="muted small">{verdict(s.count)}</span>
+              </span>
+              <span className="br-wall-count">
+                <strong>{s.count}</strong> clic{s.count > 1 ? 's' : ''}
+                <span className="muted small">dernier le {formatDateTime(s.lastAt)}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }

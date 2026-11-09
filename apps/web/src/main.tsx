@@ -25,6 +25,9 @@ import { FeedbackPage } from './feedback/FeedbackPage';
 import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
+import { MurDeLaHonte } from './bouton/BoutonRouge';
+import { IdeasPage } from './ideas/IdeasPage';
+import { MeetingPage } from './meetings/MeetingPage';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -36,6 +39,8 @@ const router = createBrowserRouter([
       { path: 'projets', element: <ProjectsList /> },
       { path: 'projets/:id', element: <ProjectPage /> },
       { path: 'planning', element: <GlobalPlanningPage /> },
+      { path: 'idees', element: <IdeasPage /> },
+      { path: 'reunion', element: <MeetingPage /> },
       { path: 'notes', element: <NotesPage /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
@@ -58,6 +63,8 @@ const router = createBrowserRouter([
       { path: 'parametrage', element: <SettingsPage /> },
       { path: 'retours', element: <FeedbackPage /> },
       { path: 'consommation', element: <Usage /> },
+      // Sans lien dans le menu : il faut connaître l'adresse.
+      { path: 'mur-de-la-honte', element: <MurDeLaHonte /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],
   },

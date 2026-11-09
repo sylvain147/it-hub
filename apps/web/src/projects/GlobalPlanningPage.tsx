@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { CLOSED_PROJECT_STATUSES, isJalonLate, jalonDrift, jalonPeriod, type PlanningProject, type PlanningTodo, type ProjectJalon } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, isJalonLate, isMyProject, jalonDrift, jalonPeriod, type PlanningProject, type PlanningTodo, type ProjectJalon } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, formatDate, Spinner } from '../components/ui';
 import { useUsers } from '../users/context';
 import { DueLabel, HealthBadge } from './common';
+import { MyProjectsCheck, useMyProjectsFilter } from './mine';
 
 const PERIODS = [
   { id: 'semaine', label: '1 semaine' },
@@ -110,6 +111,7 @@ export function GlobalPlanningPage() {
     setOffset(0);
   };
   const [withClosed, setWithClosed] = useState(false);
+  const [mineOnly, setMineOnly] = useMyProjectsFilter();
   const [onlyPending, setOnlyPending] = useState(false);
   const [withTodos, setWithTodos] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
@@ -117,7 +119,7 @@ export function GlobalPlanningPage() {
   const rows = useMemo<Row[]>(() => {
     const keep = (done: boolean) => !onlyPending || !done;
     const projects = (data ?? [])
-      .filter((p) => withClosed || !CLOSED_PROJECT_STATUSES.includes(p.status))
+      .filter((p) => (withClosed || !CLOSED_PROJECT_STATUSES.includes(p.status)) && (!mineOnly || isMyProject(p, me.email)))
       .map((p) => ({
         project: p,
         jalons: p.jalons.filter((j) => j.date && keep(j.done)).sort((a, b) => a.date.localeCompare(b.date)),
@@ -134,7 +136,7 @@ export function GlobalPlanningPage() {
           .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }))
       : [];
     return personal.length ? [...projects, { project: null, jalons: [], todos: personal }] : projects;
-  }, [data, mine.data, withClosed, onlyPending, withTodos, me.email]);
+  }, [data, mine.data, withClosed, mineOnly, onlyPending, withTodos, me.email]);
 
   // Fenêtre affichée, en mois entiers.
   const dates = rows.flatMap((r) => [...r.jalons.flatMap((j) => [j.startDate, j.date]), ...r.todos.map((t) => t.dueDate), r.project?.startDate ?? '', r.project?.targetDate ?? '']).filter(Boolean);
@@ -187,6 +189,7 @@ export function GlobalPlanningPage() {
       </div>
 
       <div className="toolbar-row">
+        <MyProjectsCheck mine={mineOnly} setMine={setMineOnly} />
         <label className="check"><input type="checkbox" checked={withTodos} onChange={(e) => setWithTodos(e.target.checked)} /> Afficher la to-do</label>
         <label className="check"><input type="checkbox" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} /> Seulement ce qui reste à faire</label>
         <label className="check"><input type="checkbox" checked={withClosed} onChange={(e) => setWithClosed(e.target.checked)} /> Inclure les projets clos</label>
@@ -206,7 +209,7 @@ export function GlobalPlanningPage() {
 
       <ErrorBox error={error} />
       {loading && !data && <Spinner />}
-      {data && !rows.length && <EmptyState>Aucun jalon daté. Ajoutez les grandes dates dans l’onglet « Planning » de vos projets.</EmptyState>}
+      {data && !rows.length && <EmptyState>{mineOnly ? 'Rien à afficher pour vos projets (chef de projet ou suivis). Décochez « Mes projets » pour voir toute l’équipe.' : <>Aucun jalon daté. Ajoutez les grandes dates dans l’onglet « Planning » de vos projets.</>}</EmptyState>}
 
       {rows.length > 0 && (
         <section className="card gp-card">

@@ -10,6 +10,7 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 - La to-do est **séparée des tickets** : une tâche n'a ni statut ni sprint, et ne se planifie pas. Le travail à planifier se crée en ticket (module Sprints).
 - Une tâche se **rattache à un projet** ou reste personnelle. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
 - **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
+- **Bouton « ✅ To-do » toujours visible en haut à droite** : sa pastille compte mes tâches **du jour ou en retard** ; un clic ouvre ma to-do, à cocher sur place, avec une saisie rapide.
 - L'accueil reprend « Ma to-do » et, à côté, « Mes tickets ouverts » (et « Toute l'équipe » pour les rôles qui le permettent).
 
 ### 📝 Notes
@@ -25,6 +26,18 @@ Application interne de l'équipe IT (chargés de projet en lien avec les prestat
 - **To-do sur la frise** (affichable ou non) : les tâches qui ont une échéance, sur la ligne de leur projet, et une ligne « Ma to-do » pour les miennes hors projet.
 - En dessous, **les échéances de la période mois par mois** (jalons et tâches), avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
 
+### 💡 Idées d'amélioration
+
+- **La liste des idées de l'équipe** (ERP par défaut, ou tout autre domaine) : intitulé, description, **priorité** (basse → critique), statut (nouvelle, retenue, en cours, réalisée, écartée), projet concerné. Triée par priorité puis par nombre de **soutiens** (👍, un par personne). Saisie rapide en une ligne ; priorité et statut se changent directement dans la liste.
+- **Import depuis Notion** : export CSV de la base (« ••• → Exporter → Markdown & CSV »), tableau copié-collé ou simple liste à puces / à cocher. Lu dans le navigateur, avec un aperçu ; priorités (« Haute », « P1 », ⭐⭐⭐…) et statuts reconnus, autres colonnes gardées dans la description, doublons ignorés.
+- **→ Ticket** : une idée devient, sur clic, un ticket au backlog (du projet choisi ou hors projet), avec sa priorité ; l'idée passe « en cours » et garde le lien vers le ticket.
+
+### 🎙️ Transcrire une réunion
+
+- Un clic au début de la réunion (Teams, Zoom… dans une autre fenêtre) : **ce qui est dit s'écrit au fil de l'eau**, horodaté à la minute. Le **son n'est pas enregistré** : seul le texte est gardé (brouillon sur le poste). Reconnaissance vocale du navigateur (Chrome, Edge) ; pour capter les autres participants, écouter la réunion sur les haut-parleurs.
+- La transcription **continue d'une page à l'autre** du hub (pastille « Transcription en cours ») ; le texte se corrige pendant l'écoute.
+- À la fin : **compte rendu par l'IA** dans le journal du projet (avec tickets, jalons et risques à valider, comme « Analyser une réunion »), ou **garder comme note**.
+
 ### 🔴 Bouton rouge
 
 Petit jeu caché : de temps en temps (une chance sur 40 à chaque changement de page, au plus une fois par demi-heure), un bouton rouge « NE PAS CLIQUER » apparaît quelques secondes. Ceux qui cliquent quand même ont droit à une scène de déception (et un trombone triste), et leur compteur grimpe au **tableau de la honte** de l'équipe. Ajouter `?bouton-rouge` à l'adresse le fait apparaître à coup sûr.
@@ -33,7 +46,8 @@ Petit jeu caché : de temps en temps (une chance sur 40 à chaque changement de 
 
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
-- **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), chef de projet, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
+- **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), **chef de projet (un utilisateur du hub)**, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, les **objectifs** et le **hors périmètre**.
+- **Suivre un projet** (☆ Suivre, sur la page du projet ou dans la liste) : il compte alors parmi **« Mes projets »**, avec ceux dont je suis le chef de projet. La case « Mes projets » filtre la liste des projets, le planning, les sprints (tableau, planification, backlog) et les cahiers des charges ; le choix est retenu d'une page à l'autre.
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
 - **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description, statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **To-do et notes** : la to-do du projet (partagée) et mes notes sur le projet (personnelles).

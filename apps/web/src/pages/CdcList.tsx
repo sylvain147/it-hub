@@ -5,6 +5,8 @@ import { useSettings } from '../settings/context';
 import { api } from '../api';
 import { useLoad } from '../hooks';
 import { ProjectStatusBadge } from '../projects/common';
+import { useAuth } from '../auth';
+import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
 import { EmptyState, ErrorBox, Spinner, StatusBadge, formatDate, shortUser } from '../components/ui';
 
 export function CdcList() {
@@ -12,7 +14,10 @@ export function CdcList() {
   const { data, error, loading } = useLoad(() => api.listCdcs(), []);
   const { data: projects } = useLoad(() => api.listProjects(), []);
   const projectById = new Map((projects ?? []).map((p) => [p.id, p]));
+  const { email } = useAuth();
   const [orphans, setOrphans] = useState(false);
+  const [mine, setMine] = useMyProjectsFilter();
+  const mineIds = useMemo(() => myProjectIds(projects, email), [projects, email]);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<CdcStatus | 'actifs' | 'tous'>('actifs');
 
@@ -22,10 +27,11 @@ export function CdcList() {
       if (status === 'actifs' && c.status === 'archive') return false;
       if (status !== 'actifs' && status !== 'tous' && c.status !== status) return false;
       if (orphans && c.projectId) return false;
+      if (mine && !orphans && !mineIds.has(c.projectId ?? '')) return false;
       if (!needle) return true;
       return [c.title, c.prestataire, c.projet].some((s) => s.toLowerCase().includes(needle));
     });
-  }, [data, q, status, orphans]);
+  }, [data, q, status, orphans, mine, mineIds]);
 
   return (
     <div className="page">
@@ -45,6 +51,7 @@ export function CdcList() {
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
+        <MyProjectsCheck mine={mine} setMine={setMine} />
         <label className="check">
           <input type="checkbox" checked={orphans} onChange={(e) => setOrphans(e.target.checked)} /> Sans projet uniquement
         </label>

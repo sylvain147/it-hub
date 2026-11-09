@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   HEALTH_ICONS,
   HEALTH_LABELS,
@@ -326,7 +326,7 @@ function DigestDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <p className="muted small">
-        Collez la transcription (Teams, dictée…) ou vos notes en vrac. L’assistant rédige le compte rendu dans le journal et propose les tickets, jalons et risques à
+        Collez la transcription (Teams, dictée…) ou vos notes en vrac — ou <Link to={`/reunion?projet=${project.id}`}>🎙️ transcrivez la réunion en direct</Link>. L’assistant rédige le compte rendu dans le journal et propose les tickets, jalons et risques à
         ajouter : rien n’est ajouté au projet sans votre validation. La transcription brute est conservée avec le compte rendu.
       </p>
       <div className="form-grid">
