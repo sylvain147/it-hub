@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MAX_DESCRIPTION_CHARS } from './desk.js';
 import type { TmaEntry } from './activity.js';
-import type { ThemeStats, TmaMonthReport } from './report.js';
+import type { StoredTicket, ThemeStats, TmaMonthReport } from './report.js';
 
 const text = (max: number) => z.string().max(max).default('');
 
@@ -86,6 +86,29 @@ export interface TmaMonthDetail {
   entries: TmaEntry[];
   synthesis: TmaSynthesis | null;
   activeJobId: string | null;
+  /** Tickets du hub qui citent un ticket Desk du mois (clé : `deskKey`). */
+  hubTickets: Record<string, HubTicketRef[]>;
+}
+
+/** Ticket du hub rattaché à un ticket Desk. */
+export interface HubTicketRef {
+  id: string;
+  /** « T-12 » */
+  key: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+}
+
+/** Ce que le suivi TMA sait d'un ticket Desk (`GET /api/tma/desk/tickets/:id`). */
+export interface DeskTicketInfo {
+  id: string;
+  /** Ticket retrouvé dans les exports Desk importés, sinon null. */
+  ticket: StoredTicket | null;
+  /** Temps passé par le prestataire d'après les relevés, au total et par mois. */
+  hours: number;
+  months: { month: string; hours: number }[];
+  hubTickets: HubTicketRef[];
 }
 
 export interface TmaThemesResponse {

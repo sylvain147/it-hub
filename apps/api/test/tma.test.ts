@@ -68,6 +68,35 @@ describe('module Suivi TMA', () => {
     ]);
   });
 
+  it('rattache un ticket du hub à un ticket Desk du prestataire', async () => {
+    const projectId = (await env.call('POST', '/projects', { name: 'Encaissements' })).json.id;
+    expect((await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'X', deskId: '12a' })).status).toBe(400);
+    const t = await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Corriger les montants des chèques', deskId: '#11884' });
+    expect(t.status).toBe(201);
+    expect(t.json.deskId).toBe('11884');
+    await env.call('POST', '/projects/hors-projet/items/tasks', { title: 'Suivi du correctif chèques', deskId: '011884' });
+
+    const info = (await env.call('GET', '/tma/desk/tickets/11884')).json;
+    const oct = (await env.call('GET', '/tma/months/2026-10')).json;
+    const octHours = oct.report.byTicket.find((x: any) => x.id === '11884').hours;
+    expect(info.ticket).toMatchObject({ id: '11884', theme: 'Chèques – erreur de montant / impayé' });
+    expect(info.months.map((m: any) => m.month)).toEqual(['2026-09', '2026-10']);
+    expect(info.months[1].hours).toBe(octHours);
+    expect(info.hours).toBe(info.months[0].hours + info.months[1].hours);
+    expect(info.hubTickets.map((h: any) => [h.title, h.projectName])).toEqual([
+      ['Corriger les montants des chèques', 'Encaissements'],
+      ['Suivi du correctif chèques', 'Hors projet'],
+    ]);
+    expect(info.hubTickets[0].key).toMatch(/^T-\d+$/);
+    // Le relevé du mois signale les tickets du hub rattachés.
+    expect(oct.hubTickets['11884']).toHaveLength(2);
+    // Ticket Desk inconnu : rien, sans erreur.
+    expect((await env.call('GET', '/tma/desk/tickets/999999')).json).toMatchObject({ ticket: null, hours: 0, months: [], hubTickets: [] });
+    expect((await env.call('GET', '/tma/desk/tickets/abc')).status).toBe(400);
+    // Le numéro Desk s'efface.
+    expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { deskId: '' })).json.deskId).toBe('');
+  });
+
   it('rédige la synthèse à partir des seuls chiffres, et l’efface si le relevé est remplacé', async () => {
     const start = await env.call('POST', '/tma/months/2026-10/synthesis');
     expect(start.status).toBe(202);

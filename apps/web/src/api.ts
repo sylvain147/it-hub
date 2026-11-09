@@ -42,6 +42,7 @@ import type {
   PrestataireUsage,
   SettingsResponse,
   DeskTicket,
+  DeskTicketInfo,
   TmaEntry,
   TmaMonthDetail,
   TmaOverview,
@@ -171,6 +172,7 @@ export const api = {
   deletePrestataireContact: (id: string, cid: string) => request<Prestataire>('DELETE', `/settings/prestataires/${id}/contacts/${cid}`),
 
   tmaOverview: () => request<TmaOverview>('GET', '/tma'),
+  deskTicket: (id: string) => request<DeskTicketInfo>('GET', `/tma/desk/tickets/${encodeURIComponent(id)}`),
   importDesk: (fileName: string, tickets: DeskTicket[]) => request<DeskImportResult>('POST', '/tma/desk/import', { fileName, tickets }),
   classifyTickets: (all: boolean) => request<JobInfo>('POST', '/tma/desk/classify', { all }),
   tmaThemes: () => request<TmaThemesResponse>('GET', '/tma/themes'),

@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { NO_PROJECT_ID, NO_PROJECT_LABEL, ticketKey, type Sprint, type Task, type TicketStatus } from '@samm/shared';
+import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, ticketKey, type DeskTicketInfo, type Sprint, type Task, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -41,6 +41,7 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
       <span className="ticket-meta">
         {showProject && t.projectName && <TicketProject t={t} />}
         {sprintName && <span className="small muted">{sprintName}</span>}
+        {t.deskId && <DeskBadge id={t.deskId} />}
         {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId || 'Personne extérieure au hub'}>{t.assignee}</span>}
         {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
         <TicketStatusChip status={t.status} />
@@ -54,6 +55,72 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
 export function TicketProject({ t }: { t: Pick<TicketRow, 'projectId' | 'projectName'> }) {
   if (t.projectId === NO_PROJECT_ID) return <span className="small muted">{NO_PROJECT_LABEL}</span>;
   return <Link to={`/projets/${t.projectId}?onglet=tickets`} className="small">📁 {t.projectName}</Link>;
+}
+
+/** Numéro du ticket Desk du prestataire. */
+export function DeskBadge({ id }: { id: string }) {
+  return <span className="badge badge-desk" title="Ticket Desk du prestataire">Desk #{id}</span>;
+}
+
+const fmtHours = (h: number) => `${h.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} h`;
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const monthShort = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
+
+/** Ce que le suivi TMA sait du ticket Desk : sujet, statut, temps passé par le prestataire, autres tickets du hub. */
+function DeskInfo({ id, ticketId }: { id: string; ticketId: string | null }) {
+  const [info, setInfo] = useState<DeskTicketInfo | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    setInfo(null);
+    setError('');
+    if (!/^\d{1,9}$/.test(id)) return;
+    // Petite attente : pas d'appel à chaque chiffre tapé.
+    const timer = setTimeout(() => {
+      api.deskTicket(id).then(setInfo, (e: Error) => setError(e.message));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [id]);
+  if (error) return <span className="small due-late">{error}</span>;
+  if (!info) return null;
+  const others = info.hubTickets.filter((h) => h.id !== ticketId);
+  return (
+    <div className="desk-info small">
+      {info.ticket ? (
+        <>
+          <strong>{info.ticket.subject}</strong>
+          <div className="muted">{[info.ticket.status, info.ticket.category, info.ticket.theme].filter(Boolean).join(' · ')}</div>
+        </>
+      ) : (
+        <div className="muted">Ticket absent des exports Desk importés dans le suivi TMA.</div>
+      )}
+      <div>
+        Temps passé par le prestataire : <strong>{fmtHours(info.hours)}</strong>
+        {info.months.length > 0 && (
+          <span className="muted">
+            {' '}(
+            {info.months.map((m, i) => (
+              <span key={m.month}>
+                {i > 0 && ', '}
+                <Link to={`/tma/mois/${m.month}`}>{monthShort(m.month)}</Link> {fmtHours(m.hours)}
+              </span>
+            ))}
+            )
+          </span>
+        )}
+      </div>
+      {others.length > 0 && (
+        <div className="muted">
+          Aussi cité par :{' '}
+          {others.map((h, i) => (
+            <span key={h.id}>
+              {i > 0 && ', '}
+              {h.key} « {h.title} » ({h.projectName})
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Page où retrouver un ticket : son projet, ou les sprints s'il est hors projet. */
@@ -105,6 +172,7 @@ export function TicketModal({
     status: ticket?.status ?? defaults?.status ?? ('a_faire' as TicketStatus),
     sprintId: ticket ? ticket.sprintId : (defaults?.sprintId ?? null),
     dueDate: ticket?.dueDate ?? '',
+    deskId: ticket?.deskId ?? '',
     projectId: ticket?.projectId ?? defaults?.projectId ?? '',
     assigneeId: ticket ? ticket.assigneeId : me.email,
     assignee: ticket && !ticket.assigneeId ? ticket.assignee : '',
@@ -114,7 +182,7 @@ export function TicketModal({
 
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
-    const fields = { title: f.title, details: f.details, status: f.status, sprintId: f.sprintId, dueDate: f.dueDate, ...who };
+    const fields = { title: f.title, details: f.details, status: f.status, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, f.projectId !== ticket.projectId ? { ...fields, projectId: f.projectId } : fields);
     else await api.createItem(f.projectId, 'tasks', fields);
@@ -202,6 +270,18 @@ export function TicketModal({
           {external ? 'Choisir un utilisateur du hub' : 'Personne extérieure au hub…'}
         </button>
       </label>
+      <div className="field span-2">
+        <span>N° ticket Desk (prestataire)</span>
+        <input
+          className="input input-desk"
+          aria-label="N° ticket Desk"
+          inputMode="numeric"
+          value={f.deskId}
+          onChange={(e) => set('deskId', e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
+          placeholder="ex. 48213"
+        />
+        {f.deskId && <DeskInfo id={deskKey(f.deskId)} ticketId={ticket?.id ?? null} />}
+      </div>
       <div className="field span-2">
         <span>Description</span>
         <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Contexte, critères d’acceptation, liens…" resetKey={ticket?.id ?? 'nouveau'} />

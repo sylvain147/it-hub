@@ -250,6 +250,7 @@ function ActiveSprint({
                     <div className="board-card-meta">
                       <span className="ticket-key">{ticketKey(t)}</span>
                       <span className="small muted board-card-project">{t.projectName}</span>
+                      {t.deskId && <span className="small muted" title="Ticket Desk du prestataire">Desk #{t.deskId}</span>}
                       {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
                       {t.assignee && <span className={t.assigneeId ? 'avatar' : 'avatar avatar-ext'} title={t.assignee}>{initials(t.assignee)}</span>}
                     </div>
