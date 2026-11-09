@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { taskInputSchema, type ItemBase } from './project.js';
+import type { ThemeId } from './themes.js';
 
 /**
  * Utilisateurs du hub et rôles.
@@ -84,6 +85,8 @@ export interface HubUser {
   jobTitle: string;
   backupId: string;
   perimeters: Perimeter[];
+  /** Thème de couleur choisi par l'utilisateur (`THEMES`). */
+  theme: ThemeId;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

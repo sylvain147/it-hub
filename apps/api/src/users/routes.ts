@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import {
   can,
+  DEFAULT_THEME,
+  mePreferencesSchema,
   nameKey,
   todoInputSchema,
   todoOrderBody,
@@ -137,7 +139,7 @@ export function userRoutes() {
     await assertBackup(b.backupId, b.email);
     const now = nowIso();
     const by = userName(c);
-    const u: HubUser = { ...b, active: true, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by, lastSeenAt: null, invitedAt: null };
+    const u: HubUser = { ...b, active: true, theme: DEFAULT_THEME, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by, lastSeenAt: null, invitedAt: null };
     if (!(await users.createUser(u))) throw new HttpError(409, `${b.email} a déjà un accès au hub.`);
     if (await inviteUser(u.email, u.name)) {
       u.invitedAt = nowIso();
@@ -178,6 +180,18 @@ export function userRoutes() {
 
 export async function meHandler(email: string): Promise<Me> {
   return me(await users.getUser(email));
+}
+
+/** Préférences que chacun règle pour soi (thème de couleur) ; aucun droit particulier. */
+export function meRoutes() {
+  const r = new Hono();
+  r.put('/preferences', async (c) => {
+    const email = userName(c);
+    const { theme } = await body(c, mePreferencesSchema);
+    await users.setUserTheme(email, theme);
+    return c.json(await meHandler(email));
+  });
+  return r;
 }
 
 // ---------------------------------------------------------------------------

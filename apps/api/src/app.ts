@@ -28,7 +28,7 @@ import { tmaRoutes } from './tma/routes.js';
 import { settingsRoutes } from './settings/routes.js';
 import { projectRoutes } from './projects/routes.js';
 import { sprintRoutes } from './sprints/routes.js';
-import { meHandler, todoRoutes, userRoutes } from './users/routes.js';
+import { meHandler, meRoutes, todoRoutes, userRoutes } from './users/routes.js';
 import { feedbackRoutes } from './feedback/routes.js';
 import { noteRoutes } from './notes/routes.js';
 import { boutonRougeRoutes } from './bouton/routes.js';
@@ -78,6 +78,7 @@ export function createApp() {
   api.use('*', authMiddleware);
 
   api.get('/me', async (c) => c.json(await meHandler(userName(c))));
+  api.route('/me', meRoutes());
 
   // ---- Cahiers des charges ----------------------------------------------------
 

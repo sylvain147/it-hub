@@ -1,4 +1,5 @@
 import type {
+  MePreferences,
   Feedback,
   FeedbackInput,
   Idea,
@@ -111,6 +112,8 @@ function todosChanged<T>(r: T): T {
 
 export const api = {
   me: () => request<Me>('GET', '/me'),
+  /** Préférences personnelles (thème de couleur). */
+  setPreferences: (b: MePreferences) => request<Me>('PUT', '/me/preferences', b),
 
   users: () => request<HubUser[]>('GET', '/users'),
   createUser: (b: UserInput) => request<{ user: HubUser; linkedTasks: number }>('POST', '/users', b),
