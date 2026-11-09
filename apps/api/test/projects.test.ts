@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { setupTestEnv } from './helpers.js';
 import { ddb } from '../src/db/client.js';
 import { config } from '../src/config.js';
@@ -115,6 +115,22 @@ describe('module Projets', () => {
     expect(Item).not.toHaveProperty('objectifs');
     expect((await env.call('GET', '/projects/ancien-3')).json.sections).toEqual([p.sections[1]]);
     await env.call('DELETE', '/projects/ancien-3');
+  });
+
+  it('relit le projet de façon cohérente : une note ajoutée au journal apparaît sans recharger la page', async () => {
+    const send = vi.spyOn(ddb(), 'send');
+    try {
+      await env.call('POST', `/projects/${id}/items/notes`, { kind: 'info', title: 'Info du jour' });
+      const { json: p } = await env.call('GET', `/projects/${id}`);
+      expect(p.items.notes.map((n: any) => n.title)).toContain('Info du jour');
+      // Sur DynamoDB, une lecture « éventuellement cohérente » juste après l'ajout peut encore l'ignorer.
+      const reads = send.mock.calls.map(([cmd]) => cmd).filter((cmd): cmd is QueryCommand | GetCommand => (cmd instanceof QueryCommand && !cmd.input.IndexName) || cmd instanceof GetCommand);
+      expect(reads.length).toBeGreaterThan(0);
+      expect(reads.filter((cmd) => cmd instanceof QueryCommand).every((cmd) => cmd.input.ConsistentRead)).toBe(true);
+    } finally {
+      send.mockRestore();
+    }
+    await env.call('DELETE', `/projects/${id}/items/notes/${(await env.call('GET', `/projects/${id}`)).json.items.notes.find((n: any) => n.title === 'Info du jour').id}`);
   });
 
   it('gère tickets, jalons, prestations, intervenants, liens et risques', async () => {
