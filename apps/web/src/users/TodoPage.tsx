@@ -4,7 +4,7 @@ import { api, TODOS_CHANGED } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
-import { byPosition, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
+import { byPosition, defaultDueDate, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
 import { useUsers } from './context';
 
 /** To-do d'une personne (ou de l'équipe) : ses tâches à cocher, rattachées ou non à un projet. Les tickets sont à part (sprints). */
@@ -70,9 +70,9 @@ export function TodoPage() {
         {!team && (
           <div className="toolbar-row">
             <QuickAdd
-              placeholder={scope === me.email ? 'Ajouter à ma to-do… (Entrée)' : `Ajouter à la to-do de ${name(scope)}… (Entrée)`}
+              placeholder={scope === me.email ? 'Ajouter à ma to-do, pour aujourd’hui… (Entrée)' : `Ajouter à la to-do de ${name(scope)}… (Entrée)`}
               onAdd={async (title) => {
-                await api.createTodo({ title, assigneeId: scope });
+                await api.createTodo({ title, assigneeId: scope, dueDate: defaultDueDate() });
                 await data.reload();
               }}
             />

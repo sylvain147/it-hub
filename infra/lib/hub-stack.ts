@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
@@ -16,6 +16,7 @@ import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as cr from 'aws-cdk-lib/custom-resources';
 
 export interface HubStackProps extends StackProps {
   repoRoot: string;
@@ -255,7 +256,7 @@ export class HubStack extends Stack {
     if (!existsSync(join(webDist, 'index.html'))) {
       throw new Error(`Front non construit : lancez « pnpm --filter @samm/web build » avant le déploiement (${webDist} introuvable).`);
     }
-    new s3deploy.BucketDeployment(this, 'DeployWeb', {
+    const deployWeb = new s3deploy.BucketDeployment(this, 'DeployWeb', {
       destinationBucket: siteBucket,
       sources: [
         s3deploy.Source.asset(webDist),
@@ -271,10 +272,50 @@ export class HubStack extends Stack {
       memoryLimit: 512,
     });
 
+    // ---- Annonce de la mise en production sur Teams -------------------------------------------
+    // Les dernières entrées du patch note (construit avec le front) sont transmises au worker une fois le front en
+    // ligne ; il publie celles qui n'ont pas encore été annoncées (`apps/api/src/notifications/release.ts`).
+    // La ressource n'est rejouée que si le patch note change, donc à chaque nouvelle version.
+    const release = readReleaseNotes(webDist);
+    if (release.length) {
+      const invoke: cr.AwsSdkCall = {
+        service: 'Lambda',
+        action: 'invoke',
+        parameters: { FunctionName: worker.functionName, InvocationType: 'Event', Payload: JSON.stringify({ release }) },
+        physicalResourceId: cr.PhysicalResourceId.of('annonce-mise-en-production'),
+        outputPaths: ['StatusCode'],
+      };
+      const announce = new cr.AwsCustomResource(this, 'AnnounceRelease', {
+        onCreate: invoke,
+        onUpdate: invoke,
+        policy: cr.AwsCustomResourcePolicy.fromStatements([new iam.PolicyStatement({ actions: ['lambda:InvokeFunction'], resources: [worker.functionArn] })]),
+        installLatestAwsSdk: false,
+        logGroup: new logs.LogGroup(this, 'AnnounceReleaseLogs', { retention: logs.RetentionDays.ONE_MONTH, removalPolicy: RemovalPolicy.DESTROY }),
+      });
+      announce.node.addDependency(deployWeb);
+    }
+
     new CfnOutput(this, 'Url', { value: `https://${distribution.distributionDomainName}`, description: 'Adresse de Hobbit' });
     new CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
     new CfnOutput(this, 'TableName', { value: table.tableName });
     new CfnOutput(this, 'DataBucketName', { value: dataBucket.bucketName });
   }
+}
+
+/** Entrées transmises à chaque déploiement (les plus récentes) ; type `ReleaseNote` de `packages/shared/src/notifications.ts`. */
+const RELEASE_NOTES_SENT = 10;
+
+/** Patch note du front construit (`patch-notes.json`, voir `apps/web/patch-notes.ts`), réduit à ce que l'annonce Teams affiche. */
+function readReleaseNotes(webDist: string) {
+  const file = join(webDist, 'patch-notes.json');
+  if (!existsSync(file)) return [];
+  const notes = JSON.parse(readFileSync(file, 'utf8')) as { id: string; date: string; title: string; pr: number | null; changes: { title: string }[] }[];
+  return notes.slice(0, RELEASE_NOTES_SENT).map((n) => ({
+    id: n.id,
+    date: n.date,
+    title: n.title.slice(0, 300),
+    pr: n.pr,
+    changes: n.changes.slice(0, 10).map((c) => c.title.slice(0, 200)),
+  }));
 }

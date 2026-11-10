@@ -334,6 +334,43 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect((await env.call('POST', `/sprints/${active.id}/past`, {})).status).toBe(400);
   });
 
+  it('ajoute des notes de suivi à un ticket, sans modifier le ticket', async () => {
+    const t = await ticket(p1, 'Ticket annoté');
+    await env.call('POST', '/users', { email: 'claire@exemple.fr', name: 'Claire Roy', role: 'membre' });
+    expect((await env.call('POST', `/projects/${p1}/tickets/${t.id}/notes`, { text: '  ' })).status).toBe(400);
+    const added = await env.call('POST', `/projects/${p1}/tickets/${t.id}/notes`, { text: 'Le prestataire a **relancé** le métier.' });
+    expect(added.status).toBe(201);
+    expect(added.json).toEqual([expect.objectContaining({ text: 'Le prestataire a **relancé** le métier.', by: 'alice@test', editedAt: '' })]);
+    const second = await env.call('POST', `/projects/${p1}/tickets/${t.id}/notes`, { text: 'Réponse attendue vendredi.' }, 'claire@exemple.fr');
+    expect(second.json.map((n: any) => n.author)).toEqual([expect.any(String), 'Claire Roy']);
+    const [mine, hers] = second.json;
+
+    // Les notes suivent le ticket : modification, liste transverse, changement de projet.
+    const after = (await patch(p1, 'Ticket annoté', { status: 'en_cours' })).json;
+    expect(after.comments).toHaveLength(2);
+    expect(after.updatedAt).not.toBe(t.updatedAt);
+    const listed = (await env.call('GET', '/sprints/tickets')).json.find((x: any) => x.id === t.id);
+    expect(listed.comments.map((n: any) => n.text)).toEqual(['Le prestataire a **relancé** le métier.', 'Réponse attendue vendredi.']);
+    await patch(p1, 'Ticket annoté', { projectId: p2 });
+    expect((await env.call('GET', `/projects/${p2}`)).json.items.tasks.find((x: any) => x.id === t.id).comments).toHaveLength(2);
+
+    // Chacun ne modifie ou ne supprime que ses notes.
+    expect((await env.call('PUT', `/projects/${p2}/tickets/${t.id}/notes/${hers.id}`, { text: 'Pas à moi' })).status).toBe(403);
+    expect((await env.call('DELETE', `/projects/${p2}/tickets/${t.id}/notes/${hers.id}`)).status).toBe(403);
+    const edited = await env.call('PUT', `/projects/${p2}/tickets/${t.id}/notes/${mine.id}`, { text: 'Relance faite.' });
+    expect(edited.json[0]).toMatchObject({ text: 'Relance faite.', editedAt: expect.any(String) });
+    const removed = await env.call('DELETE', `/projects/${p2}/tickets/${t.id}/notes/${hers.id}`, undefined, 'claire@exemple.fr');
+    expect(removed.json.map((n: any) => n.id)).toEqual([mine.id]);
+    expect((await env.call('DELETE', `/projects/${p2}/tickets/${t.id}/notes/inconnue`)).status).toBe(404);
+
+    // Ticket hors projet : notes aussi, sans journal d'activité.
+    const hp = (await env.call('POST', `/projects/hors-projet/items/tasks`, { title: 'Hors projet annoté' })).json;
+    expect((await env.call('POST', `/projects/hors-projet/tickets/${hp.id}/notes`, { text: 'Note' })).status).toBe(201);
+    // Note ajoutée quand le ticket était encore dans le premier projet.
+    const activity = (await env.call('GET', `/projects/${p1}`)).json.activity.map((a: any) => a.text);
+    expect(activity).toContain(`a ajouté une note au ticket « T-${t.number} Ticket annoté »`);
+  });
+
   it('colle une image dans la description d’un ticket', async () => {
     expect((await env.call('POST', '/images', { contentType: 'image/gif', size: 10 })).status).toBe(400);
     const img = await env.call('POST', '/images', { contentType: 'image/png', size: TINY_PNG.length });

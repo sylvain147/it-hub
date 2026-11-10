@@ -12,6 +12,7 @@ import {
   PROJECT_ITEM_KINDS,
   PROJECT_ITEM_SCHEMAS,
   updateProjectBody,
+  ticketCommentBody,
   type CdcDocument,
   type ProjectDetail,
   type CdcSummary,
@@ -191,6 +192,24 @@ export function projectRoutes() {
       return c.json(await pr.getItem(target, kind, item.id));
     }
     return c.json(item);
+  });
+
+  // ---- Notes de suivi d'un ticket (hors champs du ticket) ----------------------------------
+
+  r.post('/:id/tickets/:itemId/notes', async (c) => {
+    const { text } = await body(c, ticketCommentBody);
+    const user = userName(c);
+    const comments = await pr.addTicketComment(c.req.param('id'), c.req.param('itemId'), text, user, c.get('user').name || user);
+    return c.json(comments, 201);
+  });
+
+  r.put('/:id/tickets/:itemId/notes/:noteId', async (c) => {
+    const { text } = await body(c, ticketCommentBody);
+    return c.json(await pr.changeTicketComment(c.req.param('id'), c.req.param('itemId'), c.req.param('noteId'), text, userName(c)));
+  });
+
+  r.delete('/:id/tickets/:itemId/notes/:noteId', async (c) => {
+    return c.json(await pr.changeTicketComment(c.req.param('id'), c.req.param('itemId'), c.req.param('noteId'), null, userName(c)));
   });
 
   r.delete('/:id/items/:kind/:itemId', async (c) => {

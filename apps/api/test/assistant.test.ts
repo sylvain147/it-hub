@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestEnv } from './helpers.js';
 import { mentionedProjects } from '../src/assistant/context.js';
+import { sanitizeActions } from '../src/assistant/routes.js';
 import { setProvider, type LlmProvider, type StructuredCall } from '../src/ai/llm.js';
 import { MockProvider } from '../src/ai/mock.js';
 
@@ -85,6 +86,49 @@ describe('assistant (chat global)', () => {
     expect(calls.at(-1)!.input).toContain('<conversation>\nUtilisateur : Où en est la migration erp ?');
     expect((await env.call('POST', '/assistant', { question: 'x', history: [{ role: 'systeme', content: 'x' }] }, MEMBRE)).status).toBe(400);
     setProvider(new MockProvider(0));
+  });
+
+  it('propose des actions à partir d’un long texte collé, sans rien créer', async () => {
+    const before = (await env.call('GET', `/projects/${erp}`, undefined, MEMBRE)).json.items.tasks.length;
+    const text = [
+      'Compte rendu du point hebdo sur la migration ERP.',
+      'Le prestataire a livré le lot 1, la recette commence lundi.',
+      '- Il faut corriger l’export des écritures comptables.',
+      '- Relancer le prestataire pour la documentation.',
+      'Rien d’autre à signaler, prochain point dans quinze jours. '.repeat(3),
+    ].join('\n');
+    const r = await env.call('POST', '/assistant', { question: text }, MEMBRE);
+    expect(r.status).toBe(200);
+    expect(r.json.actions).toEqual([
+      expect.objectContaining({ kind: 'ticket', title: 'corriger l’export des écritures comptables', projectId: erp, projectName: 'Migration ERP' }),
+      expect.objectContaining({ kind: 'todo', title: 'Relancer le prestataire pour la documentation', projectId: erp }),
+    ]);
+    // Rien n'est créé tant que l'utilisateur ne valide pas.
+    expect((await env.call('GET', `/projects/${erp}`, undefined, MEMBRE)).json.items.tasks).toHaveLength(before);
+    // Une question courte ne propose rien ; un texte trop long est refusé.
+    expect((await env.call('POST', '/assistant', { question: 'Où en est le sprint ?' }, MEMBRE)).json.actions).toEqual([]);
+    expect((await env.call('POST', '/assistant', { question: 'x'.repeat(60_001) }, MEMBRE)).status).toBe(400);
+  });
+
+  it('ramène les propositions de l’IA à ce que le hub accepte', () => {
+    const projects = [{ id: 'p1', name: 'Paie' }] as any;
+    const a = (x: Record<string, unknown>) => ({ kind: 'ticket', title: 'Faire', details: '', projectId: '', dueDate: '', priority: 'normale', reason: '', ...x }) as any;
+    expect(
+      sanitizeActions(
+        [
+          a({ projectId: '/projets/p1', dueDate: '2026-12-01' }),
+          a({ projectId: 'inventé', dueDate: 'vendredi' }),
+          a({ kind: 'jalon', title: 'Recette', projectId: '' }),
+          a({ kind: 'jalon', title: 'Mise en production', projectId: 'p1', dueDate: '2027-01-15' }),
+          a({ title: '   ' }),
+        ],
+        projects,
+      ),
+    ).toEqual([
+      expect.objectContaining({ projectId: 'p1', projectName: 'Paie', dueDate: '2026-12-01' }),
+      expect.objectContaining({ projectId: '', projectName: '', dueDate: '' }),
+      expect.objectContaining({ kind: 'jalon', title: 'Mise en production', projectId: 'p1' }),
+    ]);
   });
 
   it('reconnaît les projets par nom ou code, en mots entiers', () => {

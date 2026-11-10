@@ -83,9 +83,29 @@ export class MockProvider implements LlmProvider {
       part('Mes tickets ouverts').length && `**Mes tickets**\n${part('Mes tickets ouverts').join('\n')}`,
       part('Jalons non atteints').length && `**Échéances**\n${part('Jalons non atteints').join('\n')}`,
     ].filter(Boolean);
+    // Texte long (compte rendu collé) : une proposition par phrase d'action (« il faut… », « à faire : … »), sur le premier projet cité.
+    const projectId = /\(\/projets\/([^)]+)\)$/m.exec(between(input, 'projets_detailles'))?.[1] ?? '';
+    const actions: AssistantOutput['actions'] =
+      question.length < 200
+        ? []
+        : question
+            .split(/\n|(?<=\.)\s+/)
+            .map((l) => l.replace(/^[-*•\s]+/, '').trim())
+            .filter((l) => /^(il faut|à faire|action|todo|relancer|envoyer|corriger|créer|ajouter|prévoir)\b/i.test(l))
+            .slice(0, 5)
+            .map((l, i) => ({
+              kind: /^(relancer|envoyer)/i.test(l) ? 'todo' : 'ticket',
+              title: l.replace(/^(il faut|à faire|action|todo)\s*:?\s*/i, '').replace(/\.$/, '').slice(0, 120) || l,
+              details: '',
+              projectId,
+              dueDate: '',
+              priority: i === 0 ? 'haute' : 'normale',
+              reason: 'Phrase d’action du texte (simulation)',
+            }));
     return {
-      answer: `*Réponse simulée (aucun appel IA) à : « ${question.slice(0, 200)} »*\n\n${blocks.join('\n\n') || 'Rien à signaler dans les données du hub.'}`,
+      answer: `*Réponse simulée (aucun appel IA) à : « ${question.slice(0, 200)} »*\n\n${blocks.join('\n\n') || 'Rien à signaler dans les données du hub.'}${actions.length ? `\n\nJe vous propose ${actions.length} action(s) à créer.` : ''}`,
       followUps: ['Quels projets sont en retard ?', 'Où en est le sprint en cours ?'],
+      actions,
     };
   }
 

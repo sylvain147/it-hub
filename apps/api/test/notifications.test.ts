@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setupTestEnv } from './helpers.js';
+import { handler as worker } from '../src/worker.js';
 
 let env: Awaited<ReturnType<typeof setupTestEnv>>;
 const ADMIN = 'alice.martin@exemple.fr';
@@ -82,7 +83,7 @@ describe('notifications Teams', () => {
   it('respecte les notifications désactivées', async () => {
     sent.length = 0;
     const res = await env.call('PUT', '/notifications/teams', { events: { idee_ajoutee: false } }, ADMIN);
-    expect(res.json.events).toEqual({ sprint_demarre: true, sprint_clos: true, idee_ajoutee: false });
+    expect(res.json.events).toEqual({ sprint_demarre: true, sprint_clos: true, idee_ajoutee: false, mise_en_prod: true });
     expect(res.json.connected).toBe(true); // l'adresse est gardée
     await env.call('POST', '/idees', { title: 'Sans notification' }, MEMBRE);
     expect(sent).toHaveLength(0);
@@ -100,6 +101,32 @@ describe('notifications Teams', () => {
     teamsStatus = 202;
     await env.call('POST', '/idees', { title: 'Après la panne' }, MEMBRE);
     expect((await env.call('GET', '/notifications/teams', undefined, ADMIN)).json.lastError).toBeNull();
+  });
+
+  it('annonce la mise en production avec le patch note, sans répéter les entrées déjà annoncées', async () => {
+    const note = (id: string, title: string, changes: string[] = []) => ({ id, date: '2026-11-10T10:00:00+01:00', title, pr: null, changes });
+    const v1 = [note('c2', 'Notes de suivi sur les tickets', ['Notes de suivi sur les tickets', 'Fil de notes datées']), note('c1', 'Ancienne évolution')];
+    sent.length = 0;
+    // Premier déploiement annoncé : seulement la dernière entrée, pas tout l'historique.
+    await worker({ release: v1 });
+    expect(sent).toHaveLength(1);
+    const first = card(sent[0]);
+    expect(first.body[0].text).toBe('🚀 Nouvelle version de Hobbit en ligne');
+    expect(first.body[1].text).toBe('**Notes de suivi sur les tickets**\n- Fil de notes datées');
+    // Redéploiement sans nouveauté : rien.
+    await worker({ release: v1 });
+    expect(sent).toHaveLength(1);
+    // Deux nouveautés : annoncées ensemble.
+    await worker({ release: [note('c4', 'Thème Mordor'), note('c3', 'Gandalf propose des actions'), ...v1] });
+    expect(sent).toHaveLength(2);
+    expect(card(sent[1]).body[0].text).toContain('2 nouveautés');
+    expect(card(sent[1]).body[1].text).toBe('**Thème Mordor**\n\n**Gandalf propose des actions**');
+    // Évènement désactivé : rien n'est publié, mais l'entrée est retenue comme annoncée.
+    await env.call('PUT', '/notifications/teams', { events: { mise_en_prod: false } }, ADMIN);
+    await worker({ release: [note('c5', 'Discrète'), note('c4', 'Thème Mordor')] });
+    await env.call('PUT', '/notifications/teams', { events: { mise_en_prod: true } }, ADMIN);
+    await worker({ release: [note('c5', 'Discrète'), note('c4', 'Thème Mordor')] });
+    expect(sent).toHaveLength(2);
   });
 
   it('se déconnecte', async () => {

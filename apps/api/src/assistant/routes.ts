@@ -5,7 +5,16 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { assistantAskBody, parisDay, type AssistantAnswer, type AssistantMessage } from '@samm/shared';
+import {
+  ASSISTANT_HISTORY_CHARS,
+  assistantActionOutputSchema,
+  assistantAskBody,
+  parisDay,
+  type AssistantAction,
+  type AssistantAnswer,
+  type AssistantMessage,
+  type ProjectSummary,
+} from '@samm/shared';
 import { userName } from '../auth.js';
 import { assertBudget, callStructured } from '../ai/llm.js';
 import { body } from '../lib/http.js';
@@ -22,8 +31,36 @@ import { ASSISTANT_SYSTEM } from './prompts.js';
 export const assistantOutputSchema = z.object({
   answer: z.string().describe('Réponse en Markdown'),
   followUps: z.array(z.string()).describe('0 à 3 questions de relance'),
+  actions: z.array(assistantActionOutputSchema).describe('Éléments à créer proposés à l’utilisateur (texte long ou demande explicite), sinon liste vide'),
 });
 export type AssistantOutput = z.infer<typeof assistantOutputSchema>;
+
+/** Au plus 10 propositions par réponse. */
+const MAX_ACTIONS = 10;
+
+/**
+ * Propositions de l'IA ramenées à ce que le hub accepte : projet existant (sinon aucun), date valide, intitulé non vide,
+ * jalon seulement avec un projet. Le nom du projet est recopié par le code.
+ */
+export function sanitizeActions(raw: AssistantOutput['actions'], projects: ProjectSummary[]): AssistantAction[] {
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  return raw
+    .map((a) => {
+      const project = byId.get(a.projectId.trim().replace(/^\/?projets\//, ''));
+      return {
+        kind: a.kind,
+        title: a.title.trim().slice(0, 300),
+        details: a.details.trim().slice(0, 4000),
+        projectId: project?.id ?? '',
+        projectName: project?.name ?? '',
+        dueDate: /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate.trim()) ? a.dueDate.trim() : '',
+        priority: a.priority,
+        reason: a.reason.trim().slice(0, 300),
+      };
+    })
+    .filter((a) => a.title && (a.kind !== 'jalon' || a.projectId))
+    .slice(0, MAX_ACTIONS);
+}
 
 /** Délai laissé au modèle : la réponse doit revenir avant la limite de l'API (29 s). */
 const TIMEOUT_MS = 25_000;
@@ -56,7 +93,7 @@ export async function loadAssistantData(email: string): Promise<AssistantData> {
 }
 
 function conversation(history: AssistantMessage[]): string {
-  return history.map((m) => `${m.role === 'user' ? 'Utilisateur' : 'Assistant'} : ${m.content.length > 2000 ? `${m.content.slice(0, 2000)}…` : m.content}`).join('\n\n');
+  return history.map((m) => `${m.role === 'user' ? 'Utilisateur' : 'Assistant'} : ${m.content.length > ASSISTANT_HISTORY_CHARS ? `${m.content.slice(0, ASSISTANT_HISTORY_CHARS)}…` : m.content}`).join('\n\n');
 }
 
 export function assistantRoutes() {
@@ -83,7 +120,7 @@ export function assistantRoutes() {
       context: globalContext(data),
       input,
       schema: assistantOutputSchema,
-      maxTokens: 3000,
+      maxTokens: 4000,
       effort: 'low',
       timeoutMs: TIMEOUT_MS,
       ctx: { user, cdcId: '' },
@@ -92,6 +129,7 @@ export function assistantRoutes() {
       answer: out.answer.trim(),
       followUps: out.followUps.map((q) => q.trim()).filter(Boolean).slice(0, 3),
       projects: focus.map((p) => ({ id: p.id, name: p.name })),
+      actions: sanitizeActions(out.actions, data.projects),
     };
     return c.json(res);
   });

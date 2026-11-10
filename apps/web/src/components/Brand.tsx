@@ -1,10 +1,16 @@
 import '@fontsource/almendra/latin-700.css';
+import { THEME_DEFS } from '@samm/shared';
+import { DEFAULT_LOGO, useAppliedTheme } from '../theme';
 
-/** Logo et nom du hub : « Hobbit » en lettres calligraphiées, avec un brin de feuilles (la Comté n'est jamais loin). */
+/**
+ * Logo et nom du hub : « Hobbit » en lettres calligraphiées, avec un brin de feuilles (la Comté n'est jamais loin).
+ * Un thème peut remplacer le logo (Mordor : l'Œil de Sauron).
+ */
 export function Brand() {
+  const theme = useAppliedTheme();
   return (
     <>
-      <img className="brand-logo" src="/hobbit.png" alt="" />
+      <img className="brand-logo" src={THEME_DEFS[theme].logo ?? DEFAULT_LOGO} alt="" />
       <span className="wordmark">
         Hobbit
         <Leaves />
