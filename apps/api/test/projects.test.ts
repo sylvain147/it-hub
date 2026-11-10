@@ -339,9 +339,31 @@ describe('module Projets', () => {
     expect(list.find((x: any) => x.id === id).cdcCount).toBe(1);
   });
 
-  it('crée un CDC vide pré-rempli, ou avec une transcription', async () => {
+  it('crée un CDC sans IA à partir de la fiche projet, ou avec une transcription', async () => {
     const empty = await env.call('POST', `/projects/${id}/cdcs`, { title: 'Lot 2', withAi: false });
     expect(empty.json.job).toBeNull();
+    // Description → Contexte, sections du projet → sections du CDC, dans l'ordre.
+    const { json: lot2 } = await env.call('GET', `/cdcs/${empty.json.id}`);
+    expect(lot2.document.sections.map((x: any) => [x.kind, x.title])).toEqual([['contexte', 'Contexte'], ['standard', 'Objectifs']]);
+    expect(JSON.stringify(lot2.document.sections[0].content)).toContain('Coliéco');
+    expect(JSON.stringify(lot2.document.sections[1].content)).toContain('Basculer vers l’offre Essentiel');
+
+    // Une section « Contexte » du projet complète le Contexte ; « Annexes » devient les annexes, en dernier.
+    const other = await env.call('POST', '/projects', {
+      name: 'Portail client',
+      sections: [
+        { id: 'a', title: 'Annexes', content: 'Maquettes' },
+        { id: 'c', title: 'contexte', content: 'Demande du service client' },
+        { id: 'p', title: 'Périmètre', content: '' },
+      ],
+    });
+    const cdc2 = await env.call('POST', `/projects/${other.json.id}/cdcs`, { withAi: false });
+    const { json: c2 } = await env.call('GET', `/cdcs/${cdc2.json.id}`);
+    expect(c2.document.sections.map((x: any) => [x.kind, x.title])).toEqual([['contexte', 'Contexte'], ['standard', 'Périmètre'], ['annexes', 'Annexes']]);
+    expect(JSON.stringify(c2.document.sections[0].content)).toContain('Demande du service client');
+    expect(JSON.stringify(c2.document.sections[2].content)).toContain('Maquettes');
+    await env.call('DELETE', `/projects/${other.json.id}`);
+
     const withTranscript = await env.call('POST', `/projects/${id}/cdcs`, { title: 'Lot 3', transcript: MEETING });
     const job = await env.waitJob(withTranscript.json.job.id);
     expect(job.error).toBe('');

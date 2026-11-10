@@ -121,7 +121,7 @@ function GenerateDialog({ prestationId, onClose }: { prestationId: string | null
       onClose={onClose}
       footer={
         <>
-          <button className="btn" disabled={busy} onClick={() => void create(false)} title="Crée un CDC vide, pré-rempli avec le projet, le prestataire, les jalons et l’estimation">Créer un CDC vide</button>
+          <button className="btn" disabled={busy} onClick={() => void create(false)} title="Crée le CDC sans IA : description et sections du projet recopiées, avec le prestataire, les jalons et l’estimation ; tout reste modifiable">Créer à partir du projet</button>
           <span className="tb-flex" />
           <button className="btn" onClick={onClose}>Annuler</button>
           <button className="btn btn-ai" disabled={busy || !hasMaterial} onClick={() => void create(true)}>{busy ? <Spinner small /> : '✨'} Rédiger avec l’assistant</button>
@@ -174,7 +174,7 @@ function GenerateDialog({ prestationId, onClose }: { prestationId: string | null
         <span>Transcription d’une réunion <span className="muted">(facultatif : triée par le modèle économique avant la rédaction)</span></span>
         <textarea className="input transcript transcript-sm" value={transcript} maxLength={MAX_PROJECT_TRANSCRIPT_CHARS} onChange={(e) => setTranscript(e.target.value)} placeholder="Collez ici la transcription d’une réunion dédiée à ce besoin…" />
       </label>
-      <p className="muted small">Repris automatiquement : jalons non atteints → échéances du CDC, statut du projet → phase, nom du projet. Coût indicatif : ~0,10 $.</p>
+      <p className="muted small">Repris automatiquement : description du projet → Contexte, chaque section du projet → une section du CDC (modifiables ensuite), jalons non atteints → échéances du CDC, statut du projet → phase, nom du projet. Avec l’assistant, ces éléments servent de matière à la rédaction (coût indicatif : ~0,10 $).</p>
     </Modal>
   );
 }
