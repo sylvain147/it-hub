@@ -334,7 +334,7 @@ function TicketDialog({ idea, projects, onClose, onDone }: { idea: Idea; project
       {idea.details && <MarkdownView markdown={idea.details} className="small" />}
       <label className="field mt">
         <span>Projet du ticket</span>
-        <ProjectSelect value={projectId} onChange={setProjectId} projects={projects} emptyLabel="Hors projet" />
+        <ProjectSelect value={projectId} onChange={setProjectId} projects={projects} emptyLabel="Aucun projet" />
       </label>
       <p className="muted small">Le ticket arrive dans le backlog des sprints, avec la priorité de l’idée ; l’idée passe « En cours ».</p>
     </Modal>

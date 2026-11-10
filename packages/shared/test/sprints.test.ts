@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ticketTypeTitle, withTicketType } from '../src/settings.js';
 import {
   buildSprintPreparation,
   buildSprintReport,
@@ -200,5 +201,16 @@ describe('fonds conditionnels des cartes', () => {
       'Sans responsable du hub (personne extérieure)',
       'Sans ticket Desk',
     ]);
+  });
+});
+
+describe('types de tickets', () => {
+  it('propose « [TYPE] - Nom du projet » et change le type d’un titre retouché', () => {
+    expect(ticketTypeTitle('Dev', 'Migration Coliéco')).toBe('[DEV] - Migration Coliéco');
+    expect(ticketTypeTitle('Recette')).toBe('[RECETTE] - ');
+    expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', 'Recette')).toBe('[RECETTE] - Migration Coliéco : écran des tarifs');
+    expect(withTicketType('Écran des tarifs', 'MEP')).toBe('[MEP] - Écran des tarifs');
+    // Type facultatif : le retirer enlève le préfixe.
+    expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', '')).toBe('Migration Coliéco : écran des tarifs');
   });
 });

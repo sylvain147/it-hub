@@ -446,6 +446,8 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .seg { display: inline-flex; border: 1px solid #d0d5dd; border-radius: 8px; overflow: hidden; }
 .seg button { border: none; background: #fff; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
 .seg button.on { background: var(--blue-50); color: var(--blue); font-weight: 600; }
+.seg-wrap { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
+.seg-wrap button + button { border-left: 1px solid #d0d5dd; }
 .menu-inline { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .overview { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }

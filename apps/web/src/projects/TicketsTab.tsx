@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { byTicketPriority } from '@samm/shared';
-import { api } from '../api';
+import { byTicketPriority, ticketTypeTitle } from '@samm/shared';
 import { useAuth } from '../auth';
 import { EmptyState } from '../components/ui';
 import { useProject } from './common';
-import { QuickAdd } from '../tasks/tasks';
+import { useSettings } from '../settings/context';
 import { PlanProjectBar, sprintNameOf, TicketLine, TicketModal, useOpenSprints, type TicketRow } from '../sprints/tickets';
 
 /** Onglet « Tickets » d'un projet : ses tickets, au backlog ou planifiés dans un sprint. */
@@ -13,7 +12,9 @@ export function TicketsTab() {
   const { project, reload } = useProject();
   const { email } = useAuth();
   const sprints = useOpenSprints();
-  const [editing, setEditing] = useState<TicketRow | 'new' | null>(null);
+  const { lists } = useSettings();
+  // Nouveau ticket : type choisi (« » : sans type, le type est facultatif), ou ticket ouvert.
+  const [editing, setEditing] = useState<TicketRow | { type: string } | null>(null);
   const [mine, setMine] = useState(false);
   const [showDone, setShowDone] = useState(false);
 
@@ -28,8 +29,11 @@ export function TicketsTab() {
     <div>
       <section className="card">
         <div className="toolbar-row">
-          <QuickAdd placeholder="+ Nouveau ticket au backlog : tapez l’intitulé puis Entrée" onAdd={async (title) => { await api.createItem(project.id, 'tasks', { title }); await reload(); }} />
-          <button className="btn btn-ghost" onClick={() => setEditing('new')}>Avec des détails…</button>
+          <span className="strong">+ Nouveau ticket :</span>
+          {lists.ticketTypes.map((t) => (
+            <button key={t} className="btn btn-sm" onClick={() => setEditing({ type: t })} title={`Titre proposé : ${ticketTypeTitle(t, project.name)}`}>{t}</button>
+          ))}
+          <button className="btn btn-sm btn-ghost" onClick={() => setEditing({ type: '' })}>Sans type</button>
           <span className="tb-flex" />
           <label className="check">
             <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Seulement les miens
@@ -37,7 +41,7 @@ export function TicketsTab() {
         </div>
         <PlanProjectBar projectId={project.id} projectName={project.name} count={backlog} open={sprints} onDone={reload} />
         {!project.items.tasks.length ? (
-          <EmptyState>Aucun ticket. Ajoutez-en ci-dessus, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
+          <EmptyState>Aucun ticket. Choisissez un type ci-dessus pour en créer un, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
         ) : (
           <>
             {open.length ? (
@@ -67,8 +71,8 @@ export function TicketsTab() {
       </section>
       {editing && (
         <TicketModal
-          ticket={editing === 'new' ? null : editing}
-          defaults={{ projectId: project.id }}
+          ticket={'id' in editing ? editing : null}
+          defaults={{ projectId: project.id, projectName: project.name, type: 'id' in editing ? undefined : editing.type }}
           sprints={sprints}
           onClose={() => setEditing(null)}
           onSaved={reload}
