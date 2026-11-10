@@ -69,7 +69,7 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Assistant** (toujours sur clic) :
   - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tickets, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
   - **Rapport d'avancement** : rédigé à partir des seules données du projet, avec une météo proposée.
-- **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation.
+- **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation. **Sans IA (« Créer à partir du projet »), toutes les sections de la fiche projet sont reprises** : la description devient le Contexte, chaque section du projet une section du CDC, à modifier ensuite librement.
 - **Accueil** : ma to-do, mes tickets ouverts, échéances des 30 prochains jours tous projets confondus (lien vers la frise), projets à surveiller, activité récente.
 
 ### 🧭 Sprints
