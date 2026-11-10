@@ -37,6 +37,11 @@ export interface Sprint extends z.infer<typeof sprintInputSchema> {
   /** Instants de lancement et de clôture (ISO). */
   startedAt: string | null;
   completedAt: string | null;
+  /**
+   * Sprint passé enregistré après coup (créé avec des dates passées ou classé comme sprint passé) : instant de cet
+   * enregistrement. Ses tickets y ont été planifiés après coup : sa revue reprend leur état à cet instant.
+   */
+  recordedAt?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -54,6 +59,17 @@ export function isPastSprint(s: Pick<Sprint, 'state' | 'endDate'>, today: string
 /** Lancement et clôture d'un sprint passé, tirés de ses dates (le matin du premier jour, le soir du dernier). */
 export function pastSprintTimes(startDate: string, endDate: string): Pick<Sprint, 'startedAt' | 'completedAt'> {
   return { startedAt: `${startDate || endDate}T07:00:00.000Z`, completedAt: `${endDate}T19:00:00.000Z` };
+}
+
+/**
+ * Sprint passé enregistré après coup (`recordedAt`) ; les plus anciens, enregistrés sans cet instant, se reconnaissent
+ * à leurs instants de lancement et de clôture tirés des dates.
+ */
+export function isRecordedPastSprint(s: Pick<Sprint, 'state' | 'startDate' | 'endDate' | 'startedAt' | 'completedAt' | 'recordedAt'>): boolean {
+  if (s.state !== 'closed') return false;
+  if (s.recordedAt) return true;
+  const t = pastSprintTimes(s.startDate, s.endDate);
+  return !!s.endDate && s.startedAt === t.startedAt && s.completedAt === t.completedAt;
 }
 
 /** Durée proposée pour un nouveau sprint (jours). */

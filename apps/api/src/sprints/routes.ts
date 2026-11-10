@@ -5,6 +5,7 @@ import {
   createSprintBody,
   DEFAULT_SPRINT_DAYS,
   isPastSprint,
+  isRecordedPastSprint,
   pastSprintTimes,
   parisDay,
   planProjectBody,
@@ -98,9 +99,12 @@ export function sprintRoutes() {
   r.put('/:sprintId', async (c) => {
     const id = idParam(c);
     const b = await body(c, sprintInputSchema);
-    await repo.requireSprintItem(id);
+    const it = await repo.requireSprintItem(id);
     if (b.startDate && b.endDate && b.endDate < b.startDate) throw new HttpError(400, 'La fin du sprint doit suivre son début.');
-    await repo.setSprintFields(id, b, userName(c));
+    // Sprint passé enregistré après coup : son lancement et sa clôture suivent ses dates.
+    const past = isRecordedPastSprint(repo.toSprint(it));
+    if (past && !b.endDate) throw new HttpError(400, 'Un sprint passé garde une date de fin.');
+    await repo.setSprintFields(id, past ? { ...b, ...pastSprintTimes(b.startDate, b.endDate) } : b, userName(c));
     return c.json(await sprintDetail(id));
   });
 
@@ -151,7 +155,7 @@ export function sprintRoutes() {
       const dest = await repo.getSprintItem(b.moveTo);
       if (!dest || dest.state === 'closed' || dest.id === id) throw new HttpError(400, 'Choisissez un sprint en cours ou à venir, ou le backlog, pour les tickets non terminés.');
     }
-    await repo.setSprintFields(id, { state: 'closed', ...pastSprintTimes(it.startDate, it.endDate) }, user);
+    await repo.setSprintFields(id, { state: 'closed', ...pastSprintTimes(it.startDate, it.endDate), recordedAt: nowIso() }, user);
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
     for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
     return c.json({ moved: open.length, detail: await sprintDetail(id) });
