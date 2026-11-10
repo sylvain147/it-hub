@@ -81,8 +81,8 @@ export const MODULES: HubModule[] = [
   },
   {
     id: 'sprints',
-    title: 'Sprints',
-    description: 'Planifier les tickets des projets dans des sprints, les faire avancer sur le tableau, et faire rédiger par l’IA la préparation ou le compte rendu d’un sprint.',
+    title: 'Tickets',
+    description: 'Tous les tickets, avec une recherche ; les planifier dans des sprints, les faire avancer sur le tableau, et faire rédiger par l’IA la préparation ou le compte rendu d’un sprint.',
     path: '/sprints',
     icon: '🧭',
     section: 'projets',

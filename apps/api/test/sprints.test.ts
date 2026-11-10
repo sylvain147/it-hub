@@ -317,6 +317,16 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect(moved.sprint.completedAt).toBe('2026-02-20T19:00:00.000Z');
     expect(moved.report.counts).toMatchObject({ total: 2, done: 1 });
     expect((await env.call('PUT', `/sprints/${s.id}`, { name: 'Sprint 4', startDate: '2026-02-02', endDate: '' })).status).toBe(400);
+    // La revue donne le ticket Desk de chaque ticket.
+    expect((await patch(p1, 'Ticket terminé du sprint passé', { deskId: '4512' })).status).toBe(200);
+    const withDesk = (await env.call('GET', `/sprints/${s.id}`)).json.report.issues;
+    expect(withDesk.map((i: any) => i.deskId)).toEqual(['4512', '']);
+
+    // Page Tickets : tous les tickets, terminés et hors sprint compris, du plus récent au plus ancien.
+    const all = (await env.call('GET', '/sprints/tickets')).json;
+    expect(all.find((t: any) => t.title === 'Ticket terminé du sprint passé')).toMatchObject({ status: 'termine', sprintId: s.id, deskId: '4512', projectName: 'Portail fournisseurs' });
+    expect(all.map((t: any) => t.number)).toEqual([...all.map((t: any) => t.number)].sort((a: number, b: number) => b - a));
+    expect(all.length).toBeGreaterThan((await env.call('GET', '/sprints')).json.tickets.length);
     expect((await patch(p1, 'Ticket du sprint passé', {})).json.sprintId).toBeNull();
     expect((await env.call('POST', `/sprints/${s.id}/past`, {})).status).toBe(400);
     // Le sprint en cours ne se classe pas ainsi : il se clôture.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { ADMIN_LINKS, MENU_SECTIONS, MODULES, type MenuSection } from '../modules';
 import { ROLE_LABELS } from '@samm/shared';
@@ -13,6 +13,7 @@ import { BoutonRouge } from '../bouton/BoutonRouge';
 import { TodoBadge } from '../tasks/TodoBadge';
 import { Gandalf } from '../assistant/Gandalf';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
+import { hasUnreadPatchNote } from '../patchnotes/PatchNotePage';
 
 export function Layout() {
   const { me, signOut } = useAuth();
@@ -116,6 +117,8 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
   const navigate = useNavigate();
   const { pathname } = useLocation();
   useEffect(() => setOpen(false), [pathname]);
+  // Recalculé à chaque navigation et ouverture du menu : la visite du patch note efface la pastille.
+  const unread = useMemo(() => hasUnreadPatchNote(), [pathname, open]);
   const inAdmin = admin.some((l) => pathname.startsWith(l.path));
   return (
     <div className="sidebar-foot">
@@ -128,6 +131,9 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
             </button>
           ))}
           {admin.length > 0 && <hr />}
+          <button role="menuitem" className={pathname === '/patch-note' ? 'active' : undefined} onClick={() => navigate('/patch-note')}>
+            <span className="nav-icon">📰</span> Patch note {unread && <span className="badge badge-warn">Nouveau</span>}
+          </button>
           <button role="menuitem" onClick={() => { setOpen(false); setTheme(true); }}>
             <span className="nav-icon">🎨</span> Thème de couleur
           </button>
@@ -145,7 +151,7 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
           <strong>{name}</strong>
           <span className="small">{role}</span>
         </span>
-        <span className="nav-caret">⚙️</span>
+        <span className="nav-caret">{unread && <span className="dot-new" title="Nouvelle mise à jour : voir le patch note" />}⚙️</span>
       </button>
       {feedback && <FeedbackModal onClose={() => setFeedback(false)} />}
       {theme && <ThemeModal onClose={() => setTheme(false)} />}

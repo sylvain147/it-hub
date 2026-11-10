@@ -10,6 +10,7 @@ import { ProjectPage } from './projects/ProjectPage';
 import { GlobalPlanningPage } from './projects/GlobalPlanningPage';
 import { NotesPage } from './notes/NotesPage';
 import { SprintPage } from './sprints/SprintPage';
+import { PatchNotePage } from './patchnotes/PatchNotePage';
 import { SprintsPage } from './sprints/SprintsPage';
 import { CdcEditorPage } from './cdc/CdcEditorPage';
 import { Usage } from './pages/Usage';
@@ -64,6 +65,7 @@ const router = createBrowserRouter([
       { path: 'utilisateurs', element: <UsersPage /> },
       { path: 'parametrage', element: <SettingsPage /> },
       { path: 'retours', element: <FeedbackPage /> },
+      { path: 'patch-note', element: <PatchNotePage /> },
       { path: 'consommation', element: <Usage /> },
       // Sans lien dans le menu : il faut connaître l'adresse.
       { path: 'mur-de-la-honte', element: <MurDeLaHonte /> },
