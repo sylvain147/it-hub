@@ -289,9 +289,11 @@ export function TicketModal({
   const projectName = !f.projectId ? '' : ((projects.data ?? []).find((p) => p.id === f.projectId)?.name ?? (f.projectId === defaults?.projectId ? (defaults?.projectName ?? '') : ''));
   const moved = !!ticket && (f.projectId || NO_PROJECT_ID) !== ticket.projectId;
   useEffect(() => {
-    if (!ticket && type && !titleTouched) set('title', ticketTypeTitle(type, projectName));
+    if (!ticket && !titleTouched) set('title', type ? ticketTypeTitle(type, projectName) : '');
   }, [type, projectName]); // eslint-disable-line react-hooks/exhaustive-deps
-  function chooseType(t: string) {
+  // Le type est facultatif : un second clic sur le type choisi le retire.
+  function chooseType(choice: string) {
+    const t = choice === type ? '' : choice;
     setType(t);
     if (titleTouched) set('title', withTicketType(f.title, t));
     focusTitleEnd();
@@ -319,7 +321,7 @@ export function TicketModal({
     >
       {!ticket && lists.ticketTypes.length > 0 && (
         <div className="field span-2">
-          <span>Type</span>
+          <span>Type <span className="muted">(facultatif)</span></span>
           <div className="seg seg-wrap" role="group" aria-label="Type de ticket">
             {lists.ticketTypes.map((t) => (
               <button key={t} type="button" className={t === type ? 'on' : undefined} aria-pressed={t === type} onClick={() => chooseType(t)}>

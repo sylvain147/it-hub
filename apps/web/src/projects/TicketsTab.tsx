@@ -13,7 +13,7 @@ export function TicketsTab() {
   const { email } = useAuth();
   const sprints = useOpenSprints();
   const { lists } = useSettings();
-  // Nouveau ticket : type choisi (« » : sans type), ou ticket ouvert.
+  // Nouveau ticket : type choisi (« » : sans type, le type est facultatif), ou ticket ouvert.
   const [editing, setEditing] = useState<TicketRow | { type: string } | null>(null);
   const [mine, setMine] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -33,7 +33,7 @@ export function TicketsTab() {
           {lists.ticketTypes.map((t) => (
             <button key={t} className="btn btn-sm" onClick={() => setEditing({ type: t })} title={`Titre proposé : ${ticketTypeTitle(t, project.name)}`}>{t}</button>
           ))}
-          <button className="btn btn-sm btn-ghost" onClick={() => setEditing({ type: '' })}>Autre…</button>
+          <button className="btn btn-sm btn-ghost" onClick={() => setEditing({ type: '' })}>Sans type</button>
           <span className="tb-flex" />
           <label className="check">
             <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Seulement les miens

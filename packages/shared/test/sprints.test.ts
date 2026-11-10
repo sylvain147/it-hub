@@ -210,5 +210,7 @@ describe('types de tickets', () => {
     expect(ticketTypeTitle('Recette')).toBe('[RECETTE] - ');
     expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', 'Recette')).toBe('[RECETTE] - Migration Coliéco : écran des tarifs');
     expect(withTicketType('Écran des tarifs', 'MEP')).toBe('[MEP] - Écran des tarifs');
+    // Type facultatif : le retirer enlève le préfixe.
+    expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', '')).toBe('Migration Coliéco : écran des tarifs');
   });
 });

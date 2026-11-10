@@ -70,9 +70,13 @@ export function ticketTypeTitle(type: string, projectName = ''): string {
   return `[${type.trim().toUpperCase()}] - ${projectName.trim()}`;
 }
 
-/** Change le type d'un titre déjà saisi : remplace le préfixe « [XXX] - » s'il y en a un, sinon l'ajoute. */
+/**
+ * Change le type d'un titre déjà saisi : remplace le préfixe « [XXX] - » s'il y en a un, sinon l'ajoute.
+ * Type vide (le type est facultatif) : le préfixe est retiré.
+ */
 export function withTicketType(title: string, type: string): string {
-  return ticketTypeTitle(type) + title.replace(TICKET_TYPE_PREFIX, '');
+  const rest = title.replace(TICKET_TYPE_PREFIX, '');
+  return type.trim() ? ticketTypeTitle(type) + rest : rest;
 }
 
 const statusSettingSchema = z.object({
