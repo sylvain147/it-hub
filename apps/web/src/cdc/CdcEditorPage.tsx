@@ -143,7 +143,7 @@ export function CdcEditorPage() {
           {projectId ? (
             <Link to={`/projets/${projectId}?onglet=cdc`} className="muted small">← Projet {project?.name ?? ''}</Link>
           ) : (
-            <Link to="/cdc" className="muted small">← Cahiers des charges</Link>
+            <Link to="/projets" className="muted small">← Projets</Link>
           )}
           <div className="editor-title">
             <span className="strong">{detail.title}</span>

@@ -64,7 +64,6 @@ export function ProjectsList() {
           <p className="muted">Tout le suivi d’un projet au même endroit : intervenants, prestations, tickets, planning, documents, journal, risques et cahiers des charges.</p>
         </div>
         <div className="row-actions">
-          <Link to="/cdc" className="btn">📄 Tous les cahiers des charges</Link>
           <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Nouveau projet</button>
         </div>
       </div>
@@ -118,11 +117,9 @@ export function ProjectsList() {
                 <th>Statut</th>
                 <th>Météo</th>
                 <th>Chefs de projet</th>
-                <th>Prestataires</th>
                 <th>Prochaine échéance</th>
                 <th className="num">Tickets</th>
                 <th className="num">Budget</th>
-                <th className="num">CDC</th>
                 <th>Modifié</th>
                 <th aria-label="Suivi" />
               </tr>
@@ -137,7 +134,6 @@ export function ProjectsList() {
                   <td><ProjectStatusBadge status={p.status} /></td>
                   <td title={p.healthComment}><HealthBadge health={p.health} /></td>
                   <td>{p.chefDeProjet || <span className="muted">—</span>}</td>
-                  <td>{p.stats.prestataires.join(', ') || <span className="muted">—</span>}</td>
                   <td>
                     {p.stats.nextJalon ? (
                       <><DueLabel date={p.stats.nextJalon.date} /> <div className="muted small">{p.stats.nextJalon.label}</div></>
@@ -153,7 +149,6 @@ export function ProjectsList() {
                     {p.stats.overdueTasks > 0 && <div className="due-late small">{p.stats.overdueTasks} en retard</div>}
                   </td>
                   <td className="num">{p.stats.montantPrevu ? euros(p.stats.montantPrevu) : p.budgetPrevu != null ? euros(p.budgetPrevu) : <span className="muted">—</span>}</td>
-                  <td className="num">{p.cdcCount || <span className="muted">0</span>}</td>
                   <td className="small">{formatDate(p.updatedAt.slice(0, 10))}<div className="muted">{shortUser(p.updatedBy)}</div></td>
                   <td>
                     <FollowButton small project={p} onChange={(followers) => setData((d) => d && d.map((x) => (x.id === p.id ? { ...x, followers } : x)))} />

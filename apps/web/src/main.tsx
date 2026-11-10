@@ -5,7 +5,6 @@ import { loadConfig } from './config';
 import { AuthGate, configureAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
-import { CdcList } from './pages/CdcList';
 import { ProjectsList } from './projects/ProjectsList';
 import { ProjectPage } from './projects/ProjectPage';
 import { GlobalPlanningPage } from './projects/GlobalPlanningPage';
@@ -43,7 +42,7 @@ const router = createBrowserRouter([
       { path: 'idees', element: <IdeasPage /> },
       { path: 'reunion', element: <MeetingPage /> },
       { path: 'notes', element: <NotesPage /> },
-      { path: 'cdc', element: <CdcList /> },
+      { path: 'cdc', element: <Navigate to="/projets" replace /> },
       // Les cahiers des charges se créent désormais depuis un projet.
       { path: 'cdc/nouveau', element: <Navigate to="/projets" replace /> },
       { path: 'cdc/:id', element: <CdcEditorPage /> },
