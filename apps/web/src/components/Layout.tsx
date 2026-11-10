@@ -79,6 +79,8 @@ function SideNav() {
     setFolded(next);
   };
   const isCurrent = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  // Depuis la page d'un projet, « Transcrire une réunion » présélectionne ce projet.
+  const projectId = /^\/projets\/([^/]+)/.exec(pathname)?.[1];
   return (
     <nav className="side-nav">
       {MENU_SECTIONS.map((sec) => {
@@ -94,7 +96,7 @@ function SideNav() {
             </button>
             {open &&
               items.map((m) => (
-                <NavLink key={m.id} to={m.path} className="nav-link">
+                <NavLink key={m.id} to={m.id === 'reunion' && projectId ? `${m.path}?projet=${projectId}` : m.path} className="nav-link">
                   <span className="nav-icon">{m.icon}</span> {m.title}
                   {m.id === 'todo' && <TodoBadge />}
                 </NavLink>
