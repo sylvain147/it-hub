@@ -44,6 +44,7 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 ### 🎙️ Transcrire une réunion
 
 - Un clic au début de la réunion (Teams, Zoom… dans une autre fenêtre) : **ce qui est dit s'écrit au fil de l'eau**, horodaté à la minute. Le **son n'est pas enregistré** : seul le texte est gardé (brouillon sur le poste). Reconnaissance vocale du navigateur (Chrome, Edge) ; pour capter les autres participants, écouter la réunion sur les haut-parleurs.
+- Ouverte depuis la page d'un projet (entrée du menu ou lien du journal), elle **présélectionne ce projet**, sauf si une transcription est déjà commencée.
 - La transcription **continue d'une page à l'autre** du hub (pastille « Transcription en cours ») ; le texte se corrige pendant l'écoute.
 - À la fin : **compte rendu par l'IA** dans le journal du projet (avec tickets, jalons et risques à valider, comme « Analyser une réunion »), ou **garder comme note**.
 

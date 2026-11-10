@@ -23,14 +23,15 @@ export function MeetingPage() {
   const [busy, setBusy] = useState<'ia' | 'note' | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
-  // Lien depuis un projet : `?projet=` présélectionne le projet.
+  // Lien depuis un projet (ou le menu, depuis la page d'un projet) : `?projet=` présélectionne le projet, sauf pendant
+  // une transcription en cours ou déjà commencée.
   useEffect(() => {
     const p = params.get('projet');
     if (p) {
-      setDraft({ projectId: p });
+      if (!r.recording && !draft.text.trim()) setDraft({ projectId: p });
       setParams({}, { replace: true });
     }
-  }, [params, setParams, setDraft]);
+  }, [params, setParams, setDraft, r.recording, draft.text]);
 
   // Le texte défile avec la transcription, sauf si l'on est remonté le relire.
   useEffect(() => {

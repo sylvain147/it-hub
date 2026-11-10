@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { JOB_TYPE_LABELS, type JobInfo, type ProjectDetail } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling } from '../hooks';
@@ -33,7 +33,6 @@ type TabId = (typeof TABS)[number]['id'];
 
 export function ProjectPage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // Ancienne adresse de l'onglet des tickets : « taches ».
   const asked = params.get('onglet') === 'taches' ? 'tickets' : params.get('onglet');
@@ -123,9 +122,6 @@ export function ProjectPage() {
           </div>
           <div className="row-actions">
             <FollowButton project={project} onChange={(followers) => setProject((p) => p && { ...p, followers })} />
-            <button className="btn" onClick={() => navigate(`/reunion?projet=${project.id}`)} title="Transcrire en direct une réunion de ce projet">🎙️ Transcrire</button>
-            <button className="btn" onClick={() => navigate(`/projets/${project.id}?onglet=journal&analyser=1`)} disabled={!!jobId}>📝 Analyser une réunion</button>
-            <button className="btn btn-primary" onClick={() => goTab('cdc')}>📄 Cahier des charges</button>
           </div>
         </div>
 
