@@ -31,6 +31,7 @@ import { blobs } from '../storage/blobs.js';
 import { renderMarkdownDocx } from '../export/docx.js';
 import { captureBedrockRequest } from '../ai/bedrock.js';
 import * as pr from '../projects/repo.js';
+import { notify } from '../notifications/teams.js';
 import * as repo from './repo.js';
 import { JOB_OF_DOC, sprintDocCall } from './jobs.js';
 import { overview, sprintDetail, ticketLabels } from './views.js';
@@ -77,6 +78,9 @@ function reviewContent(r: SprintReport, labels: StatusLabels, markdown: string):
   return `*Revue du ${r.sprint.name} — données arrêtées au ${shortDay(r.asOfDay)}.*\n\n${figures.join('\n')}\n\n${markdown}`;
 }
 
+/** AAAA-MM-JJ → JJ/MM/AAAA (cartes Teams). */
+const frDate = (d: string) => d.split('-').reverse().join('/');
+
 /** Routes du module Sprints (montées sous /api/sprints). Les tickets se modifient par les routes des projets. */
 export function sprintRoutes() {
   const r = new Hono();
@@ -122,7 +126,19 @@ export function sprintRoutes() {
     const startDate = it.startDate && it.startDate <= today ? it.startDate : today;
     const endDate = it.endDate && it.endDate >= startDate ? it.endDate : addDays(startDate, DEFAULT_SPRINT_DAYS - 1);
     await repo.setSprintFields(id, { state: 'active', startedAt: nowIso(), startDate, endDate }, userName(c));
-    return c.json(await sprintDetail(id));
+    const detail = await sprintDetail(id);
+    await notify('sprint_demarre', {
+      title: `🚀 ${it.name} a démarré`,
+      text: it.goal || undefined,
+      facts: [
+        { title: 'Du', value: frDate(startDate) },
+        { title: 'Au', value: frDate(endDate) },
+        { title: 'Tickets', value: String((await pr.ticketsOfSprint(id)).length) },
+        { title: 'Lancé par', value: c.get('user').name || userName(c) },
+      ],
+      path: `/sprints/${id}`,
+    });
+    return c.json(detail);
   });
 
   /** Clôture le sprint en cours : ses tickets non terminés partent dans le sprint choisi (à venir) ou au backlog. */
@@ -140,6 +156,13 @@ export function sprintRoutes() {
     await repo.setSprintFields(id, { state: 'closed', completedAt: nowIso() }, user);
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
     for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
+    const dest = b.moveTo === null ? 'au backlog' : `dans « ${(await repo.getSprintItem(b.moveTo))?.name ?? `Sprint ${b.moveTo}`} »`;
+    await notify('sprint_clos', {
+      title: `🏁 ${it.name} est clôturé`,
+      text: open.length ? `${open.length} ticket(s) non terminé(s) reporté(s) ${dest}.` : 'Tous les tickets du sprint sont terminés. 🎉',
+      facts: [{ title: 'Clôturé par', value: c.get('user').name || user }],
+      path: `/sprints/${id}`,
+    });
     return c.json({ moved: open.length, detail: await sprintDetail(id) });
   });
 
@@ -161,6 +184,13 @@ export function sprintRoutes() {
     await repo.setSprintFields(id, { state: 'closed', ...pastSprintTimes(it.startDate, it.endDate), recordedAt: nowIso() }, user);
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
     for (const t of open) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: b.moveTo }, user);
+    const dest = b.moveTo === null ? 'au backlog' : `dans « ${(await repo.getSprintItem(b.moveTo))?.name ?? `Sprint ${b.moveTo}`} »`;
+    await notify('sprint_clos', {
+      title: `🏁 ${it.name} est clôturé`,
+      text: open.length ? `${open.length} ticket(s) non terminé(s) reporté(s) ${dest}.` : 'Tous les tickets du sprint sont terminés. 🎉',
+      facts: [{ title: 'Clôturé par', value: c.get('user').name || user }],
+      path: `/sprints/${id}`,
+    });
     return c.json({ moved: open.length, detail: await sprintDetail(id) });
   });
 

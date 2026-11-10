@@ -74,6 +74,9 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 |---|---|---|
 | `REF#LISTS` | `LISTS` | Libellés, ordre et visibilité des statuts ; libellés de jalons et rôles proposés |
 | `REF#PRESTA` | `P#<id>` | Prestataire et son carnet de contacts |
+| `REF#TEAMS` | `TEAMS` | Connexion Teams : adresse du flux Workflows, notifications activées, adresse du hub (liens), dernier échec |
+
+**Notifications Teams** (`apps/api/src/notifications/teams.ts`) : `notify(event, message)` envoie une carte adaptative (`teamsPayload`) au flux Workflows du canal si la connexion existe et que l'évènement est activé ; délai de 5 s, jamais d'erreur levée (l'échec est gardé dans `lastError` et affiché dans le paramétrage). L'adresse du flux vaut mot de passe : l'API n'en renvoie qu'un extrait (`maskWebhookUrl`) et n'appelle que les hôtes Microsoft (`teamsWebhookError`). L'adresse du hub, pour le bouton « Ouvrir dans Hobbit », est l'origine de la page qui a enregistré la connexion.
 
 ## Module « Suivi TMA »
 

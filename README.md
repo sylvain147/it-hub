@@ -142,7 +142,7 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 
 | Rôle | Droits |
 |---|---|
-| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l'équipe ; lit et traite les retours |
+| Administrateur | Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l'équipe ; lit et traite les retours ; connecte le hub à Teams |
 | Responsable d'équipe | Voit les to-do de toute l'équipe et peut y ajouter des tâches pour chacun |
 | Chargé de projet | Voit sa propre to-do et y ajoute ses tâches |
 
@@ -158,6 +158,7 @@ Référentiels communs, modifiables par tous les utilisateurs :
 - **Intervenants liés au carnet** : dans un projet, un intervenant peut être choisi dans le carnet d'un prestataire ; nom, e-mail, téléphone et organisation restent alors à jour avec le carnet (le rôle et les notes restent propres au projet).
 - **Statuts** (projets, prestations, risques, cahiers des charges) : libellé, ordre et visibilité. Le fonctionnement ne change pas (projet clos, montant engagé, risque clos…) ; les statuts qui le portent ne peuvent pas être masqués.
 - **Libellés de jalons et rôles des intervenants** proposés à la saisie (texte libre toujours possible).
+- **Teams** (administrateurs) : le hub publie des notifications dans un canal Teams de l'équipe. Dans Teams, menu ⋯ du canal → Workflows → « Publier dans un canal lorsqu'une demande de webhook est reçue », puis coller l'adresse obtenue : un message d'essai est envoyé aussitôt. Chaque notification s'active à part (sprint démarré, sprint clôturé, nouvelle idée). L'adresse n'est plus affichée une fois enregistrée ; un envoi en échec ne bloque jamais l'action et s'affiche dans l'onglet.
 
 ### 📊 Consommation IA
 

@@ -23,25 +23,31 @@ import {
   type PrestataireUsage,
   type TmaPrestataireHours,
   type StatusListKey,
+  type Permission,
 } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from './context';
+import { TeamsTab } from './TeamsTab';
+import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { UserSelect } from '../users/context';
 import { fmtH } from '../tma/common';
 
-type Tab = 'prestataires' | 'statuts' | 'tableau' | 'listes';
-const TABS: { id: Tab; label: string }[] = [
+type Tab = 'prestataires' | 'statuts' | 'tableau' | 'listes' | 'teams';
+const TABS: { id: Tab; label: string; permission?: Permission }[] = [
   { id: 'prestataires', label: 'Prestataires et contacts' },
   { id: 'statuts', label: 'Statuts' },
   { id: 'tableau', label: 'Tableau des sprints' },
   { id: 'listes', label: 'Jalons et rôles' },
+  { id: 'teams', label: 'Teams', permission: 'manageIntegrations' },
 ];
 
 export function SettingsPage() {
   const [params, setParams] = useSearchParams();
-  const tab = (TABS.find((t) => t.id === params.get('onglet'))?.id ?? 'prestataires') as Tab;
+  const { me } = useAuth();
+  const tabs = TABS.filter((t) => !t.permission || me.permissions[t.permission]);
+  const tab = (tabs.find((t) => t.id === params.get('onglet'))?.id ?? 'prestataires') as Tab;
   return (
     <div className="page">
       <div className="page-head">
@@ -49,7 +55,7 @@ export function SettingsPage() {
       </div>
       <p className="muted small">Référentiels communs à tous les projets. Les modifications s’appliquent immédiatement pour toute l’équipe.</p>
       <div className="tabs tabs-page">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} className={tab === t.id ? 'tab active' : 'tab'} onClick={() => setParams({ onglet: t.id })}>
             {t.label}
           </button>
@@ -60,6 +66,7 @@ export function SettingsPage() {
         {tab === 'statuts' && <StatusesTab />}
         {tab === 'tableau' && <CardRulesTab />}
         {tab === 'listes' && <SuggestionsTab />}
+        {tab === 'teams' && <TeamsTab />}
       </div>
     </div>
   );
