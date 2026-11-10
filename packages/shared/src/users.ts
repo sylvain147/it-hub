@@ -17,7 +17,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   membre: 'Chargé de projet',
 };
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l’équipe ; lit les retours sur l’application.',
+  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l’équipe ; lit les retours sur l’application ; connecte le hub à Teams.',
   responsable: 'Voit les to-do de toute l’équipe et peut en attribuer à chacun.',
   membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets (et leur to-do), les tickets et les sprints restent partagés par toute l’équipe.',
 };
@@ -34,6 +34,8 @@ export const PERMISSIONS = {
   manageAllNotes: ['admin'],
   /** Lire et traiter les retours des utilisateurs sur l'application. */
   manageFeedback: ['admin'],
+  /** Connecter le hub à Teams et choisir les notifications envoyées. */
+  manageIntegrations: ['admin'],
 } as const satisfies Record<string, readonly Role[]>;
 export type Permission = keyof typeof PERMISSIONS;
 

@@ -1,4 +1,6 @@
 import type {
+  TeamsSettings,
+  TeamsSettingsBody,
   AssistantAnswer,
   AssistantAskBody,
   MePreferences,
@@ -260,6 +262,10 @@ export const api = {
   listFeedback: () => request<Feedback[]>('GET', '/feedback'),
   updateFeedback: (id: string, b: UpdateFeedbackBody) => request<Feedback>('PATCH', `/feedback/${id}`, b),
   deleteFeedback: (id: string) => request<null>('DELETE', `/feedback/${id}`),
+  /** Connexion Teams (droit `manageIntegrations`). */
+  teamsSettings: () => request<TeamsSettings>('GET', '/notifications/teams'),
+  saveTeamsSettings: (b: TeamsSettingsBody) => request<TeamsSettings>('PUT', '/notifications/teams', b),
+  testTeams: () => request<{ ok: true }>('POST', '/notifications/teams/test'),
   activity: () => request<ActivityEntry[]>('GET', '/activity'),
 };
 

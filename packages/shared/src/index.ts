@@ -25,3 +25,4 @@ export * from './bouton.js';
 export * from './ideas.js';
 export * from './themes.js';
 export * from './assistant.js';
+export * from './notifications.js';

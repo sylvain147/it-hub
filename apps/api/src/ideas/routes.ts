@@ -16,6 +16,7 @@ import { body, parseBody } from '../lib/http.js';
 import { HttpError, newId, notFound, nowIso } from '../lib/util.js';
 import * as pr from '../projects/repo.js';
 import { resolveTaskAssignee } from '../users/routes.js';
+import { notify } from '../notifications/teams.js';
 
 const PK = 'IDEA';
 const key = (id: string) => ({ pk: PK, sk: `I#${id}` });
@@ -54,6 +55,14 @@ export function ideaRoutes() {
     await pr.assertProjectRef(b.projectId);
     const i = newIdea(b, userName(c));
     await putIdea(i);
+    await notify('idee_ajoutee', {
+      title: `💡 Nouvelle idée : ${i.title}`,
+      facts: [
+        { title: 'Domaine', value: i.domain },
+        { title: 'Proposée par', value: c.get('user').name || i.createdBy },
+      ],
+      path: '/idees',
+    });
     return c.json(i, 201);
   });
 
