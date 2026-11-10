@@ -103,7 +103,7 @@ export function GlobalPlanningPage() {
   const { name } = useUsers();
   const { data, error, loading } = useLoad(() => api.planning(), []);
   const mine = useLoad(() => api.todos(), []);
-  const [period, setPeriodId] = useState<PeriodId>('12');
+  const [period, setPeriodId] = useState<PeriodId>('mois');
   // Décalage en nombre de périodes (◀ ▶) ; 0 : la période qui contient aujourd'hui.
   const [offset, setOffset] = useState(0);
   const setPeriod = (p: PeriodId) => {

@@ -31,7 +31,7 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 
 ### 🗓️ Planning
 
-- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 1 semaine (jour par jour), 1 mois, 3 mois, 6 mois, 12 mois ou toute la durée, avec ◀ ▶ pour passer à la période précédente ou suivante ; projets clos et éléments terminés masquables.
+- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 1 semaine (jour par jour), 1 mois, 3 mois, 6 mois, 12 mois ou toute la durée (1 mois par défaut), avec ◀ ▶ pour passer à la période précédente ou suivante ; projets clos et éléments terminés masquables.
 - **Un clic sur un point ouvre l'élément** : un jalon mène à l'onglet « Planning » de son projet, une tâche à la to-do (du projet ou la mienne), l'élément étant mis en évidence.
 - **To-do sur la frise** (affichable ou non) : les tâches qui ont une échéance, sur la ligne de leur projet, et une ligne « Ma to-do » pour les miennes hors projet.
 - En dessous, **les échéances de la période mois par mois** (jalons et tâches), avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
@@ -56,7 +56,7 @@ Petit jeu caché : de temps en temps (une chance sur 40 à chaque changement de 
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
 - **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), **chefs de projet (un ou plusieurs utilisateurs du hub, ex. un pour l’ERP et un pour le Web, choisis dans une liste déroulante filtrable)**, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, suivie de **sections libres** ajoutées à la demande (titre + texte, ex. objectifs, hors périmètre).
-- **Suivre un projet** (☆ Suivre, sur la page du projet ou dans la liste) : il compte alors parmi **« Mes projets »**, avec ceux dont je suis l’un des chefs de projet. La case « Mes projets » filtre la liste des projets, le planning, les sprints (tableau, planification, backlog) et les cahiers des charges ; le choix est retenu d'une page à l'autre.
+- **Suivre un projet** (☆ Suivre, sur la page du projet ou dans la liste) : il compte alors parmi **« Mes projets »**, avec ceux dont je suis l’un des chefs de projet. La case « Mes projets » filtre la liste des projets, le planning et les sprints (tableau, planification, backlog) ; le choix est retenu d'une page à l'autre.
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
 - **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description (avec des **captures d’écran collées** directement), statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **To-do et notes** : la to-do du projet (partagée) et mes notes sur le projet (personnelles).
@@ -107,7 +107,7 @@ Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté
 - **Versionning** : chaque enregistrement crée une version (0.1, 0.2… puis 1.0 à la validation). On peut comparer deux versions, restaurer une version et exporter n'importe laquelle.
 - **Exports Word et PDF** fidèles au modèle (bandeau Version / Échéance cible / Statut / Estimation).
 - **Traduction** anglais / allemand, avec cache paragraphe par paragraphe.
-- La liste de tous les CDC reste accessible (bouton « Tous les cahiers des charges ») ; un CDC créé avant le module Projets peut être **rattaché** à un projet.
+- Les CDC se retrouvent dans l'onglet « Cahiers des charges » de leur projet ; un CDC créé avant le module Projets s'y **rattache** (« Rattacher un cahier des charges existant »).
 
 ### 🗂️ Lecteur de fichiers
 
