@@ -27,7 +27,8 @@ import type {
   PlanningProject,
   TodoInput,
   TodoOrderBody,
-  BoutonRougeScores,
+  AnneauState,
+  AnneauTaken,
   TodosResponse,
   UserInput,
   UserUpdate,
@@ -141,8 +142,8 @@ export const api = {
   deleteNote: (n: Pick<PersonalNote, 'id' | 'ownerId'>) => request<null>('DELETE', `/notes/${n.id}?owner=${encodeURIComponent(n.ownerId)}`),
   /** Assistant : une question (et les derniers échanges), une réponse. Chaque appel consomme de l'IA. */
   askAssistant: (b: AssistantAskBody) => request<AssistantAnswer>('POST', '/assistant', b),
-  boutonRouge: () => request<BoutonRougeScores>('GET', '/bouton-rouge'),
-  clicBoutonRouge: () => request<BoutonRougeScores>('POST', '/bouton-rouge/clic'),
+  anneau: () => request<AnneauState>('GET', '/anneau'),
+  prendreAnneau: () => request<AnneauTaken>('POST', '/anneau/prendre'),
 
   listCdcs: () => request<CdcSummary[]>('GET', '/cdcs'),
   getCdc: (id: string) => request<CdcDetail>('GET', `/cdcs/${id}`),

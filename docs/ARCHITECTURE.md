@@ -162,10 +162,10 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 |---|---|---|
 | `FEEDBACK` | `F#<date ISO>#<id>` | Retour (type, message, page, auteur, statut, note de traitement) |
 
-## Bouton rouge « NE PAS CLIQUER »
+## L’Anneau unique
 
-Petit jeu caché : `packages/shared/src/bouton.ts` (rareté `BOUTON_ROUGE_CHANCE`, pause `BOUTON_ROUGE_PAUSE_MIN`), `apps/api/src/bouton/routes.ts` (`GET /api/bouton-rouge` : mon compteur et le classement ; `POST /api/bouton-rouge/clic` : incrément atomique), front `apps/web/src/bouton/BoutonRouge.tsx` (monté dans `Layout`, tirage au sort à chaque changement de page, dernière apparition dans `localStorage` ; `?bouton-rouge` force l'apparition). La scène de déception est en CSS et le son en Web Audio : rien à télécharger.
+Petit jeu caché de l'Anneau unique : `packages/shared/src/anneau.ts` (rareté `ANNEAU_CHANCE`, pause `ANNEAU_PAUSE_MIN`), `apps/api/src/anneau/routes.ts` (`GET /api/anneau` : porteur, depuis quand, nombre de passages ; `POST /api/anneau/prendre` : mise à jour conditionnelle de l'unique enregistrement `ANNEAU`/`ETAT`, sans effet si l'on porte déjà l'Anneau, renvoie l'ancien porteur), front `apps/web/src/anneau/Anneau.tsx` (`AnneauProvider` autour de `Layout`, porteur relu toutes les 5 minutes et au retour sur l'onglet ; `AnneauFlottant` : tirage au sort à chaque changement de page, jamais chez le porteur, dernière apparition dans `localStorage`, `?anneau` force l'apparition ; `ringClass` pose le rond doré `.has-ring` sur les initiales du porteur).
 
 | pk | sk | Contenu |
 |---|---|---|
-| `BOUTON` | `C#<e-mail>` | Nombre de clics (`count`), dernier clic |
+| `ANNEAU` | `ETAT` | Porteur de l’Anneau (`holder`, e-mail), depuis (`since`), nombre de passages (`passes`) |

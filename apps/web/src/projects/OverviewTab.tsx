@@ -21,6 +21,7 @@ import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, usePro
 import { hasPending } from './ProjectPage';
 import { StatusOptions } from '../settings/context';
 import { UserChoices, useUsers } from '../users/context';
+import { ringClass, useRingHolder } from '../anneau/Anneau';
 
 export function fieldsOf(p: ProjectDetail): ProjectFields {
   return projectFieldsSchema.parse(p);
@@ -221,12 +222,13 @@ export function initials(name: string) {
 
 export function ActivityList({ entries, showProject }: { entries: ProjectDetail['activity']; showProject?: boolean }) {
   const navigate = useNavigate();
+  const ringHolder = useRingHolder();
   if (!entries.length) return <p className="muted">Aucune activité.</p>;
   return (
     <ul className="activity">
       {entries.map((a, i) => (
         <li key={i}>
-          <span className="avatar avatar-sm">{initials(shortUser(a.user))}</span>
+          <span className={`avatar avatar-sm${ringClass(ringHolder, a.user)}`}>{initials(shortUser(a.user))}</span>
           <span>
             <strong>{shortUser(a.user)}</strong> {a.text}
             {showProject && (
