@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-import { setupTestEnv } from './helpers.js';
+import { setupTestEnv, TINY_PNG } from './helpers.js';
 import { BedrockProvider } from '../src/ai/bedrock.js';
 import { config } from '../src/config.js';
 import { ddb } from '../src/db/client.js';
@@ -307,5 +307,20 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     // Le sprint en cours ne se classe pas ainsi : il se clôture.
     const active = (await env.call('GET', '/sprints')).json.sprints.find((x: any) => x.state === 'active');
     expect((await env.call('POST', `/sprints/${active.id}/past`, {})).status).toBe(400);
+  });
+
+  it('colle une image dans la description d’un ticket', async () => {
+    expect((await env.call('POST', '/images', { contentType: 'image/gif', size: 10 })).status).toBe(400);
+    const img = await env.call('POST', '/images', { contentType: 'image/png', size: TINY_PNG.length });
+    expect(img.status).toBe(200);
+    expect(img.json.ref).toMatch(/^asset:hub\//);
+    const key = decodeURIComponent(img.json.upload.url.slice('/local-blob/'.length));
+    expect(key).toMatch(/^images\//);
+    await env.store.put(key, TINY_PNG, 'image/png');
+    const details = `Capture de l’erreur :\n\n![écran](${img.json.ref})`;
+    const t = await ticket(p1, 'Erreur à l’écran', { details });
+    expect(t.details).toBe(details);
+    const urls = await env.call('POST', '/assets/resolve', { refs: [img.json.ref] });
+    expect(urls.json[img.json.ref]).toBeTruthy();
   });
 });

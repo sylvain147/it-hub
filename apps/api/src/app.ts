@@ -9,6 +9,7 @@ import {
   createCdcBody,
   emptyDoc,
   exportBody,
+  HUB_ASSET_SCOPE,
   integrateAnswersBody,
   parseAssetRef,
   resolveAssetsBody,
@@ -260,6 +261,14 @@ export function createApp() {
     const assetId = newId();
     const upload = await blobs().uploadUrl(blobKeys.asset(id, assetId), b.contentType, b.size);
     return c.json({ ref: assetRef(id, assetId), upload });
+  });
+
+  // Images des autres textes du hub (description d'un ticket…), indépendantes d'un CDC.
+  api.post('/images', async (c) => {
+    const b = await body(c, createAssetBody);
+    const assetId = newId();
+    const upload = await blobs().uploadUrl(blobKeys.asset(HUB_ASSET_SCOPE, assetId), b.contentType, b.size);
+    return c.json({ ref: assetRef(HUB_ASSET_SCOPE, assetId), upload });
   });
 
   api.post('/assets/resolve', async (c) => {

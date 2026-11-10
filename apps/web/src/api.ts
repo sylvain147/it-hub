@@ -167,6 +167,8 @@ export const api = {
 
   createAsset: (id: string, contentType: string, size: number) =>
     request<{ ref: string; upload: { url: string; headers: Record<string, string> } }>('POST', `/cdcs/${id}/assets`, { contentType, size }),
+  createImage: (contentType: string, size: number) =>
+    request<{ ref: string; upload: { url: string; headers: Record<string, string> } }>('POST', '/images', { contentType, size }),
   resolveAssets: (refs: string[]) => request<Record<string, string>>('POST', '/assets/resolve', { refs }),
 
   getJob: (id: string) => request<JobInfo>('GET', `/jobs/${id}`),

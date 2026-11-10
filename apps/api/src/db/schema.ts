@@ -14,6 +14,9 @@
  *
  * Modules : FTYPE#… (voir filetypes/repo.ts), TMA#… (voir tma/repo.ts).
  */
+
+import { HUB_ASSET_SCOPE } from '@samm/shared';
+
 export const keys = {
   cdc: (id: string) => ({ pk: `CDC#${id}`, sk: 'META' }),
   version: (id: string, seq: number) => ({ pk: `CDC#${id}`, sk: `VER#${String(seq).padStart(10, '0')}` }),
@@ -32,7 +35,9 @@ export const blobKeys = {
   version: (id: string, seq: number, rand: string) => `cdc/${id}/versions/${String(seq).padStart(10, '0')}-${rand}.json`,
   source: (id: string, sid: string) => `cdc/${id}/sources/${sid}.txt`,
   translation: (id: string, lang: string, seq: number) => `cdc/${id}/translations/${lang}-${seq}.json`,
-  asset: (id: string, assetId: string) => `cdc/${id}/assets/${assetId}`,
+  /** Image d'un CDC, ou d'un autre texte du hub (`HUB_ASSET_SCOPE`). */
+  /** Image d'un CDC, ou d'un autre texte du hub (`HUB_ASSET_SCOPE`). */
+  asset: (id: string, assetId: string) => (id === HUB_ASSET_SCOPE ? `images/${assetId}` : `cdc/${id}/assets/${assetId}`),
   export: (id: string, name: string) => `exports/${id}/${name}`,
   /** Texte en attente de traitement par un job (supprimé automatiquement après quelques jours). */
   pendingText: (id: string) => `uploads/${id}.txt`,

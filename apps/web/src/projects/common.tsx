@@ -18,6 +18,7 @@ import { Link } from 'react-router';
 import { api } from '../api';
 import { useSettings } from '../settings/context';
 import { RichEditor } from '../editor/RichEditor';
+import { useAssetUrl } from '../editor/assets';
 import { ErrorBox, Modal, Spinner, shortUser, toast } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -164,6 +165,8 @@ function renderNode(n: RichNode): ReactNode {
       return <hr />;
     case 'hardBreak':
       return <br />;
+    case 'image':
+      return <MarkdownImage src={String(n.attrs?.src ?? '')} alt={String(n.attrs?.alt ?? '')} />;
     case 'table':
       return (
         <table>
@@ -196,8 +199,21 @@ function renderNode(n: RichNode): ReactNode {
   }
 }
 
-/** Champ de texte riche dont la valeur est du Markdown. `resetKey` réinitialise l'éditeur. */
-export function MarkdownField({ value, onChange, editable = true, placeholder, resetKey }: { value: string; onChange: (md: string) => void; editable?: boolean; placeholder?: string; resetKey?: unknown }) {
+/** Image d'un texte en lecture (référence `asset:…` résolue en URL temporaire). */
+function MarkdownImage({ src, alt }: { src: string; alt: string }) {
+  const url = useAssetUrl(src);
+  if (url === null) return <div className="img-missing">Chargement de l’image…</div>;
+  if (!url) return <div className="img-missing">Image introuvable</div>;
+  return (
+    <figure className="md-image">
+      <img src={url} alt={alt} />
+      {alt && <figcaption>{alt}</figcaption>}
+    </figure>
+  );
+}
+
+/** Champ de texte riche dont la valeur est du Markdown. `resetKey` réinitialise l'éditeur ; `images` autorise le collage d'images. */
+export function MarkdownField({ value, onChange, editable = true, placeholder, resetKey, images }: { value: string; onChange: (md: string) => void; editable?: boolean; placeholder?: string; resetKey?: unknown; images?: boolean }) {
   const initial = useMemo<RichDoc>(() => markdownToDoc(value), [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <RichEditor
@@ -206,6 +222,7 @@ export function MarkdownField({ value, onChange, editable = true, placeholder, r
       onChange={(doc) => onChange(docToMarkdown(doc))}
       editable={editable}
       placeholder={placeholder}
+      images={images}
       compact
     />
   );

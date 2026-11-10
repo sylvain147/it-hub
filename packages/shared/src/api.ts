@@ -62,8 +62,12 @@ export const createAssetBody = z.object({
 
 export const resolveAssetsBody = z.object({ refs: z.array(z.string()).max(200) });
 
-/** Les images des documents sont référencées par `asset:<cdcId>/<assetId>` (le bucket reste privé). */
+/**
+ * Les images des documents sont référencées par `asset:<cdcId>/<assetId>` (le bucket reste privé).
+ * Les images des autres textes du hub (description d'un ticket…) le sont par `asset:hub/<assetId>`.
+ */
 export const ASSET_PREFIX = 'asset:';
+export const HUB_ASSET_SCOPE = 'hub';
 export function assetRef(cdcId: string, assetId: string): string {
   return `${ASSET_PREFIX}${cdcId}/${assetId}`;
 }

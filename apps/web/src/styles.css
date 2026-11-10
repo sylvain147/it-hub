@@ -224,10 +224,13 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #98a2b3; float: left; height: 0; pointer-events: none; font-style: italic; }
 .img-node { margin: 10px 0; text-align: center; }
 .img-node img { max-width: 100%; border: 1px solid var(--line); border-radius: 4px; }
-.img-node.is-selected img { outline: 3px solid #b2ccec; }
+.img-node.is-selected img { outline: 3px solid color-mix(in srgb, var(--blue) 40%, #fff); }
 .img-missing { padding: 24px; border: 1px dashed #d0d5dd; color: var(--muted); border-radius: 6px; font-size: 13px; }
 .img-caption { display: block; margin: 4px auto 0; width: 70%; text-align: center; border: none; font: italic 13px Georgia, serif; color: var(--muted); background: transparent; }
 .img-caption:focus { outline: 1px dashed #d0d5dd; }
+.md-image { margin: 8px 0; }
+.md-image img { max-width: 100%; border: 1px solid var(--line); border-radius: 4px; }
+.md-image figcaption { font: italic 13px Georgia, serif; color: var(--muted); text-align: center; }
 
 /* Questions */
 .question { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -912,10 +915,25 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 
 /* Fiche utilisateur : périmètres */
 .badge-perimeter { background: #ecfdf3; color: #067647; }
-.perimeter-choices, .user-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.perimeter-choices { display: flex; flex-wrap: wrap; gap: 8px; }
 .choice-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #d0d5dd; border-radius: 999px; cursor: pointer; font-size: 13px; background: #fff; }
 .choice-chip.on { border-color: var(--blue); background: var(--blue-50); color: var(--blue); font-weight: 600; }
 .choice-chip input { accent-color: var(--blue); }
+
+/* Liste déroulante à choix multiples (MultiSelect) */
+.multi-select { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 38px; padding: 4px 30px 4px 6px; border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; cursor: text; }
+.multi-select:focus-within { outline: 2px solid color-mix(in srgb, var(--blue) 35%, #fff); border-color: var(--blue); }
+.ms-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--blue-50); color: var(--navy); font-size: 13px; font-weight: 600; }
+.ms-remove { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; width: 20px; height: 20px; border-radius: 50%; padding: 0; opacity: 0.7; }
+.ms-remove:hover { opacity: 1; background: color-mix(in srgb, var(--blue) 18%, transparent); }
+.ms-hint { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.ms-input { flex: 1; min-width: 120px; border: none; outline: none; font: inherit; color: inherit; background: transparent; padding: 4px; }
+.ms-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); cursor: pointer; font-size: 12px; }
+.multi-select.open .ms-caret { transform: translateY(-50%) rotate(180deg); }
+.ms-menu { position: absolute; z-index: 30; left: -1px; right: -1px; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12); max-height: 240px; overflow-y: auto; }
+.ms-menu li { padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.ms-menu li.active { background: var(--blue-50); color: var(--navy); }
+.ms-menu li.ms-empty { cursor: default; color: var(--muted); font-style: italic; }
 
 /* Jalons sur une période (frise d'un projet et frise globale) */
 .tl-range { position: absolute; top: 66px; height: 11px; border-radius: 6px; background: #d1e0ff; opacity: 0.9; }

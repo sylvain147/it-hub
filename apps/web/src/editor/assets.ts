@@ -47,11 +47,11 @@ export function useAssetUrl(ref: string): string | null {
   return url;
 }
 
-/** Envoie une image (PNG/JPEG) dans le stockage et renvoie sa référence `asset:…`. */
-export async function uploadImage(cdcId: string, file: File): Promise<string> {
+/** Envoie une image (PNG/JPEG) dans le stockage et renvoie sa référence `asset:…` (sans CDC : image du hub). */
+export async function uploadImage(cdcId: string | null, file: File): Promise<string> {
   if (!(ALLOWED_ASSET_TYPES as readonly string[]).includes(file.type)) throw new Error('Formats d’image acceptés : PNG et JPEG.');
   if (file.size > MAX_ASSET_BYTES) throw new Error('Image trop lourde (10 Mo maximum).');
-  const { ref, upload } = await api.createAsset(cdcId, file.type, file.size);
+  const { ref, upload } = cdcId ? await api.createAsset(cdcId, file.type, file.size) : await api.createImage(file.type, file.size);
   const res = await fetch(upload.url, { method: 'PUT', headers: upload.headers, body: file });
   if (!res.ok) throw new Error(`Échec de l’envoi de l’image (${res.status}).`);
   cache.set(ref, { url: URL.createObjectURL(file), at: Date.now() });
