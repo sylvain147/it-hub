@@ -14,12 +14,14 @@ import {
   STATUS_LISTS,
   STATUS_LIST_KEYS,
   defaultListSettings,
+  monthLabel,
   nameKey,
   type ListSettings,
   type Prestataire,
   type PrestataireContact,
   type PrestataireContactInput,
   type PrestataireUsage,
+  type TmaPrestataireHours,
   type StatusListKey,
 } from '@samm/shared';
 import { api } from '../api';
@@ -27,6 +29,7 @@ import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast 
 import { useSettings } from './context';
 import { useLoad } from '../hooks';
 import { UserSelect } from '../users/context';
+import { fmtH } from '../tma/common';
 
 type Tab = 'prestataires' | 'statuts' | 'tableau' | 'listes';
 const TABS: { id: Tab; label: string }[] = [
@@ -74,12 +77,17 @@ function PrestatairesTab() {
   const [showArchived, setShowArchived] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  // Temps des relevés TMA par contact et par prestataire.
+  const [tmaHours, setTmaHours] = useState<TmaPrestataireHours | null>(null);
+
   const loadUsage = () => api.settingsUsage().then(setUsage, () => setUsage(null));
+  const loadTma = () => api.tmaPrestataires().then(setTmaHours, () => setTmaHours(null));
   useEffect(() => {
     void loadUsage();
+    void loadTma();
   }, []);
   const refresh = async () => {
-    await Promise.all([reload(), loadUsage()]);
+    await Promise.all([reload(), loadUsage(), loadTma()]);
   };
 
   const list = prestataires.filter((p) => (showArchived || p.active || p.id === selected) && (!q.trim() || nameKey(p.name).includes(nameKey(q))));
@@ -112,6 +120,13 @@ function PrestatairesTab() {
           </div>
         </div>
       )}
+      {tmaHours && tmaHours.unknown.length > 0 && (
+        <div className="alert alert-warn">
+          <strong>{tmaHours.unknown.length} intervenant(s) des relevés TMA</strong> ne sont dans aucun carnet de contacts, leur temps n’est compté sur aucun
+          prestataire : {tmaHours.unknown.map((u) => `${u.person} (${fmtH(u.hours)})`).join(', ')}. Ajoutez-les au carnet de leur prestataire (même nom, dans
+          n’importe quel ordre).
+        </div>
+      )}
       <div className="presta-layout">
         <div>
           <div className="toolbar-row">
@@ -132,6 +147,7 @@ function PrestatairesTab() {
                 </span>
                 <span className="muted small nowrap">
                   {p.contacts.filter((c) => c.active).length} contact(s) · {usage?.prestations[p.id] ?? 0} prestation(s)
+                  {tmaHours?.byPrestataire[p.id] && <> · {fmtH(tmaHours.byPrestataire[p.id]!.hours)} TMA</>}
                 </span>
               </button>
             ))}
@@ -143,7 +159,7 @@ function PrestatairesTab() {
           ) : current ? (
             <>
               <PrestataireForm key={current.id} prestataire={current} usage={usage?.prestations[current.id] ?? 0} onSaved={refresh} onRemoved={async () => { await refresh(); setSelected(null); }} />
-              <ContactsBook prestataire={current} onChanged={refresh} />
+              <ContactsBook prestataire={current} tmaHours={tmaHours} onChanged={refresh} />
             </>
           ) : (
             <EmptyState>Choisissez un prestataire pour modifier sa fiche et son carnet de contacts.</EmptyState>
@@ -265,7 +281,7 @@ function PrestataireForm({ prestataire, usage = 0, onSaved, onRemoved }: { prest
   );
 }
 
-function ContactsBook({ prestataire, onChanged }: { prestataire: Prestataire; onChanged: () => Promise<void> }) {
+function ContactsBook({ prestataire, tmaHours, onChanged }: { prestataire: Prestataire; tmaHours: TmaPrestataireHours | null; onChanged: () => Promise<void> }) {
   const [editing, setEditing] = useState<PrestataireContact | 'new' | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const contacts = prestataire.contacts.filter((c) => showArchived || c.active);
@@ -276,7 +292,16 @@ function ContactsBook({ prestataire, onChanged }: { prestataire: Prestataire; on
         <h2>Carnet de contacts</h2>
         <button className="btn btn-sm" onClick={() => setEditing('new')}>+ Contact</button>
       </div>
-      <p className="muted small">Ces contacts se choisissent comme intervenants dans les projets ; une modification ici se répercute dans tous les projets.</p>
+      <p className="muted small">
+        Ces contacts se choisissent comme intervenants dans les projets ; une modification ici se répercute dans tous les projets. Le temps des relevés TMA
+        s’ajoute au contact du même nom.
+      </p>
+      {tmaHours?.byPrestataire[prestataire.id] && (
+        <p className="small">
+          Temps TMA : <strong>{fmtH(tmaHours.byPrestataire[prestataire.id]!.hours)}</strong>
+          <span className="muted"> ({tmaHours.byPrestataire[prestataire.id]!.months.map((m) => `${monthLabel(m.month)} : ${fmtH(m.hours)}`).join(' · ')})</span>
+        </p>
+      )}
       {!contacts.length ? (
         <p className="muted small">Aucun contact.</p>
       ) : (
@@ -288,6 +313,7 @@ function ContactsBook({ prestataire, onChanged }: { prestataire: Prestataire; on
                 <th>Rôle</th>
                 <th>E-mail</th>
                 <th>Téléphone</th>
+                {tmaHours?.byPrestataire[prestataire.id] && <th className="num">Temps TMA</th>}
               </tr>
             </thead>
             <tbody>
@@ -297,6 +323,11 @@ function ContactsBook({ prestataire, onChanged }: { prestataire: Prestataire; on
                   <td>{c.role}</td>
                   <td>{c.email}</td>
                   <td className="nowrap">{c.phone}</td>
+                  {tmaHours?.byPrestataire[prestataire.id] && (
+                    <td className="num" title={tmaHours.byContact[c.id]?.months.map((m) => `${monthLabel(m.month)} : ${fmtH(m.hours)}`).join('\n')}>
+                      {tmaHours.byContact[c.id] ? fmtH(tmaHours.byContact[c.id]!.hours) : <span className="muted">—</span>}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

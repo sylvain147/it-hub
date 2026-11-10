@@ -79,6 +79,7 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 
 - **Lecture des fichiers dans le navigateur** (`packages/shared/src/tma/`) : export Desk (`desk.ts`, CSV avec retours à la ligne dans les champs), relevé TMA (`activity.ts`, via `readXlsx`), masquage des données personnelles (`mask.ts`). Seuls les champs utiles, masqués, partent au serveur.
 - **Rapports calculés par le code** (`report.ts`), partagés entre l'API et les tests : temps par ticket / intervenant / thème, tickets créés, comparaison avec le mois précédent, récurrences par thème.
+- **Temps par prestataire** (`people.ts`) : les intervenants des relevés sont rapprochés des contacts du paramétrage par `personKey` (`matchTmaPeople`) ; le temps par contact et par prestataire est calculé à la lecture (`tmaHoursByContact`, `GET /api/tma/prestataires`), sans copie à tenir à jour. Le détail d'un mois porte `people` (contact ou null) et l'import d'un relevé renvoie `unknownPeople`.
 - **IA** (`apps/api/src/tma/jobs.ts`) : classement par thème (modèle rapide, lots de 40, seulement les tickets non classés ; les thèmes existants sont fournis pour rester cohérents) et synthèse mensuelle (modèle de rédaction, entrée = chiffres du mois en Markdown, quelques Ko).
 
 | pk | sk | Contenu |

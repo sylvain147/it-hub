@@ -7,6 +7,7 @@ import { ErrorBox, Spinner, formatDate, formatDateTime, shortUser, toast } from 
 import { RichEditor } from '../editor/RichEditor';
 import { Bar, BreakdownTable, delta, fmtH, fmtN } from './common';
 import { ticketPath } from '../sprints/tickets';
+import { useSettings } from '../settings/context';
 
 const TOP_TICKETS = 20;
 
@@ -82,6 +83,8 @@ export function TmaMonthPage() {
         </div>
       </div>
 
+      <UnknownPeople detail={detail} onAdded={load} />
+
       <div className="stats-row">
         <div className="stat">
           <div className="stat-label">Temps total</div>
@@ -142,7 +145,16 @@ export function TmaMonthPage() {
             <tbody>
               {r.byPerson.map((x) => (
                 <tr key={x.key}>
-                  <td>{x.key}</td>
+                  <td>
+                    {x.key}
+                    <div className="small">
+                      {detail.people?.[x.key] ? (
+                        <span className="muted">{detail.people[x.key]!.prestataireName}</span>
+                      ) : (
+                        <span className="badge badge-warn" title="Absent des carnets de contacts des prestataires : son temps n’est compté sur aucun prestataire">⚠ Contact inconnu</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="bar-cell"><Bar value={x.hours} max={maxPerson} title={`${x.key} : ${fmtH(x.hours)}, dont ${fmtH(x.ticketHours)} sur tickets`} /></td>
                   <td className="num">{fmtH(x.hours)}</td>
                   <td className="num muted small">{x.hours ? Math.round((x.ticketHours / x.hours) * 100) : 0} % tickets</td>
@@ -307,4 +319,58 @@ function exportXlsx(d: TmaMonthDetail) {
   a.download = `Suivi_TMA_${r.month}.xlsx`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Intervenants du relevé absents des carnets de contacts : alerte, et ajout en un clic au carnet d'un prestataire. */
+function UnknownPeople({ detail, onAdded }: { detail: TmaMonthDetail; onAdded: () => Promise<void> }) {
+  const { active, reload } = useSettings();
+  const [prestataireId, setPrestataireId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const linked = Object.values(detail.people ?? {}).filter((l) => l);
+  // Prestataire proposé : celui des intervenants déjà reconnus (le plus fréquent).
+  const usual = [...new Set(linked.map((l) => l!.prestataireId))].sort((a, b) => linked.filter((l) => l!.prestataireId === b).length - linked.filter((l) => l!.prestataireId === a).length)[0];
+  const target = prestataireId || (active.some((p) => p.id === usual) ? usual! : (active[0]?.id ?? ''));
+  const unknown = Object.entries(detail.people ?? {})
+    .filter(([, l]) => !l)
+    .map(([person]) => person)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+  if (!unknown.length) return null;
+
+  async function add() {
+    const p = active.find((x) => x.id === target);
+    if (!p || !confirm(`Ajouter ${unknown.join(', ')} au carnet de contacts de « ${p.name} » ?`)) return;
+    setBusy(true);
+    try {
+      for (const name of unknown) await api.addPrestataireContact(p.id, { name });
+      toast(`${unknown.length} contact(s) ajouté(s) à ${p.name}.`);
+      await Promise.all([reload(), onAdded()]);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="alert alert-warn">
+      <strong>{unknown.length} intervenant(s) absent(s) des contacts des prestataires</strong> : {unknown.join(', ')}. Leur temps n’est compté sur aucun
+      prestataire.
+      <div className="mt toolbar-row">
+        {active.length ? (
+          <>
+            <select className="input input-auto" value={target} onChange={(e) => setPrestataireId(e.target.value)}>
+              {active.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <button className="btn btn-sm btn-primary" disabled={busy || !target} onClick={() => void add()}>
+              {busy && <Spinner small />} Les ajouter au carnet de contacts
+            </button>
+          </>
+        ) : (
+          <Link to="/parametrage?onglet=prestataires">Créer le prestataire dans le paramétrage</Link>
+        )}
+      </div>
+    </div>
+  );
 }

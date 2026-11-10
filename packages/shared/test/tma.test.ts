@@ -4,6 +4,8 @@ import { parseCsv, parseDeskDate, parseDeskExport } from '../src/tma/desk.js';
 import { allocateHours, excelDate, parseTmaWorkbook } from '../src/tma/activity.js';
 import { buildMonthReport, buildThemeStats, previousMonth } from '../src/tma/report.js';
 import { writeXlsx } from '../src/files/xlsx.js';
+import { matchTmaPeople, personKey, tmaHoursByContact, unknownTmaPeople } from '../src/tma/people.js';
+import type { Prestataire } from '../src/settings.js';
 import { DESK_CSV, tmaWorkbook } from './fixtures/tma.js';
 
 describe('masquage des données personnelles', () => {
@@ -121,5 +123,42 @@ describe('rapports', () => {
   it('mois précédent', () => {
     expect(previousMonth('2026-01')).toBe('2025-12');
     expect(previousMonth('2026-10')).toBe('2026-09');
+  });
+});
+
+describe('intervenants du relevé et contacts des prestataires', () => {
+  const contact = (id: string, name: string, active = true) => ({ id, name, role: '', email: '', phone: '', notes: '', active });
+  const presta = (id: string, name: string, contacts: Prestataire['contacts'], active = true): Prestataire => ({
+    id, name, activite: '', website: '', notes: '', active, contacts, createdAt: '', createdBy: '', updatedAt: '', updatedBy: '',
+  });
+  const prestataires = [
+    presta('old', 'Ancien', [contact('c0', 'Romain Durand')], false),
+    presta('coq', 'Coqliqo', [contact('c1', 'DURAND Romain'), contact('c2', 'Jérôme MARTIN'), contact('c3', 'Alain Didier', false)]),
+  ];
+
+  it('compare les noms sans casse, accents ni ordre prénom / nom', () => {
+    expect(personKey('Durand  Romain')).toBe(personKey('ROMAIN DURAND'));
+    expect(personKey('Jérôme Martin')).toBe(personKey('martin jerome'));
+    expect(personKey('Jean-Marc Petit')).toBe(personKey('Petit Jean Marc'));
+    expect(personKey('Romain Durand')).not.toBe(personKey('Romain Dupont'));
+  });
+
+  it('retrouve le contact (prestataire actif d’abord) et signale les inconnus', () => {
+    const m = matchTmaPeople(['Romain Durand', 'Alain Didier', 'Alexandre Robert'], prestataires);
+    expect(m.get('Romain Durand')).toEqual({ prestataireId: 'coq', prestataireName: 'Coqliqo', contactId: 'c1', contactName: 'DURAND Romain' });
+    expect(m.get('Alain Didier')?.contactId).toBe('c3'); // contact archivé : reconnu quand même
+    expect(m.get('Alexandre Robert')).toBeNull();
+    expect(unknownTmaPeople(parseTmaWorkbook(tmaWorkbook()).entries, prestataires)).toEqual(['Alexandre Robert']);
+    expect(unknownTmaPeople([{ person: 'X' }], [])).toEqual(['X']);
+  });
+
+  it('additionne le temps des relevés par contact, par prestataire et par mois', () => {
+    const oct = parseTmaWorkbook(tmaWorkbook()).entries;
+    const r = tmaHoursByContact([{ month: '2026-09', entries: oct.filter((e) => e.person === 'Romain Durand') }, { month: '2026-10', entries: oct }], prestataires);
+    expect(r.byContact.c1).toEqual({ hours: 4, months: [{ month: '2026-09', hours: 2 }, { month: '2026-10', hours: 2 }] });
+    expect(r.byContact.c3!.hours).toBe(4.75);
+    expect(r.byPrestataire.coq).toEqual({ hours: 9.75, months: [{ month: '2026-09', hours: 2 }, { month: '2026-10', hours: 7.75 }] });
+    expect(r.byPrestataire.old).toBeUndefined();
+    expect(r.unknown).toEqual([{ person: 'Alexandre Robert', hours: 1 }]);
   });
 });

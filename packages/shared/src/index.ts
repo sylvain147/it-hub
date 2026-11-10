@@ -11,6 +11,7 @@ export * from './tma/desk.js';
 export * from './tma/activity.js';
 export * from './tma/report.js';
 export * from './tma/api.js';
+export * from './tma/people.js';
 export * from './project.js';
 export * from './settings.js';
 export * from './sprints/sprint.js';
