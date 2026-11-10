@@ -1003,51 +1003,28 @@ a.gp-range:hover { filter: brightness(0.92); }
 .note-card.archived { background: #f9fafb; border-color: var(--line); }
 .note-card.archived .note-body { opacity: 0.75; }
 
-/* Bouton rouge « NE PAS CLIQUER » (petit jeu caché) */
-.br-button {
-  position: fixed; z-index: 900; padding: 14px 18px; border: none; border-radius: 50%; width: 112px; height: 112px;
-  background: radial-gradient(circle at 35% 30%, #ff6b6b, #d92d20 55%, #912018); color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; line-height: 1.15; letter-spacing: 0.02em;
-  box-shadow: 0 6px 0 #7a271a, 0 10px 24px rgba(217, 45, 32, 0.45); cursor: pointer; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  animation: br-appear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both, br-wobble 2.4s ease-in-out 0.6s infinite;
+/* L'Anneau unique (petit jeu caché) : l'anneau qui apparaît, et le rond doré autour des initiales de son porteur */
+.an-ring {
+  position: fixed; z-index: 900; width: 78px; height: 78px; padding: 6px; border: none; border-radius: 50%; background: transparent; cursor: pointer;
+  filter: drop-shadow(0 0 10px rgba(245, 197, 66, 0.85)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
+  animation: an-appear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both, an-float 3s ease-in-out 0.6s infinite;
 }
-.br-button:hover { filter: brightness(1.08); }
-.br-button:active { transform: translateY(5px); box-shadow: 0 1px 0 #7a271a, 0 4px 10px rgba(217, 45, 32, 0.4); }
-.br-spot-bas-droite { right: 28px; bottom: 28px; }
-.br-spot-bas-gauche { left: 272px; bottom: 28px; }
-.br-spot-haut-droite { right: 32px; top: 90px; }
-.br-spot-milieu-droite { right: 24px; top: 45%; }
-@media (max-width: 900px) { .br-spot-bas-gauche { left: 20px; } }
-@keyframes br-appear { from { transform: scale(0) rotate(-30deg); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@keyframes br-wobble { 0%, 100% { rotate: 0deg; } 10% { rotate: -6deg; } 20% { rotate: 6deg; } 30% { rotate: 0deg; } }
-
-.br-scene { position: relative; height: 170px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(#eef4ff, #f9fafb); border-radius: 12px; overflow: hidden; }
-.br-scene::before { content: '🌧️'; position: absolute; top: 6px; font-size: 40px; animation: br-cloud 3s ease-in-out infinite; }
-.br-face { position: relative; font-size: 76px; line-height: 1; margin-top: 28px; animation: br-shake 1.6s ease-in-out infinite; }
-.br-tear { position: absolute; width: 9px; height: 13px; background: #53b1fd; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; top: 52%; opacity: 0; animation: br-cry 1.4s ease-in infinite; }
-.br-tear-1 { left: 26%; }
-.br-tear-2 { right: 26%; animation-delay: 0.7s; }
-.br-sigh { font-size: 12px; font-style: italic; color: var(--muted); animation: br-fade 2.8s ease-in-out infinite; }
-@keyframes br-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
-@keyframes br-cry { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(60px); opacity: 0; } }
-@keyframes br-cloud { 0%, 100% { transform: translateX(-18px); } 50% { transform: translateX(18px); } }
-@keyframes br-fade { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
-.br-verdict { text-align: center; font-weight: 600; font-size: 15px; margin: 14px 0 4px; }
-.br-count { text-align: center; margin: 0 0 6px; }
-.br-title { font-size: 14px; margin: 14px 0 6px; }
-.br-ranking { margin: 0; padding-left: 22px; }
-.br-ranking li { padding: 3px 0; }
-.br-ranking li > span { display: inline-block; min-width: 200px; }
-.br-ranking li.me { font-weight: 700; color: var(--danger); }
-@media (prefers-reduced-motion: reduce) { .br-button, .br-face, .br-tear, .br-scene::before, .br-sigh { animation: none; } .br-tear { opacity: 1; } }
-.br-wall { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.br-wall-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; }
-.br-wall-row:first-child { border-color: #fda29b; background: #fef3f2; }
-.br-wall-row.me { box-shadow: inset 4px 0 0 var(--danger); }
-.br-wall-rank { font-size: 24px; min-width: 36px; text-align: center; }
-.br-wall-name, .br-wall-count { display: flex; flex-direction: column; }
-.br-wall-name { flex: 1; }
-.br-wall-count { text-align: right; }
-.br-wall-count strong { font-size: 18px; color: var(--danger); }
+.an-ring:hover { filter: drop-shadow(0 0 16px rgba(255, 215, 90, 1)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25)); }
+.an-svg { width: 100%; height: 100%; display: block; }
+.an-spot-bas-gauche { left: 272px; bottom: 28px; }
+.an-spot-haut-droite { right: 32px; top: 90px; }
+.an-spot-milieu-droite { right: 24px; top: 45%; }
+.an-spot-milieu-bas { left: 55%; bottom: 24px; }
+@media (max-width: 900px) { .an-spot-bas-gauche { left: 20px; } .an-spot-milieu-bas { left: 40%; } }
+@keyframes an-appear { from { transform: scale(0) rotate(-120deg); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes an-float { 0%, 100% { translate: 0 0; rotate: -6deg; } 50% { translate: 0 -8px; rotate: 6deg; } }
+.an-scene { height: 150px; display: grid; place-items: center; background: radial-gradient(circle, #fff6d6, #2b1a05 75%); border-radius: 12px; }
+.an-scene .an-svg { width: 96px; height: 96px; filter: drop-shadow(0 0 14px rgba(255, 215, 90, 0.9)); animation: an-float 3s ease-in-out infinite; }
+.an-verdict { text-align: center; font-weight: 600; font-size: 15px; margin: 14px 0 4px; }
+.an-note { text-align: center; margin: 0; }
+.has-ring { box-shadow: 0 0 0 2px #f5c542, 0 0 0 3px #b8860b, 0 0 8px 3px rgba(245, 197, 66, 0.75); animation: an-glow 2.6s ease-in-out infinite; }
+@keyframes an-glow { 50% { box-shadow: 0 0 0 2px #ffe08a, 0 0 0 3px #b8860b, 0 0 12px 5px rgba(245, 197, 66, 0.9); } }
+@media (prefers-reduced-motion: reduce) { .an-ring, .an-scene .an-svg, .has-ring { animation: none; } }
 /* Idées d'amélioration */
 .idea-quick { margin-bottom: 12px; }
 .row-muted td { opacity: 0.6; }

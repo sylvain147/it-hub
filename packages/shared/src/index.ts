@@ -22,7 +22,7 @@ export * from './sprints/cards.js';
 export * from './users.js';
 export * from './feedback.js';
 export * from './notes.js';
-export * from './bouton.js';
+export * from './anneau.js';
 export * from './ideas.js';
 export * from './themes.js';
 export * from './assistant.js';

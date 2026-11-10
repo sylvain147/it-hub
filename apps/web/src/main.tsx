@@ -25,7 +25,6 @@ import { FeedbackPage } from './feedback/FeedbackPage';
 import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
-import { MurDeLaHonte } from './bouton/BoutonRouge';
 import { IdeasPage } from './ideas/IdeasPage';
 import { MeetingPage } from './meetings/MeetingPage';
 import { applyStoredTheme } from './theme';
@@ -68,7 +67,6 @@ const router = createBrowserRouter([
       { path: 'patch-note', element: <PatchNotePage /> },
       { path: 'consommation', element: <Usage /> },
       // Sans lien dans le menu : il faut connaître l'adresse.
-      { path: 'mur-de-la-honte', element: <MurDeLaHonte /> },
       { path: '*', element: <div className="page"><h1>Page introuvable</h1></div> },
     ],
   },

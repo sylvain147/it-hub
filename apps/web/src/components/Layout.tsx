@@ -9,7 +9,7 @@ import { SettingsProvider } from '../settings/context';
 import { UsersProvider } from '../users/context';
 import { FeedbackModal } from '../feedback/FeedbackModal';
 import { ThemeModal } from '../users/ThemeModal';
-import { BoutonRouge } from '../bouton/BoutonRouge';
+import { AnneauFlottant, AnneauProvider, ringClass, useRingHolder } from '../anneau/Anneau';
 import { TodoBadge } from '../tasks/TodoBadge';
 import { Gandalf } from '../assistant/Gandalf';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
@@ -26,39 +26,41 @@ export function Layout() {
   useResponsiveTables(contentRef);
 
   return (
-    <div className="shell">
-      <header className="mobile-bar">
-        <button className="burger" aria-label="Ouvrir le menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
-          <span />
-          <span />
-          <span />
-        </button>
-        <NavLink to="/" className="brand brand-mobile">
-          <Brand />
-        </NavLink>
-      </header>
-      {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
-      <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
-        <NavLink to="/" className="brand">
-          <Brand />
-        </NavLink>
-        <SideNav />
-        <UserMenu name={me.name} email={me.email} role={ROLE_LABELS[me.role]} admin={ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission])} onSignOut={() => void signOut()} />
-      </aside>
-      <main className="content" ref={contentRef}>
-        <SettingsProvider>
-          <UsersProvider>
-            <MeetingRecorderProvider>
-              <Outlet />
-              <Gandalf />
-              <RecordingPill />
-              <BoutonRouge />
-            </MeetingRecorderProvider>
-          </UsersProvider>
-        </SettingsProvider>
-      </main>
-      <ToastHost />
-    </div>
+    <AnneauProvider>
+      <div className="shell">
+        <header className="mobile-bar">
+          <button className="burger" aria-label="Ouvrir le menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
+            <span />
+            <span />
+            <span />
+          </button>
+          <NavLink to="/" className="brand brand-mobile">
+            <Brand />
+          </NavLink>
+        </header>
+        {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
+        <aside className={menuOpen ? 'sidebar open' : 'sidebar'}>
+          <NavLink to="/" className="brand">
+            <Brand />
+          </NavLink>
+          <SideNav />
+          <UserMenu name={me.name} email={me.email} role={ROLE_LABELS[me.role]} admin={ADMIN_LINKS.filter((l) => !l.permission || me.permissions[l.permission])} onSignOut={() => void signOut()} />
+        </aside>
+        <main className="content" ref={contentRef}>
+          <SettingsProvider>
+            <UsersProvider>
+              <MeetingRecorderProvider>
+                <Outlet />
+                <Gandalf />
+                <RecordingPill />
+                <AnneauFlottant />
+              </MeetingRecorderProvider>
+            </UsersProvider>
+          </SettingsProvider>
+        </main>
+        <ToastHost />
+      </div>
+    </AnneauProvider>
   );
 }
 
@@ -114,6 +116,7 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState(false);
   const [theme, setTheme] = useState(false);
+  const ring = ringClass(useRingHolder(), email);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   useEffect(() => setOpen(false), [pathname]);
@@ -146,7 +149,7 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
         </div>
       )}
       <button className={`user-btn${inAdmin ? ' active' : ''}`} title={email} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className="user-avatar">{name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+        <span className={`user-avatar${ring}`}>{name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
         <span className="user-id">
           <strong>{name}</strong>
           <span className="small">{role}</span>

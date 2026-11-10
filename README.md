@@ -49,9 +49,9 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - La transcription **continue d'une page à l'autre** du hub (pastille « Transcription en cours ») ; le texte se corrige pendant l'écoute.
 - À la fin : **compte rendu par l'IA** dans le journal du projet (avec tickets, jalons et risques à valider, comme « Analyser une réunion »), ou **garder comme note**.
 
-### 🔴 Bouton rouge
+### 💍 L'Anneau unique
 
-Petit jeu caché : de temps en temps (une chance sur 40 à chaque changement de page, au plus une fois par demi-heure), un bouton rouge « NE PAS CLIQUER » apparaît quelques secondes. Ceux qui cliquent quand même ont droit à une scène de déception (et un trombone triste), et leur compteur grimpe au **tableau de la honte** de l'équipe. Ajouter `?bouton-rouge` à l'adresse le fait apparaître à coup sûr.
+Petit jeu caché de **l'Anneau unique** : de temps en temps (une chance sur 40 à chaque changement de page, au plus une fois par demi-heure), un anneau d'or apparaît quelques secondes. Le premier qui clique dessus le prend ; s'il réapparaît chez quelqu'un d'autre, celui-ci peut le lui prendre d'un clic. Le porteur de l'Anneau a un **rond doré autour de ses initiales** (menu, tableau du sprint, journal d'activité), visible de toute l'équipe. Ajouter `?anneau` à l'adresse le fait apparaître à coup sûr.
 
 ### 📁 Projets
 

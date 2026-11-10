@@ -12,6 +12,7 @@ import { Swatch } from './charts';
 import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
 import { AllTickets } from './AllTickets';
 import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, type TicketRow } from './tickets';
+import { ringClass, useRingHolder } from '../anneau/Anneau';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
 const STATE_LABELS: Record<Sprint['state'], string> = { future: 'À venir', active: 'En cours', closed: 'Clos' };
@@ -180,6 +181,7 @@ function ActiveSprint({
   const { email } = useAuth();
   const { options, label, lists } = useSettings();
   const { name } = useUsers();
+  const ringHolder = useRingHolder();
   const today = new Date().toISOString().slice(0, 10);
   const rules = lists.cardRules.filter(isCardRuleComplete);
   const [mine, setMine] = useState(false);
@@ -288,7 +290,7 @@ function ActiveSprint({
                       {t.deskId && <span className="small muted" title="Ticket Desk du prestataire">Desk #{t.deskId}</span>}
                       {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
                       <TicketTimes t={t} />
-                      {t.assignee && <span className={t.assigneeId ? 'avatar' : 'avatar avatar-ext'} title={t.assignee}>{initials(t.assignee)}</span>}
+                      {t.assignee && <span className={t.assigneeId ? `avatar${ringClass(ringHolder, t.assigneeId)}` : 'avatar avatar-ext'} title={t.assignee}>{initials(t.assignee)}</span>}
                     </div>
                     {/* Écrans tactiles : pas de glisser-déposer, on change le statut ici. */}
                     <select className="input input-sm board-card-move" value={t.status} onChange={(e) => void move(t, e.target.value as TicketStatus)} aria-label="Statut">

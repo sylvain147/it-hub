@@ -34,7 +34,7 @@ import { feedbackRoutes } from './feedback/routes.js';
 import { notificationRoutes } from './notifications/routes.js';
 import { noteRoutes } from './notes/routes.js';
 import { assistantRoutes } from './assistant/routes.js';
-import { boutonRougeRoutes } from './bouton/routes.js';
+import { anneauRoutes } from './anneau/routes.js';
 import { ideaRoutes } from './ideas/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
@@ -309,7 +309,7 @@ export function createApp() {
   api.route('/assistant', assistantRoutes());
   api.route('/feedback', feedbackRoutes());
   api.route('/notifications', notificationRoutes());
-  api.route('/bouton-rouge', boutonRougeRoutes());
+  api.route('/anneau', anneauRoutes());
   api.route('/idees', ideaRoutes());
 
   // Activité récente des projets (accueil).
