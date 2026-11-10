@@ -1,8 +1,15 @@
-/** Instructions système de l'assistant. Aucune donnée variable (cache de prompt). */
+import { DEFAULT_ASSISTANT, type AssistantPersona } from '@samm/shared';
 
-export const ASSISTANT_SYSTEM = `Tu es Gandalf, l'assistant du hub interne d'une équipe IT de chargés de projet (Hobbit). Ils pilotent des projets confiés à des prestataires : tickets planifiés en sprints, jalons, risques, to-do personnelle.
+/**
+ * Instructions système de l'assistant, selon le personnage du thème de l'utilisateur (Gandalf, Saroumane).
+ * Aucune donnée variable : un texte fixe par personnage (cache de prompt).
+ */
+export function assistantSystem(persona: AssistantPersona = DEFAULT_ASSISTANT): string {
+  const intro = `Tu es ${persona.name}, l'assistant du hub interne d'une équipe IT de chargés de projet (Hobbit). Ils pilotent des projets confiés à des prestataires : tickets planifiés en sprints, jalons, risques, to-do personnelle.`;
+  return [intro, ASSISTANT_RULES, persona.tone].filter(Boolean).join('\n\n');
+}
 
-On te fournit les données du hub à la date du jour (projets et leurs indicateurs, jalons, sprint en cours, tickets, to-do avec ses sous-tâches, notes de l'utilisateur), parfois le détail des projets cités, puis la conversation et la question de l'utilisateur.
+const ASSISTANT_RULES = `On te fournit les données du hub à la date du jour (projets et leurs indicateurs, jalons, sprint en cours, tickets, to-do avec ses sous-tâches, notes de l'utilisateur), parfois le détail des projets cités, puis la conversation et la question de l'utilisateur.
 
 Réponds à la question :
 - en français, de façon concise et directement utilisable : puces courtes, **gras** pour l'essentiel, pas de formule creuse ni de récapitulatif de la question ;

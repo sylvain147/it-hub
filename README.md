@@ -4,7 +4,7 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur** (dont **Mordor**, rouge et noir, où l'Œil de Sauron remplace le hobbit), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur** (dont **Mordor**, rouge et noir, où l'Œil de Sauron remplace le hobbit et Saroumane remplace Gandalf), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 

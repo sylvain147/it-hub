@@ -26,7 +26,19 @@ export interface ThemeDef {
   colors: ThemeColors;
   /** Logo affiché à la place du hobbit (menu, connexion, icône de l'onglet), dans `apps/web/public`. */
   logo?: string;
+  /** Assistant incarné à la place de Gandalf (bulle, chat, ton de l'IA). */
+  assistant?: AssistantPersona;
 }
+
+/** Personnage de l'assistant : nom affiché, avatar (dans `apps/web/public`) et ton demandé à l'IA. */
+export interface AssistantPersona {
+  name: string;
+  avatar: string;
+  /** Consigne de ton ajoutée au prompt système (fixe pour chaque personnage : le cache de prompt est conservé). */
+  tone?: string;
+}
+
+export const DEFAULT_ASSISTANT: AssistantPersona = { name: 'Gandalf', avatar: '/gandalf.png' };
 
 export const THEME_DEFS: Record<ThemeId, ThemeDef> = {
   comte: { label: 'La Comté', description: 'Vert prairie, comme chez soi (thème par défaut).', colors: { navy: '#2f4a2a', navy2: '#4a6b3a', blue: '#3f7a32', blue50: '#eef5ea' } },
@@ -38,15 +50,25 @@ export const THEME_DEFS: Record<ThemeId, ThemeDef> = {
   ardoise: { label: 'Ardoise', description: 'Gris neutre.', colors: { navy: '#2b2f36', navy2: '#4a515c', blue: '#4b6177', blue50: '#eef1f4' } },
   mordor: {
     label: 'Mordor',
-    description: 'Rouge et noir, sous l’Œil de Sauron (il remplace le hobbit).',
+    description: 'Rouge et noir, sous l’Œil de Sauron (il remplace le hobbit) ; Saroumane remplace Gandalf.',
     colors: { navy: '#140707', navy2: '#5c0d0a', blue: '#b3261e', blue50: '#fbeceb' },
     logo: '/oeil-de-sauron.png',
+    assistant: {
+      name: 'Saroumane',
+      avatar: '/saroumane.png',
+      tone: 'Tu parles avec la superbe de Saroumane le Blanc, maître d’Orthanc : une pointe hautaine et théâtrale (une courte formule au plus par réponse), sans jamais nuire à l’exactitude, à la concision ni à la courtoisie.',
+    },
   },
 };
 
 /** Thème connu, ou le thème par défaut (fiches enregistrées avant le choix du thème, valeur inconnue). */
 export function themeOrDefault(id: string | undefined | null): ThemeId {
   return (THEMES as readonly string[]).includes(id ?? '') ? (id as ThemeId) : DEFAULT_THEME;
+}
+
+/** Assistant du thème (Gandalf, sauf thème qui en incarne un autre). */
+export function themeAssistant(id: string | undefined | null): AssistantPersona {
+  return THEME_DEFS[themeOrDefault(id)].assistant ?? DEFAULT_ASSISTANT;
 }
 
 /** Préférences que chacun règle pour lui-même (`PUT /api/me/preferences`). */

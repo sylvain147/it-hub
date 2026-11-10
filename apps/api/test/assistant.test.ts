@@ -110,6 +110,25 @@ describe('assistant (chat global)', () => {
     expect((await env.call('POST', '/assistant', { question: 'x'.repeat(60_001) }, MEMBRE)).status).toBe(400);
   });
 
+  it('devient Saroumane sous le thème Mordor, avec un prompt système fixe par personnage', async () => {
+    const calls = spy();
+    await env.call('POST', '/assistant', { question: 'Bonjour' }, MEMBRE);
+    const gandalf = calls.at(-1)!.system;
+    expect(gandalf).toMatch(/^Tu es Gandalf, l'assistant du hub/);
+    expect(gandalf).not.toContain('Saroumane');
+
+    expect((await env.call('PUT', '/me/preferences', { theme: 'mordor' }, MEMBRE)).status).toBe(200);
+    await env.call('POST', '/assistant', { question: 'Bonjour' }, MEMBRE);
+    const saroumane = calls.at(-1)!.system;
+    expect(saroumane).toMatch(/^Tu es Saroumane, l'assistant du hub/);
+    expect(saroumane).toContain('maître d’Orthanc');
+    expect(saroumane).not.toContain('Chloé');
+    // Les autres gardent leur Gandalf.
+    await env.call('POST', '/assistant', { question: 'Bonjour' }, ADMIN);
+    expect(calls.at(-1)!.system).toBe(gandalf);
+    await env.call('PUT', '/me/preferences', { theme: 'comte' }, MEMBRE);
+  });
+
   it('ramène les propositions de l’IA à ce que le hub accepte', () => {
     const projects = [{ id: 'p1', name: 'Paie' }] as any;
     const a = (x: Record<string, unknown>) => ({ kind: 'ticket', title: 'Faire', details: '', projectId: '', dueDate: '', priority: 'normale', reason: '', ...x }) as any;

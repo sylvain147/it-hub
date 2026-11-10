@@ -5,10 +5,11 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { MarkdownView } from '../projects/common';
 import { useProjectRefs } from '../tasks/tasks';
+import { useAssistant } from '../theme';
 import { ActionCard, type ChatAction } from './actions';
 
 /**
- * Gandalf, l'assistant : bouton volant en bas à droite, qui ouvre un chat où l'on interroge l'IA sur les projets,
+ * Gandalf, l'assistant (Saroumane sous le thème Mordor : `useAssistant`) : bouton volant en bas à droite, qui ouvre un chat où l'on interroge l'IA sur les projets,
  * les échéances, les tickets et sa to-do. La conversation reste dans le navigateur (onglet en cours) et continue
  * d'une page à l'autre ; chaque question est un appel IA, envoyé seulement au clic.
  *
@@ -36,7 +37,6 @@ interface ChatEntry extends AssistantMessage {
 }
 
 const storageKey = (email: string) => `hobbit:assistant:${email}`;
-const AVATAR = '/gandalf.png';
 /** Sur petit écran, le chat couvre la page : il se referme quand on suit un lien. */
 const NARROW = '(max-width: 640px)';
 
@@ -51,6 +51,7 @@ function loadChat(email: string): ChatEntry[] {
 
 export function Gandalf() {
   const { me } = useAuth();
+  const { name, avatar } = useAssistant();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<ChatEntry[]>(() => loadChat(me.email));
@@ -132,17 +133,17 @@ export function Gandalf() {
         className={open ? 'gandalf-fab open' : 'gandalf-fab'}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        title={open ? 'Fermer Gandalf' : 'Demander à Gandalf'}
+        title={open ? `Fermer ${name}` : `Demander à ${name}`}
       >
-        <img src={AVATAR} alt="Gandalf" />
-        {busy && !open && <span className="gandalf-fab-busy" aria-label="Gandalf réfléchit" />}
+        <img src={avatar} alt={name} />
+        {busy && !open && <span className="gandalf-fab-busy" aria-label={`${name} réfléchit`} />}
       </button>
       {open && (
-        <div className="gandalf-pop" role="dialog" aria-label="Gandalf, l’assistant">
+        <div className="gandalf-pop" role="dialog" aria-label={`${name}, l’assistant`}>
           <div className="gandalf-head">
-            <img src={AVATAR} alt="" />
+            <img src={avatar} alt="" />
             <div className="gandalf-title">
-              <strong>Gandalf</strong>
+              <strong>{name}</strong>
               <span className="small">L’assistant du hub</span>
             </div>
             <button className="btn btn-ghost btn-sm" onClick={reset} disabled={busy || !chat.length} title="Nouvelle conversation">Effacer</button>
@@ -153,7 +154,7 @@ export function Gandalf() {
             {!chat.length && (
               <div className="assistant-empty">
                 <p className="small">
-                  Posez vos questions sur les projets, les échéances, le sprint, vos tickets et votre <Link to="/todo">to-do</Link>. Gandalf répond à partir des données du hub.
+                  Posez vos questions sur les projets, les échéances, le sprint, vos tickets et votre <Link to="/todo">to-do</Link>. {name} répond à partir des données du hub.
                 </p>
                 <p className="small">
                   Collez-lui aussi un compte rendu, une transcription de réunion ou un e-mail : il propose les tickets, tâches et jalons à créer, et rien n’est créé sans votre clic.

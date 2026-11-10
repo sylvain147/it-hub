@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { THEME_DEFS, themeOrDefault, type ThemeId } from '@samm/shared';
+import { THEME_DEFS, themeAssistant, themeOrDefault, type AssistantPersona, type ThemeId } from '@samm/shared';
 
 /** Dernier thème appliqué sur ce poste : évite un flash de couleur (et colore la page de connexion) avant le chargement de l'utilisateur. */
 const THEME_KEY = 'hub.theme';
@@ -33,6 +33,11 @@ function subscribe(cb: () => void) {
 /** Thème appliqué (suit les changements). */
 export function useAppliedTheme(): ThemeId {
   return useSyncExternalStore(subscribe, () => themeOrDefault(document.documentElement.dataset.theme));
+}
+
+/** Assistant du thème appliqué : Gandalf, ou Saroumane sous le thème Mordor. */
+export function useAssistant(): AssistantPersona {
+  return themeAssistant(useAppliedTheme());
 }
 
 export function applyStoredTheme() {

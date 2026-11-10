@@ -6,6 +6,7 @@ import { EmptyState, ErrorBox, Spinner, toast } from '../components/ui';
 import { ProjectSelect, useProjectRefs } from '../tasks/tasks';
 import { formatElapsed, useMeetingRecorder } from './recorder';
 import { openGandalf } from '../assistant/Gandalf';
+import { useAssistant } from '../theme';
 
 /** Taille maximale d'une note personnelle. */
 const MAX_NOTE_CHARS = 50_000;
@@ -23,6 +24,7 @@ export function MeetingPage() {
   const [params, setParams] = useSearchParams();
   const [busy, setBusy] = useState<'ia' | 'note' | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const assistant = useAssistant();
 
   // Lien depuis un projet (ou le menu, depuis la page d'un projet) : `?projet=` présélectionne le projet, sauf pendant
   // une transcription en cours ou déjà commencée.
@@ -153,10 +155,10 @@ export function MeetingPage() {
               <button
                 className="btn"
                 disabled={draft.text.trim().length < 20 || tooLongForGandalf || !!busy}
-                title={tooLongForGandalf ? `Trop long pour Gandalf (${ASSISTANT_QUESTION_MAX.toLocaleString('fr-FR')} caractères au plus)` : 'Gandalf propose les tickets, tâches et jalons à créer, dans tous les projets ; vous validez chacun'}
+                title={tooLongForGandalf ? `Trop long pour ${assistant.name} (${ASSISTANT_QUESTION_MAX.toLocaleString('fr-FR')} caractères au plus)` : `${assistant.name} propose les tickets, tâches et jalons à créer, dans tous les projets ; vous validez chacun`}
                 onClick={() => openGandalf(gandalfIntro + draft.text.trim())}
               >
-                🧙 Actions avec Gandalf
+                🧙 Actions avec {assistant.name}
               </button>
               <button
                 className="btn btn-ai"
@@ -169,7 +171,7 @@ export function MeetingPage() {
             </div>
             <p className="muted small">
               « Compte rendu par l’IA » (modèle économique, quelques centimes au plus) rédige le compte rendu dans le journal du projet et propose les actions à suivre ;
-              rien n’est ajouté sans votre validation. La transcription brute reste jointe au compte rendu. « Actions avec Gandalf » propose directement les tickets, tâches
+              rien n’est ajouté sans votre validation. La transcription brute reste jointe au compte rendu. « Actions avec {assistant.name} » propose directement les tickets, tâches
               et jalons à créer, quel que soit le projet, sans compte rendu.
               {!draft.projectId && <> Choisissez le projet pour l’activer, ou <Link to="/projets">créez-le</Link>.</>}
             </p>
