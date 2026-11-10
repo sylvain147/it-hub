@@ -32,15 +32,9 @@ describe('idées d’amélioration', () => {
     expect((await env.call('PUT', `/idees/${id}/vote`, { vote: false }, MEMBRE)).json.votes).toEqual([ADMIN]);
   });
 
-  it('importe une liste sans doublons', async () => {
-    const ideas = [
-      { title: 'Export des commandes en Excel', priority: 'haute' },
-      { title: 'Raccourci vers la fiche client', priority: 'basse' },
-      { title: 'Raccourci vers la fiche client', priority: 'basse' },
-      { title: 'Export des commandes en Excel', domain: 'Intranet' },
-    ];
-    const res = await env.call('POST', '/idees/import', { ideas });
-    expect(res.json).toEqual({ created: 2, skipped: 2 });
+  it('ajoute d’autres idées, dans d’autres domaines', async () => {
+    await env.call('POST', '/idees', { title: 'Raccourci vers la fiche client', priority: 'basse' });
+    await env.call('POST', '/idees', { title: 'Export des commandes en Excel', domain: 'Intranet' });
     expect((await env.call('GET', '/idees')).json).toHaveLength(3);
   });
 

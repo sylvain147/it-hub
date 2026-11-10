@@ -14,7 +14,7 @@ export function TodoPage() {
   const [params, setParams] = useSearchParams();
   const scope = me.permissions.seeAllTodos ? (params.get('qui') ?? me.email) : me.email;
   const data = useLoad(() => api.todos(scope), [scope]);
-  // Tâche cochée ou ajoutée depuis le bouton « To-do » de l'en-tête.
+  // Tâche cochée ou ajoutée ailleurs (accueil, onglet d’un projet…).
   useEffect(() => {
     const on = () => void data.reload();
     window.addEventListener(TODOS_CHANGED, on);

@@ -8,7 +8,7 @@
  */
 import { Hono } from 'hono';
 import { DeleteCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { ideaInputSchema, ideaTicketBody, importIdeasBody, NO_PROJECT_ID, PROJECT_ITEM_SCHEMAS, updateIdeaBody, voteIdeaBody, type Idea } from '@samm/shared';
+import { ideaInputSchema, ideaTicketBody, NO_PROJECT_ID, PROJECT_ITEM_SCHEMAS, updateIdeaBody, voteIdeaBody, type Idea } from '@samm/shared';
 import { userName } from '../auth.js';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
@@ -55,22 +55,6 @@ export function ideaRoutes() {
     const i = newIdea(b, userName(c));
     await putIdea(i);
     return c.json(i, 201);
-  });
-
-  /** Import d'une liste (Notion…), lue dans le navigateur : les intitulés déjà présents dans le domaine sont ignorés. */
-  r.post('/import', async (c) => {
-    const b = await body(c, importIdeasBody);
-    const existing = new Set((await listIdeas()).map((i) => `${i.domain.toLowerCase()}|${i.title.trim().toLowerCase()}`));
-    const user = userName(c);
-    let created = 0;
-    for (const input of b.ideas) {
-      const k = `${input.domain.toLowerCase()}|${input.title.trim().toLowerCase()}`;
-      if (existing.has(k)) continue;
-      existing.add(k);
-      await putIdea(newIdea({ ...input, projectId: '' }, user));
-      created++;
-    }
-    return c.json({ created, skipped: b.ideas.length - created }, 201);
   });
 
   r.patch('/:id', async (c) => {

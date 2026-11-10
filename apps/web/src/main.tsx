@@ -28,7 +28,6 @@ import { TmaThemesPage } from './tma/TmaThemesPage';
 import { MurDeLaHonte } from './bouton/BoutonRouge';
 import { IdeasPage } from './ideas/IdeasPage';
 import { MeetingPage } from './meetings/MeetingPage';
-import { AssistantPage } from './assistant/AssistantPage';
 import { applyStoredTheme } from './theme';
 import './styles.css';
 
@@ -43,7 +42,6 @@ const router = createBrowserRouter([
       { path: 'planning', element: <GlobalPlanningPage /> },
       { path: 'idees', element: <IdeasPage /> },
       { path: 'reunion', element: <MeetingPage /> },
-      { path: 'assistant', element: <AssistantPage /> },
       { path: 'notes', element: <NotesPage /> },
       { path: 'cdc', element: <CdcList /> },
       // Les cahiers des charges se créent désormais depuis un projet.
@@ -60,6 +58,8 @@ const router = createBrowserRouter([
       // Anciennes adresses : « Tâches » est devenue la to-do, Jira a laissé place aux sprints du hub.
       { path: 'taches', element: <Navigate to="/todo" replace /> },
       { path: 'jira/*', element: <Navigate to="/sprints" replace /> },
+      // L'assistant est devenu Gandalf, la bulle en bas à droite de chaque page.
+      { path: 'assistant', element: <Navigate to="/" replace /> },
       { path: 'sprints', element: <SprintsPage /> },
       { path: 'sprints/:sprintId', element: <SprintPage /> },
       { path: 'utilisateurs', element: <UsersPage /> },

@@ -6,7 +6,6 @@ import type {
   FeedbackInput,
   Idea,
   IdeaInput,
-  ImportIdeasBody,
   UpdateIdeaBody,
   UpdateFeedbackBody,
   SprintDocKind,
@@ -106,7 +105,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
-/** Évènement émis à chaque modification de la to-do (pastille du bouton « To-do », listes ouvertes). */
+/** Évènement émis à chaque modification de la to-do (pastille du menu, listes ouvertes). */
 export const TODOS_CHANGED = 'hub:todos-changed';
 function todosChanged<T>(r: T): T {
   window.dispatchEvent(new Event(TODOS_CHANGED));
@@ -252,7 +251,6 @@ export const api = {
   updateIdea: (id: string, b: UpdateIdeaBody) => request<Idea>('PATCH', `/idees/${id}`, b),
   deleteIdea: (id: string) => request<null>('DELETE', `/idees/${id}`),
   voteIdea: (id: string, vote: boolean) => request<Idea>('PUT', `/idees/${id}/vote`, { vote }),
-  importIdeas: (b: ImportIdeasBody) => request<{ created: number; skipped: number }>('POST', '/idees/import', b),
   ideaTicket: (id: string, projectId: string) => request<Idea>('POST', `/idees/${id}/ticket`, { projectId }),
   sendFeedback: (b: FeedbackInput) => request<Feedback>('POST', '/feedback', b),
   listFeedback: () => request<Feedback[]>('GET', '/feedback'),

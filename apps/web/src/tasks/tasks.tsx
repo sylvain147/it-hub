@@ -7,6 +7,7 @@ import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, ItemModal, MarkdownField, MarkdownView } from '../projects/common';
 import { UserSelect, useUsers } from '../users/context';
+import { NewProjectDialog } from '../projects/NewProjectDialog';
 
 /**
  * To-do : la liste de choses à faire, que l'on coche, rattachées ou non à un projet. Elle est indépendante des
@@ -349,6 +350,10 @@ export function TaskModal({
     subtasks: task?.subtasks ?? [],
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
+  // Projet pas encore créé : il se crée depuis la tâche, qui y est aussitôt rattachée.
+  const [newProject, setNewProject] = useState(false);
+  const [created, setCreated] = useState<ProjectRef[]>([]);
+  const projectChoices = useMemo(() => [...projects, ...created.filter((c) => !projects.some((p) => p.id === c.id))], [projects, created]);
   // Seul un rôle habilité confie une tâche à un autre.
   const restrict = !me.permissions.assignOthers ? [me.email, ...(task?.assigneeId ? [task.assigneeId] : [])] : undefined;
 
@@ -397,9 +402,23 @@ export function TaskModal({
       </label>
       <label className="field">
         <span>Projet</span>
-        <ProjectSelect value={f.projectId} onChange={(v) => set('projectId', v)} projects={projects} emptyLabel="Aucun (tâche personnelle)" />
+        <div className="project-pick">
+          <ProjectSelect value={f.projectId} onChange={(v) => set('projectId', v)} projects={projectChoices} emptyLabel="Aucun (tâche personnelle)" />
+          <button type="button" className="btn" onClick={() => setNewProject(true)} title="Créer un projet et y rattacher la tâche">+ Nouveau projet</button>
+        </div>
         {f.projectId && <span className="muted small">Visible de toute l’équipe dans la to-do du projet.</span>}
       </label>
+      {newProject && (
+        <NewProjectDialog
+          onClose={() => setNewProject(false)}
+          onCreated={(p) => {
+            setCreated((c) => [...c, { id: p.id, name: p.name, closed: false }]);
+            set('projectId', p.id);
+            setNewProject(false);
+            toast(`Projet « ${p.name} » créé.`);
+          }}
+        />
+      )}
       <label className="field">
         <span>Échéance</span>
         <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />

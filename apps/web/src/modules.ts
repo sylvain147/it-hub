@@ -3,8 +3,9 @@
  * (elle apparaît dans le menu, dans sa section, et sur l'accueil) et dans les routes de `main.tsx`.
  *
  * Le menu doit rester court : une entrée par module (les sous-pages s'ouvrent depuis la page du module),
- * quatre entrées au plus par section, et ce qui est déjà accessible ailleurs (bouton To-do de l'en-tête)
- * reste hors du menu (`menu: false`). L'administration est dans le menu de l'utilisateur, en bas.
+ * quatre entrées au plus par section, et ce qui est déjà accessible ailleurs reste hors du menu (`menu: false`).
+ * L'assistant (Gandalf) n'est pas un module : c'est la bulle en bas à droite. L'administration est dans le menu
+ * de l'utilisateur, en bas.
  */
 import type { Permission } from '@samm/shared';
 
@@ -35,7 +36,6 @@ export const MODULES: HubModule[] = [
     path: '/todo',
     icon: '✅',
     section: 'quotidien',
-    menu: false,
     home: false,
   },
   {
@@ -44,14 +44,6 @@ export const MODULES: HubModule[] = [
     description: 'Mon bloc-notes personnel : des notes en vrac, rattachées ou non à un projet, que je suis seul à voir.',
     path: '/notes',
     icon: '📝',
-    section: 'quotidien',
-  },
-  {
-    id: 'assistant',
-    title: 'Assistant',
-    description: 'Un chat avec l’IA sur tout le hub : où en est un projet, quelles échéances arrivent, que faire en priorité aujourd’hui.',
-    path: '/assistant',
-    icon: '✨',
     section: 'quotidien',
   },
   {
@@ -74,7 +66,7 @@ export const MODULES: HubModule[] = [
   {
     id: 'idees',
     title: 'Idées d’amélioration',
-    description: 'La liste des idées d’amélioration de l’équipe (ERP, outils…), classées par priorité. Une idée retenue devient un ticket en un clic ; une liste Notion s’importe en un copier-coller.',
+    description: 'La liste des idées d’amélioration de l’équipe (ERP, outils…), classées par priorité. Une idée retenue devient un ticket en un clic.',
     path: '/idees',
     icon: '💡',
     section: 'quotidien',
