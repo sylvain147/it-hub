@@ -59,8 +59,8 @@ export function TmaHome() {
         setPending(null);
         await reload();
       } else {
-        await api.putTmaMonth(pending.month, pending.fileName, pending.data.entries);
-        toast(`Relevé de ${monthLabel(pending.month)} importé.`);
+        const { syncedTickets } = await api.putTmaMonth(pending.month, pending.fileName, pending.data.entries);
+        toast(`Relevé de ${monthLabel(pending.month)} importé.${syncedTickets ? ` Temps passé mis à jour sur ${syncedTickets} ticket(s) du hub.` : ''}`);
         navigate(`/tma/mois/${pending.month}`);
       }
     } catch (e) {

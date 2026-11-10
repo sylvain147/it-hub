@@ -18,6 +18,7 @@ import {
   type ProjectItemKind,
   type ProjectStatus,
   type ProjectPhase,
+  type Task,
 } from '@samm/shared';
 import { userName } from '../auth.js';
 import { body, parseBody } from '../lib/http.js';
@@ -36,6 +37,7 @@ import * as users from '../users/repo.js';
 import { listNotes, putNote } from '../notes/routes.js';
 import { listIdeas, putIdea } from '../ideas/routes.js';
 import { assertPlannable } from '../sprints/repo.js';
+import { syncTmaHours } from '../tma/sync.js';
 
 /** Ticket : responsable rattaché à l'annuaire, sprint en cours ou à venir (s'il change). */
 async function resolveTicket(raw: Record<string, unknown>, before: Record<string, unknown> | null, user: string): Promise<Record<string, unknown>> {
@@ -159,7 +161,10 @@ export function projectRoutes() {
     let raw = await resolveProjectRefs(kind, await rawBody(c), null);
     if (kind === 'tasks') raw = await resolveTicket(raw, null, userName(c));
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind], raw);
-    return c.json(await pr.createItem(c.req.param('id'), kind, b as Record<string, unknown>, userName(c)), 201);
+    const item = await pr.createItem(c.req.param('id'), kind, b as Record<string, unknown>, userName(c));
+    // Ticket rattaché à un ticket Desk : le temps des relevés TMA s'ajoute à son temps passé.
+    if (kind === 'tasks' && (item as Task).deskId && (await syncTmaHours((t) => t.id === item.id))) return c.json(await pr.getItem(c.req.param('id'), kind, item.id), 201);
+    return c.json(item, 201);
   });
 
   r.patch('/:id/items/:kind/:itemId', async (c) => {
@@ -179,7 +184,12 @@ export function projectRoutes() {
       await pr.moveTicket(id, c.req.param('itemId'), target, userName(c));
       if (!Object.keys(patch).length) return c.json(await pr.getItem(target, kind, c.req.param('itemId')));
     }
-    return c.json(await pr.updateItem(target, kind, c.req.param('itemId'), patch, userName(c)));
+    const item = await pr.updateItem(target, kind, c.req.param('itemId'), patch, userName(c));
+    // Numéro Desk ou temps passé modifié : la part du prestataire (relevés TMA) est recalculée.
+    if (kind === 'tasks' && ('deskId' in patch || 'spentHours' in patch) && (await syncTmaHours((t) => t.id === item.id))) {
+      return c.json(await pr.getItem(target, kind, item.id));
+    }
+    return c.json(item);
   });
 
   r.delete('/:id/items/:kind/:itemId', async (c) => {
