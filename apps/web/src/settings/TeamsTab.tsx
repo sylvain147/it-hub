@@ -81,9 +81,13 @@ export function TeamsTab() {
         {editing && (
           <>
             <ol className="small teams-steps">
-              <li>Dans Teams, ouvrez le canal voulu, menu <strong>⋯</strong> du canal → <strong>Workflows</strong>.</li>
-              <li>Choisissez le modèle <strong>« Publier dans un canal lorsqu’une demande de webhook est reçue »</strong>, donnez-lui un nom (« Hobbit ») puis validez.</li>
-              <li>Copiez l’adresse affichée à la fin et collez-la ci-dessous.</li>
+              <li>Dans Teams, ouvrez le canal voulu, menu <strong>⋯</strong> du canal → <strong>Flux de travail</strong> (Workflows).</li>
+              <li>
+                Dans <strong>Rechercher des modèles</strong>, tapez <strong>webhook</strong> et choisissez <strong>« Publier dans un canal lorsqu’une demande webhook est reçue »</strong>{' '}
+                (ou « Envoyer des alertes webhook à un canal »). Il n’apparaît pas dans les suggestions : passez par la recherche.
+              </li>
+              <li>Donnez-lui un nom (« Hobbit »), vérifiez l’équipe et le canal, puis validez.</li>
+              <li>Copiez l’adresse affichée à la fin (bouton de copie) et collez-la ci-dessous.</li>
             </ol>
             <label className="field">
               <span>Adresse du flux</span>
