@@ -12,8 +12,10 @@ interface Props {
   value: RichDoc;
   onChange: (doc: RichDoc) => void;
   editable: boolean;
-  /** CDC propriétaire des images collées ; sans CDC, l'insertion d'images est désactivée. */
+  /** CDC propriétaire des images collées. */
   cdcId?: string;
+  /** Sans CDC, autorise les images (stockées comme images du hub) ; sinon l'insertion d'images est désactivée. */
+  images?: boolean;
   /** Numéro de la section, pour numéroter les sous-sections (3.1, 3.2…). */
   sectionNumber?: number | null;
   placeholder?: string;
@@ -21,9 +23,11 @@ interface Props {
   compact?: boolean;
 }
 
-export function RichEditor({ value, onChange, editable, cdcId, sectionNumber = null, placeholder, compact }: Props) {
+export function RichEditor({ value, onChange, editable, cdcId, images, sectionNumber = null, placeholder, compact }: Props) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // Propriétaire des images : le CDC, le hub (`null`), ou aucun (images refusées).
+  const owner = cdcId ?? (images ? null : undefined);
 
   const editor = useEditor({
     extensions: [
@@ -40,8 +44,8 @@ export function RichEditor({ value, onChange, editable, cdcId, sectionNumber = n
     // `setEditable` émet aussi un événement « update » sans modification : on l'ignore pour ne pas marquer le document comme modifié.
     onUpdate: ({ editor, transaction }) => transaction.docChanged && onChangeRef.current(editor.getJSON() as RichDoc),
     editorProps: {
-      handlePaste: (_view, event) => !!cdcId && insertImages(editorRef.current, cdcId, [...(event.clipboardData?.files ?? [])]),
-      handleDrop: (_view, event) => !!cdcId && insertImages(editorRef.current, cdcId, [...((event as DragEvent).dataTransfer?.files ?? [])]),
+      handlePaste: (_view, event) => owner !== undefined && insertImages(editorRef.current, owner, [...(event.clipboardData?.files ?? [])]),
+      handleDrop: (_view, event) => owner !== undefined && insertImages(editorRef.current, owner, [...((event as DragEvent).dataTransfer?.files ?? [])]),
     },
   });
   const editorRef = useRef<Editor | null>(null);
@@ -53,13 +57,13 @@ export function RichEditor({ value, onChange, editable, cdcId, sectionNumber = n
 
   return (
     <div className={`rich${editable ? '' : ' rich-readonly'}${compact ? ' rich-compact' : ''}`} style={{ ['--sec' as string]: sectionNumber != null ? `"${sectionNumber}."` : '""' }}>
-      {editable && editor && <Toolbar editor={editor} cdcId={cdcId} />}
+      {editable && editor && <Toolbar editor={editor} owner={owner} />}
       <EditorContent editor={editor} className={sectionNumber != null ? 'numbered' : ''} />
     </div>
   );
 }
 
-function insertImages(editor: Editor | null, cdcId: string, files: File[]): boolean {
+function insertImages(editor: Editor | null, cdcId: string | null, files: File[]): boolean {
   const images = files.filter((f) => f.type.startsWith('image/'));
   if (!editor || !images.length) return false;
   void (async () => {
@@ -75,7 +79,7 @@ function insertImages(editor: Editor | null, cdcId: string, files: File[]): bool
   return true;
 }
 
-function Toolbar({ editor, cdcId }: { editor: Editor; cdcId?: string }) {
+function Toolbar({ editor, owner }: { editor: Editor; owner: string | null | undefined }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const s = useEditorState({
     editor,
@@ -134,7 +138,7 @@ function Toolbar({ editor, cdcId }: { editor: Editor; cdcId?: string }) {
           <B on={() => c().deleteTable().run()} title="Supprimer le tableau">✕ tableau</B>
         </>
       )}
-      {cdcId && (
+      {owner !== undefined && (
         <>
           <B on={() => fileRef.current?.click()} title="Insérer une image (ou collez-la directement)">🖼 Image</B>
           <input
@@ -143,7 +147,7 @@ function Toolbar({ editor, cdcId }: { editor: Editor; cdcId?: string }) {
             accept="image/png,image/jpeg"
             hidden
             onChange={(e) => {
-              insertImages(editor, cdcId, [...(e.target.files ?? [])]);
+              insertImages(editor, owner, [...(e.target.files ?? [])]);
               e.target.value = '';
             }}
           />

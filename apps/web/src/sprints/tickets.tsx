@@ -362,7 +362,7 @@ export function TicketModal({
       </div>
       <div className="field span-2">
         <span>Description</span>
-        <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Contexte, critères d’acceptation, liens…" resetKey={ticket?.id ?? 'nouveau'} />
+        <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Contexte, critères d’acceptation, liens… (collez des captures d’écran directement)" resetKey={ticket?.id ?? 'nouveau'} images />
       </div>
     </ItemModal>
   );
