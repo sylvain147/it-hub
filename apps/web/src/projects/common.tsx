@@ -1,6 +1,9 @@
 import { createContext, Fragment, useContext, useMemo, useState, type ReactNode } from 'react';
 import {
+  codeLanguage,
   docToMarkdown,
+  formatJson,
+  jsonTokens,
   HEALTH_ICONS,
   HEALTH_LABELS,
   markdownToDoc,
@@ -160,7 +163,7 @@ function renderNode(n: RichNode): ReactNode {
     case 'blockquote':
       return <blockquote>{c}</blockquote>;
     case 'codeBlock':
-      return <pre>{c}</pre>;
+      return <CodeView code={(n.content ?? []).map((t) => t.text ?? '').join('')} language={n.attrs?.language} />;
     case 'horizontalRule':
       return <hr />;
     case 'hardBreak':
@@ -197,6 +200,27 @@ function renderNode(n: RichNode): ReactNode {
     default:
       return c;
   }
+}
+
+/** Bloc de code en lecture : JSON indenté s'il tient sur une ligne, coloré, avec un bouton pour le copier. */
+function CodeView({ code, language }: { code: string; language: unknown }) {
+  const json = codeLanguage(language, code) === 'json';
+  const text = json && !code.trim().includes('\n') ? (formatJson(code) ?? code) : code;
+  function copy() {
+    void navigator.clipboard.writeText(text).then(() => toast('Code copié.'));
+  }
+  return (
+    <div className="md-code">
+      <button type="button" className="md-code-copy" title="Copier le code" onClick={copy}>⧉ Copier</button>
+      <pre>
+        <code>
+          {json
+            ? jsonTokens(text).map((t, i) => (t.kind === 'space' || t.kind === 'other' ? t.text : <span key={i} className={`tok-${t.kind}`}>{t.text}</span>))
+            : text}
+        </code>
+      </pre>
+    </div>
+  );
 }
 
 /** Image d'un texte en lecture (référence `asset:…` résolue en URL temporaire). */

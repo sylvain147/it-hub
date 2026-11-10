@@ -17,7 +17,7 @@ pnpm export:exemple /tmp   # Word + PDF d'exemple pour contrôler la mise en pag
 
 ## Organisation
 
-- `packages/shared` : types et schémas zod du domaine (`cdc.ts`, `project.ts` pour les projets et leurs éléments rattachés + `computeStats`), corps des requêtes (`api.ts`), conversion Markdown ⇄ JSON TipTap (`markdown.ts`), et pour le lecteur de fichiers `files/` (fiche `spec.ts`, moteur `parse.ts`, extrait anonymisé `excerpt.ts`, lecture/écriture Excel `xlsx.ts`). Importé en TypeScript source par l'API et le front.
+- `packages/shared` : types et schémas zod du domaine (`cdc.ts`, `project.ts` pour les projets et leurs éléments rattachés + `computeStats`), corps des requêtes (`api.ts`), conversion Markdown ⇄ JSON TipTap (`markdown.ts`, blocs de code avec leur langage), JSON des blocs de code (`code.ts` : `formatJson`, `jsonTokens`, coloration commune à l'éditeur `editor/CodeHighlight.ts` et à `MarkdownView`), et pour le lecteur de fichiers `files/` (fiche `spec.ts`, moteur `parse.ts`, extrait anonymisé `excerpt.ts`, lecture/écriture Excel `xlsx.ts`). Importé en TypeScript source par l'API et le front.
 - `apps/api` : Hono. `app.ts` (routes), `db/repo.ts` (tout l'accès DynamoDB/S3), `ai/` (prompts, schémas de sortie, pipeline, fournisseurs Bedrock et simulé), `jobs/runner.ts` (tâches IA asynchrones), `export/` (Word via `docx`, PDF via `pdfmake`). Points d'entrée : `lambda.ts`, `worker.ts`, `local.ts`.
 - `apps/api/src/filetypes/` : module lecteur de fichiers (routes, stockage, pipeline IA, jobs).
 - `packages/shared/src/tma/` et `apps/api/src/tma/` : module suivi TMA (lecture et masquage des exports, calcul des rapports ; stockage, classement par thème et synthèse IA). Front : `apps/web/src/tma/`.

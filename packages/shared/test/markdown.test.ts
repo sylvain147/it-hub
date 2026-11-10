@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { docToMarkdown, markdownToDoc, docToPlainText } from '../src/markdown.js';
+import { codeLanguage, formatJson, isJsonText, jsonTokens } from '../src/code.js';
 import { nextVersionNumber } from '../src/cdc.js';
 
 describe('markdown <-> riche', () => {
@@ -48,6 +49,38 @@ describe('markdown <-> riche', () => {
   it('les titres de niveau 1 deviennent des sous-sections', () => {
     const doc = markdownToDoc('# Titre');
     expect(doc.content?.[0]).toMatchObject({ type: 'heading', attrs: { level: 2 } });
+  });
+});
+
+describe('blocs de code', () => {
+  it('conserve le langage et le contenu aller-retour', () => {
+    const md = '```json\n{"a": 1}\n```';
+    const doc = markdownToDoc(md);
+    expect(doc.content?.[0]).toMatchObject({ type: 'codeBlock', attrs: { language: 'json' }, content: [{ text: '{"a": 1}' }] });
+    expect(docToMarkdown(doc)).toBe(md);
+  });
+
+  it('allonge la clôture si le code contient des « ` »', () => {
+    const doc = { type: 'doc', content: [{ type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text: 'a ``` b' }] }] };
+    const md = docToMarkdown(doc);
+    expect(md.startsWith('````\n')).toBe(true);
+    expect(markdownToDoc(md).content?.[0]?.content?.[0]?.text).toBe('a ``` b');
+  });
+
+  it('met en forme le JSON en gardant l’écriture des valeurs', () => {
+    expect(formatJson('{"id":12345678901234567890,"prix":1.50,"tags":[],"o":{"a":"x\\"y","b":[true,null]}}')).toBe(
+      ['{', '  "id": 12345678901234567890,', '  "prix": 1.50,', '  "tags": [],', '  "o": {', '    "a": "x\\"y",', '    "b": [', '      true,', '      null', '    ]', '  }', '}'].join('\n'),
+    );
+    expect(formatJson('{"a": ')).toBeNull();
+    expect(isJsonText('42')).toBe(false);
+  });
+
+  it('reconnaît les clés et les valeurs à colorer', () => {
+    const kinds = jsonTokens('{"a": "b", "n": -2, "ok": false}').filter((t) => t.kind !== 'space' && t.kind !== 'punct').map((t) => t.kind);
+    expect(kinds).toEqual(['key', 'string', 'key', 'number', 'key', 'literal']);
+    expect(codeLanguage(null, '{"a": 1}')).toBe('json');
+    expect(codeLanguage('sql', '[1]')).toBeNull();
+    expect(codeLanguage(null, 'SELECT 1')).toBeNull();
   });
 });
 

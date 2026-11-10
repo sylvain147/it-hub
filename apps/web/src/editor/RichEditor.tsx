@@ -3,8 +3,9 @@ import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/r
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
-import type { RichDoc } from '@samm/shared';
+import { formatJson, isJsonText, type RichDoc } from '@samm/shared';
 import { AssetImage } from './AssetImage';
+import { CodeHighlight } from './CodeHighlight';
 import { uploadImage } from './assets';
 import { toast } from '../components/ui';
 
@@ -37,6 +38,7 @@ export function RichEditor({ value, onChange, editable, cdcId, images, sectionNu
       TableHeader,
       TableCell,
       AssetImage,
+      CodeHighlight,
       Placeholder.configure({ placeholder: placeholder ?? 'Rédigez ici…' }),
     ],
     content: value,
@@ -44,7 +46,8 @@ export function RichEditor({ value, onChange, editable, cdcId, images, sectionNu
     // `setEditable` émet aussi un événement « update » sans modification : on l'ignore pour ne pas marquer le document comme modifié.
     onUpdate: ({ editor, transaction }) => transaction.docChanged && onChangeRef.current(editor.getJSON() as RichDoc),
     editorProps: {
-      handlePaste: (_view, event) => owner !== undefined && insertImages(editorRef.current, owner, [...(event.clipboardData?.files ?? [])]),
+      handlePaste: (_view, event) =>
+        (owner !== undefined && insertImages(editorRef.current, owner, [...(event.clipboardData?.files ?? [])])) || pasteJson(editorRef.current, event.clipboardData?.getData('text/plain') ?? ''),
       handleDrop: (_view, event) => owner !== undefined && insertImages(editorRef.current, owner, [...((event as DragEvent).dataTransfer?.files ?? [])]),
     },
   });
@@ -79,6 +82,30 @@ function insertImages(editor: Editor | null, cdcId: string | null, files: File[]
   return true;
 }
 
+/** Du JSON collé hors d'un bloc de code devient un bloc de code mis en forme. */
+function pasteJson(editor: Editor | null, text: string): boolean {
+  if (!editor || editor.isActive('codeBlock') || !isJsonText(text)) return false;
+  editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'json' }, content: [{ type: 'text', text: formatJson(text)! }] }).run();
+  return true;
+}
+
+/** Remet en forme le JSON du bloc de code où se trouve le curseur. */
+function formatCodeBlock(editor: Editor) {
+  editor
+    .chain()
+    .focus()
+    .command(({ tr, state }) => {
+      const $from = state.selection.$from;
+      const node = $from.parent;
+      const formatted = formatJson(node.textContent);
+      if (node.type.name !== 'codeBlock' || !formatted) return false;
+      tr.replaceWith($from.start(), $from.end(), state.schema.text(formatted));
+      tr.setNodeMarkup($from.before(), undefined, { ...node.attrs, language: 'json' });
+      return true;
+    })
+    .run();
+}
+
 function Toolbar({ editor, owner }: { editor: Editor; owner: string | null | undefined }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const s = useEditorState({
@@ -94,6 +121,8 @@ function Toolbar({ editor, owner }: { editor: Editor; owner: string | null | und
       quote: e.isActive('blockquote'),
       link: e.isActive('link'),
       table: e.isActive('table'),
+      code: e.isActive('codeBlock'),
+      canFormat: e.isActive('codeBlock') && (formatJson(e.state.selection.$from.parent.textContent) ?? e.state.selection.$from.parent.textContent) !== e.state.selection.$from.parent.textContent,
       canUndo: e.can().undo(),
       canRedo: e.can().redo(),
     }),
@@ -127,6 +156,8 @@ function Toolbar({ editor, owner }: { editor: Editor; owner: string | null | und
       >
         🔗
       </B>
+      <B on={() => c().toggleCodeBlock().run()} title="Bloc de code (JSON, SQL…) : collez du JSON, il est mis en forme et coloré" active={s.code}>{'{ }'} Code</B>
+      {s.canFormat && <B on={() => formatCodeBlock(editor)} title="Indenter le JSON pour le rendre lisible">✨ Mettre en forme</B>}
       <span className="tb-sep" />
       <B on={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insérer un tableau">▦ Tableau</B>
       {s.table && (
