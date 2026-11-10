@@ -90,6 +90,11 @@ export interface TmaMonthDetail {
   hubTickets: Record<string, HubTicketRef[]>;
 }
 
+/** Réponse à l'import d'un relevé : le mois, et le nombre de tickets du hub dont le temps passé a été mis à jour. */
+export interface TmaMonthImportResult extends TmaMonthDetail {
+  syncedTickets: number;
+}
+
 /** Ticket du hub rattaché à un ticket Desk. */
 export interface HubTicketRef {
   id: string;

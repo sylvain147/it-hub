@@ -261,6 +261,18 @@ export const byTicketPriority = (a: Pick<Task, 'priority' | 'number'>, b: Pick<T
 export const deskKey = (id: string) => id.trim().replace(/^#/, '').replace(/^0+(?=\d)/, '');
 
 /**
+ * Temps passé d'un ticket une fois reporté le temps du prestataire (relevés TMA de son ticket Desk) : l'ancienne
+ * part TMA est remplacée par la nouvelle, le temps saisi à la main est conservé. Arrondi au quart d'heure, comme la saisie.
+ */
+export function withTmaHours(t: Pick<Task, 'spentHours' | 'tmaHours'>, tma: number): Pick<Task, 'spentHours' | 'tmaHours'> {
+  const tmaHours = Math.round(tma * 4) / 4 || null;
+  const manual = t.spentHours == null ? null : Math.max(0, t.spentHours - (t.tmaHours ?? 0));
+  // Temps venu uniquement des relevés, qui disparaît : le ticket redevient « non renseigné ».
+  if (!tmaHours) return { spentHours: manual === 0 && t.tmaHours ? null : manual, tmaHours: null };
+  return { spentHours: (manual ?? 0) + tmaHours, tmaHours };
+}
+
+/**
  * Tickets sans projet : rangés sous cet identifiant réservé, qui n'a pas de fiche projet (ni indicateurs, ni historique).
  * Un ticket peut ensuite être rattaché à un projet, ou en être sorti, en gardant son numéro et son historique.
  */
@@ -409,6 +421,11 @@ export type Task = z.infer<typeof taskInputSchema> &
     doneAt: string;
     statusChanges: StatusChange[];
     sprintChanges: SprintChange[];
+    /**
+     * Part de `spentHours` reportée des relevés TMA du prestataire (ticket Desk `deskId`), tenue par le serveur
+     * (`withTmaHours`) ; null : aucune.
+     */
+    tmaHours: number | null;
   };
 export type ProjectJalon = z.infer<typeof jalonInputSchema> & ItemBase & { initialDate: string };
 export type Prestation = z.infer<typeof prestationInputSchema> & ItemBase;
@@ -465,7 +482,7 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours'> {
   const { priority: p, ...rest } = raw as T & { priority?: unknown };
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
@@ -480,6 +497,7 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     deskId: typeof raw.deskId === 'string' ? raw.deskId : '',
     estimatedHours: typeof raw.estimatedHours === 'number' ? raw.estimatedHours : null,
     spentHours: typeof raw.spentHours === 'number' ? raw.spentHours : null,
+    tmaHours: typeof raw.tmaHours === 'number' ? raw.tmaHours : null,
     // Les tâches à cocher d'avant les sprints portaient déjà une priorité, de mêmes valeurs.
     priority: (PRIORITIES as readonly unknown[]).includes(p) ? (p as Priority) : 'normale',
   };

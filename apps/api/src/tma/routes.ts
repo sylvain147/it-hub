@@ -12,6 +12,7 @@ import {
   type DeskTicketInfo,
   type HubTicketRef,
   type TmaMonthDetail,
+  type TmaMonthImportResult,
   type TmaThemesResponse,
 } from '@samm/shared';
 import { userName } from '../auth.js';
@@ -20,6 +21,7 @@ import { body } from '../lib/http.js';
 import { startJob } from '../jobs/runner.js';
 import * as tma from './repo.js';
 import * as pr from '../projects/repo.js';
+import { syncTmaHours } from './sync.js';
 
 function monthParam(c: Context): string {
   const m = c.req.param('month') ?? '';
@@ -107,11 +109,15 @@ export function tmaRoutes() {
     const outside = b.entries.filter((e) => !e.date.startsWith(month)).length;
     if (outside > b.entries.length / 2) throw new HttpError(400, `La plupart des lignes ne sont pas datées de ${month} : vérifiez le mois choisi.`);
     await tma.putMonth(month, b.entries, b.fileName, userName(c));
-    return c.json(await monthDetail(month));
+    // Le temps du prestataire passe sur les tickets du hub rattachés au même ticket Desk.
+    const syncedTickets = await syncTmaHours();
+    const res: TmaMonthImportResult = { ...(await monthDetail(month)), syncedTickets };
+    return c.json(res);
   });
 
   r.delete('/months/:month', async (c) => {
     await tma.deleteMonth(monthParam(c));
+    await syncTmaHours();
     return c.body(null, 204);
   });
 

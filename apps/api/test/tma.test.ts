@@ -5,6 +5,7 @@ import { reportToMarkdown } from '../src/tma/jobs.js';
 import { DESK_CSV, tmaWorkbook, TMA_ROWS } from '../../../packages/shared/test/fixtures/tma.js';
 
 let env: Awaited<ReturnType<typeof setupTestEnv>>;
+let otherTicket = '';
 beforeAll(async () => {
   env = await setupTestEnv();
 });
@@ -74,7 +75,8 @@ describe('module Suivi TMA', () => {
     const t = await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Corriger les montants des chèques', deskId: '#11884' });
     expect(t.status).toBe(201);
     expect(t.json.deskId).toBe('11884');
-    await env.call('POST', '/projects/hors-projet/items/tasks', { title: 'Suivi du correctif chèques', deskId: '011884' });
+    const other = await env.call('POST', '/projects/hors-projet/items/tasks', { title: 'Suivi du correctif chèques', deskId: '011884', spentHours: 2 });
+    otherTicket = other.json.id;
 
     const info = (await env.call('GET', '/tma/desk/tickets/11884')).json;
     const oct = (await env.call('GET', '/tma/months/2026-10')).json;
@@ -93,9 +95,28 @@ describe('module Suivi TMA', () => {
     // Ticket Desk inconnu : rien, sans erreur.
     expect((await env.call('GET', '/tma/desk/tickets/999999')).json).toMatchObject({ ticket: null, hours: 0, months: [], hubTickets: [] });
     expect((await env.call('GET', '/tma/desk/tickets/abc')).status).toBe(400);
-    // Le numéro Desk s'efface.
-    expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { deskId: '' })).json.deskId).toBe('');
+    // Le temps des relevés passe sur les tickets rattachés, en plus du temps saisi à la main.
+    expect(t.json).toMatchObject({ spentHours: info.hours, tmaHours: info.hours });
+    expect(other.json).toMatchObject({ spentHours: 2 + info.hours, tmaHours: info.hours });
+    // Saisi à la main, le temps passé garde la part du prestataire.
+    expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { spentHours: info.hours + 1 })).json).toMatchObject({ spentHours: info.hours + 1, tmaHours: info.hours });
+    expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { spentHours: null })).json).toMatchObject({ spentHours: info.hours, tmaHours: info.hours });
+    // Le numéro Desk s'efface, et la part du prestataire avec lui.
+    const cleared = await env.call('PATCH', `/projects/${projectId}/items/tasks/${t.json.id}`, { deskId: '' });
+    expect(cleared.json).toMatchObject({ deskId: '', spentHours: null, tmaHours: null });
+    // Ticket rattaché après coup.
+    const late = await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'Relance prestataire', spentHours: 1 });
+    expect(late.json.tmaHours).toBeNull();
+    expect((await env.call('PATCH', `/projects/${projectId}/items/tasks/${late.json.id}`, { deskId: '11884' })).json).toMatchObject({ spentHours: 1 + info.hours, tmaHours: info.hours });
+    await env.call('DELETE', `/projects/${projectId}/items/tasks/${late.json.id}`);
   });
+
+  /** Temps du ticket hors projet rattaché au ticket Desk #11884. */
+  const otherTimes = async () => {
+    const t = (await env.call('GET', '/sprints')).json.tickets.find((x: any) => x.id === otherTicket);
+    return { spentHours: t.spentHours, tmaHours: t.tmaHours };
+  };
+  const deskHours = async () => (await env.call('GET', '/tma/desk/tickets/11884')).json.hours;
 
   it('rédige la synthèse à partir des seuls chiffres, et l’efface si le relevé est remplacé', async () => {
     const start = await env.call('POST', '/tma/months/2026-10/synthesis');
@@ -114,6 +135,9 @@ describe('module Suivi TMA', () => {
     const replaced = await env.call('PUT', '/tma/months/2026-10', { entries: october.slice(0, 3) });
     expect(replaced.json.synthesis).toBeNull();
     expect(replaced.json.report.entryCount).toBe(3);
+    // Relevé remplacé : la part du prestataire suit, le temps saisi à la main reste.
+    const h = await deskHours();
+    expect(await otherTimes()).toEqual({ spentHours: 2 + h, tmaHours: h });
     expect((await env.call('GET', '/usage?month=' + new Date().toISOString().slice(0, 7))).json.byOperation.map((o: any) => o.key)).toEqual(
       expect.arrayContaining(['tma_themes', 'tma_synthese']),
     );
@@ -128,7 +152,11 @@ describe('module Suivi TMA', () => {
   });
 
   it('supprime un mois et valide les entrées', async () => {
+    const before = await otherTimes();
     expect((await env.call('DELETE', '/tma/months/2026-09')).status).toBe(204);
+    const h = await deskHours();
+    expect(h).toBeLessThan(before.tmaHours);
+    expect(await otherTimes()).toEqual({ spentHours: 2 + h, tmaHours: h });
     expect((await env.call('GET', '/tma/months/2026-09')).status).toBe(404);
     expect((await env.call('GET', '/tma/months/2026-13')).status).toBe(400);
     expect((await env.call('POST', '/tma/months/2026-09/synthesis')).status).toBe(404);

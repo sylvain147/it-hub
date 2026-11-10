@@ -347,6 +347,11 @@ export function TicketModal({
       <label className="field">
         <span>Temps passé</span>
         <HoursInput label="Temps passé (heures)" value={f.spentHours} onChange={(v) => set('spentHours', v)} />
+        {ticket?.tmaHours != null && (
+          <span className="muted small" title="Reporté des relevés TMA importés pour le ticket Desk de ce ticket">
+            dont {fmtHours(ticket.tmaHours)} du prestataire (relevés TMA)
+          </span>
+        )}
       </label>
       <div className="field span-2">
         <span>N° ticket Desk (prestataire)</span>

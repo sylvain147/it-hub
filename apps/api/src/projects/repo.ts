@@ -370,6 +370,8 @@ function derived(kind: ProjectItemKind, data: Record<string, unknown>, before: S
         doneAt,
         statusChanges: statusChanges.slice(-MAX_TICKET_HISTORY),
         sprintChanges: sprintChanges.slice(-MAX_TICKET_HISTORY),
+        // Tenu par le report des relevés TMA (`syncTmaHours`), jamais par la saisie.
+        tmaHours: typeof before?.tmaHours === 'number' ? before.tmaHours : null,
         gsi1pk: TICKET_PK,
         gsi1sk: data.id as string,
       };
