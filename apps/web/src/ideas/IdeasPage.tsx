@@ -7,7 +7,6 @@ import {
   IDEA_STATUSES,
   IDEA_STATUS_LABELS,
   NO_PROJECT_ID,
-  parseIdeasImport,
   PRIORITIES,
   PRIORITY_LABELS,
   ticketKey,
@@ -38,7 +37,7 @@ async function attempt<T>(fn: () => Promise<T>, done?: string): Promise<T | null
 
 /**
  * Idées d'amélioration de l'équipe (ERP, outils…) : liste classée par priorité puis par nombre de soutiens,
- * saisie rapide, import d'une liste Notion, et création d'un ticket à partir d'une idée retenue.
+ * saisie rapide, et création d'un ticket à partir d'une idée retenue.
  */
 export function IdeasPage() {
   const { email } = useAuth();
@@ -49,7 +48,6 @@ export function IdeasPage() {
   const [status, setStatus] = useState<StatusFilter>('actives');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Idea | 'new' | null>(null);
-  const [importing, setImporting] = useState(false);
   const [ticketFor, setTicketFor] = useState<Idea | null>(null);
   const [quick, setQuick] = useState({ title: '', priority: 'normale' as Priority });
 
@@ -94,7 +92,6 @@ export function IdeasPage() {
           </p>
         </div>
         <div className="row-actions">
-          <button className="btn" onClick={() => setImporting(true)}>📥 Importer depuis Notion</button>
           <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Nouvelle idée</button>
         </div>
       </div>
@@ -134,10 +131,7 @@ export function IdeasPage() {
           {data?.length ? (
             'Aucune idée ne correspond aux filtres.'
           ) : (
-            <>
-              <p>Aucune idée pour l’instant.</p>
-              <button className="btn btn-primary" onClick={() => setImporting(true)}>Importer la liste Notion</button>
-            </>
+            'Aucune idée pour l’instant.'
           )}
         </EmptyState>
       ) : (
@@ -219,7 +213,6 @@ export function IdeasPage() {
           onSaved={reload}
         />
       )}
-      {importing && <ImportModal domains={domains} defaultDomain={domain || DEFAULT_IDEA_DOMAIN} onClose={() => setImporting(false)} onDone={reload} />}
       {ticketFor && <TicketDialog idea={ticketFor} projects={projects} onClose={() => setTicketFor(null)} onDone={replace} />}
     </div>
   );
@@ -344,101 +337,6 @@ function TicketDialog({ idea, projects, onClose, onDone }: { idea: Idea; project
         <ProjectSelect value={projectId} onChange={setProjectId} projects={projects} emptyLabel="Hors projet" />
       </label>
       <p className="muted small">Le ticket arrive dans le backlog des sprints, avec la priorité de l’idée ; l’idée passe « En cours ».</p>
-    </Modal>
-  );
-}
-
-/**
- * Import d'une liste Notion : export CSV (« ••• → Exporter → Markdown & CSV »), tableau copié-collé, ou simple liste.
- * Le fichier est lu dans le navigateur ; seules les idées retenues de l'aperçu partent au serveur.
- */
-function ImportModal({ domains, defaultDomain, onClose, onDone }: { domains: string[]; defaultDomain: string; onClose: () => void; onDone: () => Promise<unknown> }) {
-  const [text, setText] = useState('');
-  const [domain, setDomain] = useState(defaultDomain);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const parsed = useMemo(() => parseIdeasImport(text, domain.trim() || DEFAULT_IDEA_DOMAIN), [text, domain]);
-
-  async function readFile(file: File) {
-    setText(await file.text());
-  }
-  async function run() {
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await api.importIdeas({ ideas: parsed.ideas.map(({ line: _l, ...i }) => i) });
-      toast(`${r.created} idée${r.created > 1 ? 's' : ''} importée${r.created > 1 ? 's' : ''}${r.skipped ? ` (${r.skipped} déjà présente${r.skipped > 1 ? 's' : ''}, ignorée${r.skipped > 1 ? 's' : ''})` : ''}.`);
-      await onDone();
-      onClose();
-    } catch (e) {
-      setError(e);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Importer des idées depuis Notion"
-      wide
-      onClose={onClose}
-      footer={
-        <>
-          <button className="btn" onClick={onClose}>Annuler</button>
-          <button className="btn btn-primary" disabled={!parsed.ideas.length || busy} onClick={run}>
-            {busy && <Spinner small />} Importer {parsed.ideas.length || ''} idée{parsed.ideas.length > 1 ? 's' : ''}
-          </button>
-        </>
-      }
-    >
-      <ErrorBox error={error} />
-      <p className="small">
-        Dans Notion, ouvrez la base « Idées amélioration ERP », puis <strong>••• → Exporter → Markdown &amp; CSV</strong> et déposez ici le fichier <code>.csv</code>. Vous pouvez aussi sélectionner les lignes du tableau
-        (ou les puces de la liste) et les coller ci-dessous. Les colonnes « Priorité », « Statut » et « Description » sont reconnues ; les autres sont gardées dans la description.
-      </p>
-      <div className="form-grid">
-        <label className="field">
-          <span>Fichier exporté (CSV, Markdown, texte)</span>
-          <input className="input" type="file" accept=".csv,.md,.txt,text/csv,text/plain,text/markdown" onChange={(e) => e.target.files?.[0] && void readFile(e.target.files[0])} />
-        </label>
-        <label className="field">
-          <span>Domaine (si la liste n’a pas de colonne « Domaine »)</span>
-          <input className="input" list="idea-import-domains" value={domain} onChange={(e) => setDomain(e.target.value)} />
-          <DataList id="idea-import-domains" values={domains} />
-        </label>
-        <label className="field span-2">
-          <span>… ou collez la liste</span>
-          <textarea className="input mono" rows={7} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Name\tPriorité\tStatut\nExport des commandes en Excel\tHaute\tÀ faire\n…\n\nou :\n- [ ] Export des commandes en Excel (haute)\n- [ ] Raccourci vers la fiche client'} />
-        </label>
-      </div>
-      {parsed.ideas.length > 0 && (
-        <>
-          <p className="small mt">
-            <strong>{parsed.ideas.length}</strong> idée{parsed.ideas.length > 1 ? 's' : ''} reconnue{parsed.ideas.length > 1 ? 's' : ''}
-            {parsed.columns.priority && <> · priorité lue dans « {parsed.columns.priority} »</>}
-            {parsed.columns.status && <> · statut dans « {parsed.columns.status} »</>}
-          </p>
-          {parsed.unknownPriorities.length > 0 && (
-            <p className="small due-late">Priorités non reconnues (importées en « Normale ») : {parsed.unknownPriorities.join(', ')}.</p>
-          )}
-          <div className="table-wrap table-scroll import-preview">
-            <table className="table">
-              <thead>
-                <tr><th>Idée</th><th>Priorité</th><th>Statut</th><th>Domaine</th></tr>
-              </thead>
-              <tbody>
-                {parsed.ideas.slice(0, 200).map((i) => (
-                  <tr key={i.line}>
-                    <td>{i.title}{i.details && <div className="muted small clamp-1">{i.details}</div>}</td>
-                    <td>{PRIORITY_LABELS[i.priority]}</td>
-                    <td>{IDEA_STATUS_LABELS[i.status]}</td>
-                    <td>{i.domain}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
     </Modal>
   );
 }

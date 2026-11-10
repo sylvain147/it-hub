@@ -4,16 +4,16 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (notes, assistant, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). La to-do n'y figure pas : elle s'ouvre par le bouton « ✅ To-do » en haut à droite (« Tout voir » mène à la page complète). L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur**, « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur**, « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 
 - **Ma liste de choses à faire** : des tâches simples (intitulé, détails, échéance) que l'on **coche** quand c'est fait, avec les retards en évidence. On ajoute une tâche en une ligne et on la **range par glisser-déposer** (poignée ⠿, ou flèches du clavier) ; les tâches jamais déplacées suivent, par échéance.
-- **Sous-tâches** : une tâche se découpe en étapes (bouton ＋ sur la ligne, ou dans sa fiche où on les renomme et les range), cochées une à une sous la tâche ; l'avancement (« ☑ 2/5 ») s'affiche sur la ligne et dans le bouton To-do.
+- **Sous-tâches** : une tâche se découpe en étapes (bouton ＋ sur la ligne, ou dans sa fiche où on les renomme et les range), cochées une à une sous la tâche ; l'avancement (« ☑ 2/5 ») s'affiche sur la ligne.
 - La to-do est **séparée des tickets** : une tâche n'a ni statut ni sprint, et ne se planifie pas. Le travail à planifier se crée en ticket (module Sprints).
-- Une tâche se **rattache à un projet** ou reste personnelle. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
+- Une tâche se **rattache à un projet** ou reste personnelle. Si le projet n'existe pas encore, « + Nouveau projet » dans la fiche de la tâche le crée et y rattache la tâche, sans quitter la saisie. Les tâches d'un projet forment la **to-do du projet** (onglet « To-do et notes »), visible et cochable par toute l'équipe.
 - **Selon le rôle**, on consulte la to-do d'une autre personne ou de **toute l'équipe**, et on peut confier une tâche à quelqu'un.
-- **Bouton « ✅ To-do » toujours visible en haut à droite** : sa pastille compte mes tâches **du jour ou en retard** ; un clic ouvre ma to-do, à cocher sur place, avec une saisie rapide.
+- **Pastille dans le menu** : à côté de « To-do », le nombre de mes tâches **du jour ou en retard**.
 - L'accueil reprend « Ma to-do » et, à côté, « Mes tickets ouverts » (et « Toute l'équipe » pour les rôles qui le permettent).
 
 ### 📝 Notes
@@ -23,9 +23,9 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - **Épingler** une note la garde en tête ; **archiver** la range à part (onglet « Archivées », d'où on la ressort) sans la supprimer ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
 - **Taille des post-it** : la poignée en bas à droite d'une note l'agrandit (jusqu'à trois colonnes de large, hauteur libre) pour la lire sans l'ouvrir ; double-clic : la note entière, ou de nouveau la taille normale (flèches du clavier sur la poignée). La taille est retenue pour chaque note.
 
-### ✨ Assistant
+### 🧙 Gandalf, l'assistant
 
-- **Un chat avec l'IA sur tout le hub** : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.
+- **Un chat avec l'IA sur tout le hub**, ouvert par la **bulle de Gandalf en bas à droite** de chaque page (la conversation continue d'une page à l'autre ; Échap ou × la referme) : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.
 - Il s'appuie sur les **données du hub, rassemblées par l'application** : projets et leurs indicateurs, jalons en retard et à venir, sprint en cours, mes tickets et les tickets en retard, ma to-do (avec ses sous-tâches) et celle des projets, mes notes. Un projet cité par son nom ou son code (dans la question ou les échanges précédents) est envoyé en détail. Jamais les notes ni la to-do personnelle des autres.
 - **Il ne modifie rien**. La conversation reste dans l'onglet du navigateur (rien n'est enregistré) ; chaque question est un appel au modèle rapide, compté dans la consommation IA.
 
@@ -39,7 +39,6 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 ### 💡 Idées d'amélioration
 
 - **La liste des idées de l'équipe** (ERP par défaut, ou tout autre domaine) : intitulé, description, **priorité** (basse → critique), statut (nouvelle, retenue, en cours, réalisée, écartée), projet concerné. Triée par priorité puis par nombre de **soutiens** (👍, un par personne). Saisie rapide en une ligne ; priorité et statut se changent directement dans la liste.
-- **Import depuis Notion** : export CSV de la base (« ••• → Exporter → Markdown & CSV »), tableau copié-collé ou simple liste à puces / à cocher. Lu dans le navigateur, avec un aperçu ; priorités (« Haute », « P1 », ⭐⭐⭐…) et statuts reconnus, autres colonnes gardées dans la description, doublons ignorés.
 - **→ Ticket** : une idée devient, sur clic, un ticket au backlog (du projet choisi ou hors projet), avec sa priorité ; l'idée passe « en cours » et garde le lien vers le ticket.
 
 ### 🎙️ Transcrire une réunion

@@ -20,7 +20,11 @@ export function PriorityBadge({ priority }: { priority: QuestionPriority }) {
 export function Modal({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      // Fenêtres superposées (ex. nouveau projet depuis une tâche) : Échap ne ferme que celle du dessus.
+      const all = document.querySelectorAll('.modal-backdrop');
+      if (e.key === 'Escape' && all[all.length - 1] === ref.current?.parentElement) onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);

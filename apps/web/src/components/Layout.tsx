@@ -10,7 +10,8 @@ import { UsersProvider } from '../users/context';
 import { FeedbackModal } from '../feedback/FeedbackModal';
 import { ThemeModal } from '../users/ThemeModal';
 import { BoutonRouge } from '../bouton/BoutonRouge';
-import { TodoButton } from '../tasks/TodoButton';
+import { TodoBadge } from '../tasks/TodoBadge';
+import { Gandalf } from '../assistant/Gandalf';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
 
 export function Layout() {
@@ -48,7 +49,7 @@ export function Layout() {
           <UsersProvider>
             <MeetingRecorderProvider>
               <Outlet />
-              <TodoButton />
+              <Gandalf />
               <RecordingPill />
               <BoutonRouge />
             </MeetingRecorderProvider>
@@ -95,6 +96,7 @@ function SideNav() {
               items.map((m) => (
                 <NavLink key={m.id} to={m.path} className="nav-link">
                   <span className="nav-icon">{m.icon}</span> {m.title}
+                  {m.id === 'todo' && <TodoBadge />}
                 </NavLink>
               ))}
           </div>
