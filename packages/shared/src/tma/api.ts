@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MAX_DESCRIPTION_CHARS } from './desk.js';
 import type { TmaEntry } from './activity.js';
 import type { StoredTicket, ThemeStats, TmaMonthReport } from './report.js';
+import type { TmaPersonLink } from './people.js';
 
 const text = (max: number) => z.string().max(max).default('');
 
@@ -88,11 +89,17 @@ export interface TmaMonthDetail {
   activeJobId: string | null;
   /** Tickets du hub qui citent un ticket Desk du mois (clé : `deskKey`). */
   hubTickets: Record<string, HubTicketRef[]>;
+  /** Contact du paramétrage de chaque intervenant du relevé (null : absent des carnets de contacts). */
+  people: Record<string, TmaPersonLink | null>;
 }
 
-/** Réponse à l'import d'un relevé : le mois, et le nombre de tickets du hub dont le temps passé a été mis à jour. */
+/**
+ * Réponse à l'import d'un relevé : le mois, le nombre de tickets du hub dont le temps passé a été mis à jour
+ * et les intervenants absents des carnets de contacts des prestataires (leur temps n'est compté sur aucun prestataire).
+ */
 export interface TmaMonthImportResult extends TmaMonthDetail {
   syncedTickets: number;
+  unknownPeople: string[];
 }
 
 /** Ticket du hub rattaché à un ticket Desk. */

@@ -69,6 +69,31 @@ describe('module Suivi TMA', () => {
     ]);
   });
 
+  it('compte le temps des relevés sur les contacts des prestataires et signale les intervenants inconnus', async () => {
+    // Aucun prestataire : tous les intervenants sont inconnus.
+    expect((await env.call('GET', '/tma/months/2026-10')).json.people['Romain Durand']).toBeNull();
+    const coq = (await env.call('POST', '/settings/prestataires', { name: 'Coqliqo' })).json;
+    let p = (await env.call('POST', `/settings/prestataires/${coq.id}/contacts`, { name: 'DURAND Romain' })).json;
+    p = (await env.call('POST', `/settings/prestataires/${coq.id}/contacts`, { name: 'Jérôme Martin' })).json;
+    p = (await env.call('POST', `/settings/prestataires/${coq.id}/contacts`, { name: 'Alain Didier' })).json;
+    const [durand] = p.contacts;
+
+    const put = await env.call('PUT', '/tma/months/2026-09', { fileName: 'TMA SEPTEMBRE.xlsx', entries: september });
+    expect(put.json.unknownPeople).toEqual(['Alexandre Robert']);
+    expect(put.json.people['Romain Durand']).toEqual({ prestataireId: coq.id, prestataireName: 'Coqliqo', contactId: durand.id, contactName: 'DURAND Romain' });
+    expect(put.json.people['Alexandre Robert']).toBeNull();
+
+    const hours = (await env.call('GET', '/tma/prestataires')).json;
+    expect(hours.byContact[durand.id]).toEqual({ hours: 4, months: [{ month: '2026-09', hours: 2 }, { month: '2026-10', hours: 2 }] });
+    expect(hours.byPrestataire[coq.id].hours).toBe(15.5);
+    expect(hours.unknown).toEqual([{ person: 'Alexandre Robert', hours: 2 }]);
+
+    // Une fois ajouté au carnet, l'intervenant n'est plus signalé.
+    await env.call('POST', `/settings/prestataires/${coq.id}/contacts`, { name: 'Alexandre Robert' });
+    expect((await env.call('PUT', '/tma/months/2026-09', { fileName: 'TMA SEPTEMBRE.xlsx', entries: september })).json.unknownPeople).toEqual([]);
+    expect((await env.call('GET', '/tma/prestataires')).json).toMatchObject({ unknown: [], byPrestataire: { [coq.id]: { hours: 17.5 } } });
+  });
+
   it('rattache un ticket du hub à un ticket Desk du prestataire', async () => {
     const projectId = (await env.call('POST', '/projects', { name: 'Encaissements' })).json.id;
     expect((await env.call('POST', `/projects/${projectId}/items/tasks`, { title: 'X', deskId: '12a' })).status).toBe(400);

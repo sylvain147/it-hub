@@ -5,6 +5,8 @@ import {
   classifyBody,
   importDeskBody,
   importTmaBody,
+  matchTmaPeople,
+  tmaHoursByContact,
   deskKey,
   MONTH_RE,
   previousMonth,
@@ -13,6 +15,7 @@ import {
   type HubTicketRef,
   type TmaMonthDetail,
   type TmaMonthImportResult,
+  type TmaPrestataireHours,
   type TmaThemesResponse,
 } from '@samm/shared';
 import { userName } from '../auth.js';
@@ -21,6 +24,7 @@ import { body } from '../lib/http.js';
 import { startJob } from '../jobs/runner.js';
 import * as tma from './repo.js';
 import * as pr from '../projects/repo.js';
+import * as st from '../settings/repo.js';
 import { syncTmaHours } from './sync.js';
 
 function monthParam(c: Context): string {
@@ -41,11 +45,18 @@ async function hubTicketsByDesk(): Promise<Map<string, HubTicketRef[]>> {
 }
 
 async function monthDetail(month: string): Promise<TmaMonthDetail> {
-  const [m, tickets, prevEntries, hub] = await Promise.all([tma.getMonth(month), tma.listTickets(), tma.getMonthEntries(previousMonth(month)), hubTicketsByDesk()]);
+  const [m, tickets, prevEntries, hub, prestataires] = await Promise.all([
+    tma.getMonth(month),
+    tma.listTickets(),
+    tma.getMonthEntries(previousMonth(month)),
+    hubTicketsByDesk(),
+    st.listPrestataires(),
+  ]);
   const cited = new Set(m.entries.flatMap((e) => e.tickets.map((t) => deskKey(t.id))));
   return {
     ...m,
     hubTickets: Object.fromEntries([...hub].filter(([k]) => cited.has(k))),
+    people: Object.fromEntries(matchTmaPeople(new Set(m.entries.map((e) => e.person)), prestataires)),
     report: buildMonthReport(month, m.entries, tickets, prevEntries ? { month: previousMonth(month), entries: prevEntries } : null),
   };
 }
@@ -92,6 +103,14 @@ export function tmaRoutes() {
     return c.json(res);
   });
 
+  /** Temps des relevés par contact et par prestataire du paramétrage, et intervenants absents des carnets de contacts. */
+  r.get('/prestataires', async (c) => {
+    const [months, prestataires] = await Promise.all([tma.listMonths(), st.listPrestataires()]);
+    const entries = await Promise.all(months.map(async (m) => ({ month: m.month, entries: (await tma.getMonthEntries(m.month)) ?? [] })));
+    const res: TmaPrestataireHours = tmaHoursByContact(entries, prestataires);
+    return c.json(res);
+  });
+
   r.get('/themes', async (c) => {
     const [tickets, months] = await Promise.all([tma.listTickets(), tma.listMonths()]);
     const entries = (await Promise.all(months.map((m) => tma.getMonthEntries(m.month)))).flatMap((e) => e ?? []);
@@ -111,7 +130,10 @@ export function tmaRoutes() {
     await tma.putMonth(month, b.entries, b.fileName, userName(c));
     // Le temps du prestataire passe sur les tickets du hub rattachés au même ticket Desk.
     const syncedTickets = await syncTmaHours();
-    const res: TmaMonthImportResult = { ...(await monthDetail(month)), syncedTickets };
+    // Il passe aussi sur les contacts des prestataires (calculé à la lecture) : les intervenants inconnus sont signalés.
+    const detail = await monthDetail(month);
+    const unknownPeople = Object.entries(detail.people).filter(([, link]) => !link).map(([person]) => person).sort((a, b) => a.localeCompare(b, 'fr'));
+    const res: TmaMonthImportResult = { ...detail, syncedTickets, unknownPeople };
     return c.json(res);
   });
 

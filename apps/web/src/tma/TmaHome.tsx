@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { decodeFile, guessEncoding, monthLabel, parseDeskExport, parseTmaWorkbook, type DeskImport, type TmaImport } from '@samm/shared';
+import { decodeFile, guessEncoding, monthLabel, parseDeskExport, parseTmaWorkbook, unknownTmaPeople, type DeskImport, type TmaImport } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling, useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
+import { useSettings } from '../settings/context';
 import { fmtH, fmtN } from './common';
 
 /** Tickets envoyés par requête lors d'un import Desk. */
@@ -59,8 +60,9 @@ export function TmaHome() {
         setPending(null);
         await reload();
       } else {
-        const { syncedTickets } = await api.putTmaMonth(pending.month, pending.fileName, pending.data.entries);
+        const { syncedTickets, unknownPeople } = await api.putTmaMonth(pending.month, pending.fileName, pending.data.entries);
         toast(`Relevé de ${monthLabel(pending.month)} importé.${syncedTickets ? ` Temps passé mis à jour sur ${syncedTickets} ticket(s) du hub.` : ''}`);
+        if (unknownPeople.length) toast(`Intervenant(s) absent(s) des contacts des prestataires, temps non compté : ${unknownPeople.join(', ')}.`, 'error');
         navigate(`/tma/mois/${pending.month}`);
       }
     } catch (e) {
@@ -205,7 +207,20 @@ export function TmaHome() {
   );
 }
 
+/** Alerte : intervenants absents des carnets de contacts des prestataires (Paramétrage). */
+function UnknownPeopleAlert({ people, what }: { people: string[]; what: string }) {
+  if (!people.length) return null;
+  return (
+    <div className="alert alert-warn">
+      <strong>{people.length} intervenant(s) absent(s) des contacts des prestataires</strong> : {people.join(', ')}. {what}{' '}
+      <Link to="/parametrage?onglet=prestataires">Ajouter les contacts</Link>
+    </div>
+  );
+}
+
 function DeskPreview({ p }: { p: Extract<Pending, { kind: 'desk' }> }) {
+  const { prestataires } = useSettings();
+  const unknown = unknownTmaPeople(p.data.tickets.filter((t) => t.assignee).map((t) => ({ person: t.assignee })), prestataires);
   const dates = p.data.tickets.map((t) => t.createdAt).sort();
   const sample = p.data.tickets.find((t) => t.description.includes('[')) ?? p.data.tickets[0];
   return (
@@ -220,6 +235,7 @@ function DeskPreview({ p }: { p: Extract<Pending, { kind: 'desk' }> }) {
         <dt>Colonnes non envoyées</dt>
         <dd className="small">{p.data.ignoredColumns.join(', ') || '—'}</dd>
       </dl>
+      <UnknownPeopleAlert people={unknown} what="Ajoutez-les au carnet de contacts de leur prestataire pour que le temps des relevés TMA leur soit compté." />
       <p className="muted small">Les tickets déjà importés sont mis à jour (statut…) et gardent leur thème. Exemple de ticket tel qu’il sera enregistré :</p>
       {sample && (
         <div className="masked-sample">
@@ -233,6 +249,8 @@ function DeskPreview({ p }: { p: Extract<Pending, { kind: 'desk' }> }) {
 }
 
 function TmaPreview({ p, onMonth, existing }: { p: Extract<Pending, { kind: 'tma' }>; onMonth: (m: string) => void; existing: boolean }) {
+  const { prestataires } = useSettings();
+  const unknown = unknownTmaPeople(p.data.entries, prestataires);
   const hours = p.data.entries.reduce((n, e) => n + e.hours, 0);
   const tickets = new Set(p.data.entries.flatMap((e) => e.tickets.map((t) => t.id)));
   const attached = p.data.entries.reduce((n, e) => n + e.hours - e.otherHours, 0);
@@ -253,6 +271,7 @@ function TmaPreview({ p, onMonth, existing }: { p: Extract<Pending, { kind: 'tma
         <dd>{fmtH(attached)} sur {tickets.size} ticket(s) cité(s)</dd>
       </dl>
       {p.data.outOfMonth > 0 && <div className="alert alert-info">{p.data.outOfMonth} ligne(s) datée(s) hors de {monthLabel(p.month)}.</div>}
+      <UnknownPeopleAlert people={unknown} what="Leur temps ne sera compté sur aucun prestataire tant qu’ils ne sont pas dans un carnet de contacts (Paramétrage)." />
       {existing && <div className="alert alert-info">Un relevé existe déjà pour {monthLabel(p.month)} : il sera remplacé (et sa synthèse effacée).</div>}
     </>
   );
