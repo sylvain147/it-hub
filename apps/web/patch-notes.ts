@@ -70,10 +70,21 @@ export function readPatchNotes(): PatchNote[] {
 const VIRTUAL_ID = 'virtual:patch-notes';
 const RESOLVED_ID = `\0${VIRTUAL_ID}`;
 
+/** Fichier du build lu par le déploiement pour annoncer la nouvelle version sur Teams (`infra/lib/hub-stack.ts`). */
+export const PATCH_NOTES_FILE = 'patch-notes.json';
+
 export function patchNotesPlugin(): Plugin {
+  let notes: PatchNote[] | null = null;
+  const read = () => (notes ??= readPatchNotes());
   return {
     name: 'hobbit-patch-notes',
+    buildStart: () => {
+      notes = null;
+    },
     resolveId: (id) => (id === VIRTUAL_ID ? RESOLVED_ID : undefined),
-    load: (id) => (id === RESOLVED_ID ? `export default ${JSON.stringify(readPatchNotes())};` : undefined),
+    load: (id) => (id === RESOLVED_ID ? `export default ${JSON.stringify(read())};` : undefined),
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: PATCH_NOTES_FILE, source: JSON.stringify(read()) });
+    },
   };
 }

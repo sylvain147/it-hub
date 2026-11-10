@@ -76,6 +76,7 @@ import type {
   UpdateQuestionBody,
   UsageReport,
   VersionInfo,
+  TicketComment,
 } from '@samm/shared';
 import { authHeaders } from './auth';
 
@@ -225,6 +226,9 @@ export const api = {
   updateItem: <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) =>
     request<ProjectItem<K>>('PATCH', `/projects/${id}/items/${kind}/${itemId}`, patch),
   deleteItem: (id: string, kind: ProjectItemKind, itemId: string) => request<null>('DELETE', `/projects/${id}/items/${kind}/${itemId}`),
+  addTicketNote: (id: string, ticketId: string, text: string) => request<TicketComment[]>('POST', `/projects/${id}/tickets/${ticketId}/notes`, { text }),
+  updateTicketNote: (id: string, ticketId: string, noteId: string, text: string) => request<TicketComment[]>('PUT', `/projects/${id}/tickets/${ticketId}/notes/${noteId}`, { text }),
+  deleteTicketNote: (id: string, ticketId: string, noteId: string) => request<TicketComment[]>('DELETE', `/projects/${id}/tickets/${ticketId}/notes/${noteId}`),
   createProjectFile: (id: string, b: { name: string; category: string; contentType: string; size: number }) =>
     request<{ file: ProjectFile; upload: { url: string; headers: Record<string, string> } }>('POST', `/projects/${id}/files`, b),
   confirmProjectFile: (id: string, fileId: string) => request<ProjectFile>('POST', `/projects/${id}/files/${fileId}/confirm`),

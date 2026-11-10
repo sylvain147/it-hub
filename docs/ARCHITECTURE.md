@@ -75,8 +75,11 @@ En local et dans les tests, un fournisseur **simulé** remplace Bedrock (`LLM_PR
 | `REF#LISTS` | `LISTS` | Libellés, ordre et visibilité des statuts ; libellés de jalons et rôles proposés |
 | `REF#PRESTA` | `P#<id>` | Prestataire et son carnet de contacts |
 | `REF#TEAMS` | `TEAMS` | Connexion Teams : adresse du flux Workflows, notifications activées, adresse du hub (liens), dernier échec |
+| `REF#TEAMS` | `RELEASE` | Dernière entrée du patch note annoncée sur Teams (mise en production) |
 
 **Notifications Teams** (`apps/api/src/notifications/teams.ts`) : `notify(event, message)` envoie une carte adaptative (`teamsPayload`) au flux Workflows du canal si la connexion existe et que l'évènement est activé ; délai de 5 s, jamais d'erreur levée (l'échec est gardé dans `lastError` et affiché dans le paramétrage). L'adresse du flux vaut mot de passe : l'API n'en renvoie qu'un extrait (`maskWebhookUrl`) et n'appelle que les hôtes Microsoft (`teamsWebhookError`). L'adresse du hub, pour le bouton « Ouvrir dans Hobbit », est l'origine de la page qui a enregistré la connexion.
+
+**Annonce des mises en production** : le build du front écrit `patch-notes.json` (plugin `apps/web/patch-notes.ts`). Au déploiement, la ressource `AnnounceRelease` (`AwsCustomResource`, après la mise en ligne du front) invoque le worker en asynchrone avec les 10 dernières entrées ; elle n'est rejouée que si ces entrées changent. Le worker (`notifications/release.ts`) publie celles d'après la dernière annoncée (au premier déploiement, seulement la dernière) et retient la plus récente, même si la notification est désactivée.
 
 ## Module « Suivi TMA »
 

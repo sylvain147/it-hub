@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeTitle, withTicketType, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketStatus } from '@samm/shared';
+import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeTitle, withTicketType, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
-import { DueLabel, ItemModal, MarkdownField, PriorityTag } from '../projects/common';
+import { DueLabel, ItemModal, MarkdownField, MarkdownView, PriorityTag } from '../projects/common';
 import { StatusOptions, useSettings } from '../settings/context';
 import { UserSelect, useUsers } from '../users/context';
 import { Swatch, useTicketLabel } from './charts';
@@ -48,6 +48,7 @@ export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: T
         {t.deskId && <DeskBadge id={t.deskId} />}
         {t.assignee && <span className={t.assigneeId ? 'badge' : 'badge badge-ext'} title={t.assigneeId || 'Personne extérieure au hub'}>{t.assignee}</span>}
         {t.dueDate && <span className="small"><DueLabel date={t.dueDate} done={t.done} /></span>}
+        {t.comments?.length > 0 && <span className="small muted" title={`${t.comments.length} note${t.comments.length > 1 ? 's' : ''} de suivi`}>💬 {t.comments.length}</span>}
         <TicketTimes t={t} />
         <TicketStatusChip status={t.status} />
         {extra}
@@ -260,6 +261,8 @@ export function TicketModal({
     spentHours: hoursText(ticket?.spentHours),
   });
   const [external, setExternal] = useState(!!ticket && !ticket.assigneeId);
+  // Note de suivi saisie mais pas encore ajoutée : enregistrée avec le ticket.
+  const [noteDraft, setNoteDraft] = useState('');
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
 
   async function save() {
@@ -268,8 +271,10 @@ export function TicketModal({
     const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     const projectId = f.projectId || NO_PROJECT_ID;
-    if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, projectId !== ticket.projectId ? { ...fields, projectId } : fields);
-    else await api.createItem(projectId, 'tasks', fields);
+    if (ticket) {
+      if (noteDraft.trim()) await api.addTicketNote(ticket.projectId, ticket.id, noteDraft);
+      await api.updateItem(ticket.projectId, 'tasks', ticket.id, projectId !== ticket.projectId ? { ...fields, projectId } : fields);
+    } else await api.createItem(projectId, 'tasks', fields);
     await onSaved();
   }
 
@@ -421,6 +426,101 @@ export function TicketModal({
         <span>Description</span>
         <MarkdownField value={f.details} onChange={(v) => set('details', v)} placeholder="Contexte, critères d’acceptation, liens… (collez des captures d’écran directement)" resetKey={ticket?.id ?? 'nouveau'} images />
       </div>
+      {ticket && <TicketNotes ticket={ticket} draft={noteDraft} onDraft={setNoteDraft} onChanged={onSaved} />}
     </ItemModal>
+  );
+}
+
+/**
+ * Notes de suivi d'un ticket : un fil de remarques datées (avancement, échanges avec le prestataire…), visible de
+ * toute l'équipe. Une note s'enregistre aussitôt, sans toucher au ticket ; chacun modifie ou supprime les siennes.
+ */
+function TicketNotes({ ticket, draft: text, onDraft: setText, onChanged }: { ticket: TicketRow; draft: string; onDraft: (v: string) => void; onChanged: () => Promise<void> | void }) {
+  const { me } = useAuth();
+  const { name } = useUsers();
+  const [list, setList] = useState<TicketComment[]>(ticket.comments ?? []);
+  // Note en cours de modification.
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+
+  async function run(action: () => Promise<TicketComment[]>, done?: () => void) {
+    setBusy(true);
+    try {
+      setList(await action());
+      done?.();
+      void onChanged();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const add = () =>
+    run(
+      () => api.addTicketNote(ticket.projectId, ticket.id, text),
+      () => {
+        setText('');
+        setResetKey((k) => k + 1);
+      },
+    );
+
+  return (
+    <div className="field span-2 ticket-notes">
+      <span>Notes de suivi{list.length > 0 && <span className="muted"> ({list.length})</span>}</span>
+      {list.length > 0 && (
+        <ul className="ticket-note-list">
+          {list.map((n) => (
+            <li key={n.id}>
+              <div className="ticket-note-head small">
+                <strong>{name(n.by) === n.by ? n.author || shortUser(n.by) : name(n.by)}</strong>
+                <span className="muted">
+                  {formatDate(n.at.slice(0, 10))} à {n.at.slice(11, 16).replace(':', 'h')}
+                  {n.editedAt && ' · modifiée'}
+                </span>
+                {n.by === me.email && editing?.id !== n.id && (
+                  <span className="ticket-note-actions">
+                    <button type="button" className="btn-link small" disabled={busy} onClick={() => setEditing({ id: n.id, text: n.text })}>Modifier</button>
+                    <button
+                      type="button"
+                      className="btn-link small"
+                      disabled={busy}
+                      onClick={() => confirm('Supprimer cette note ?') && void run(() => api.deleteTicketNote(ticket.projectId, ticket.id, n.id))}
+                    >
+                      Supprimer
+                    </button>
+                  </span>
+                )}
+              </div>
+              {editing?.id === n.id ? (
+                <div className="ticket-note-edit">
+                  <MarkdownField value={editing.text} onChange={(v) => setEditing({ id: n.id, text: v })} resetKey={`note-${n.id}`} />
+                  <div className="actions">
+                    <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>Annuler</button>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={busy || !editing.text.trim()}
+                      onClick={() => void run(() => api.updateTicketNote(ticket.projectId, ticket.id, n.id, editing.text), () => setEditing(null))}
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <MarkdownView markdown={n.text} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="ticket-note-new">
+        <MarkdownField value={text} onChange={setText} placeholder="Ajouter une note : avancement, échange avec le prestataire, point de vigilance…" resetKey={`nouvelle-${resetKey}`} />
+        <div className="actions">
+          <button type="button" className="btn btn-sm" disabled={busy || !text.trim()} onClick={() => void add()}>Ajouter la note</button>
+        </div>
+      </div>
+    </div>
   );
 }

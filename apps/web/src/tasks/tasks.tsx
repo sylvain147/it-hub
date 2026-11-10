@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { CLOSED_PROJECT_STATUSES, subtaskProgress, type PersonalTask, type TodoSubtask } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, parisDay, subtaskProgress, type PersonalTask, type TodoSubtask } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -299,6 +299,9 @@ export function TaskChecklist({
   );
 }
 
+/** Échéance proposée à une nouvelle tâche : aujourd'hui (on la change au besoin, ou on la vide). */
+export const defaultDueDate = () => parisDay(Date.now());
+
 /** Saisie rapide : intitulé puis Entrée. */
 export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => Promise<void> }) {
   const [v, setV] = useState('');
@@ -343,7 +346,7 @@ export function TaskModal({
   const [f, setF] = useState({
     title: task?.title ?? '',
     details: task?.details ?? '',
-    dueDate: task?.dueDate ?? '',
+    dueDate: task ? task.dueDate : defaultDueDate(),
     done: task?.done ?? false,
     assigneeId: task ? task.assigneeId : defaults.assigneeId,
     projectId: task ? task.projectId : (defaults.projectId ?? ''),
@@ -493,8 +496,8 @@ function SubtaskEditor({ value, onChange }: { value: TodoSubtask[]; onChange: (v
 }
 
 /** Projets, par nom, pour le rattachement d'une tâche ou d'une note. */
-export function useProjectRefs(): ProjectRef[] {
-  const { data } = useLoad(() => api.listProjects(), []);
+export function useProjectRefs(enabled = true): ProjectRef[] {
+  const { data } = useLoad(() => (enabled ? api.listProjects() : Promise.resolve(null)), [enabled]);
   return useMemo(
     () => (data ?? []).map((p) => ({ id: p.id, name: p.name, closed: CLOSED_PROJECT_STATUSES.includes(p.status) })).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
     [data],

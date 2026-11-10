@@ -293,6 +293,31 @@ export interface SprintChange {
   to: number | null;
 }
 
+/**
+ * Note de suivi d'un ticket (« Notes » de la fiche) : un fil de remarques datées, visible de toute l'équipe, hors
+ * champs du ticket (ajouter une note ne modifie pas le ticket). Tenue par le serveur (`POST …/tickets/:id/notes`) ;
+ * chacun ne modifie ou ne supprime que les siennes.
+ */
+export interface TicketComment {
+  id: string;
+  /** Texte en Markdown. */
+  text: string;
+  at: string;
+  /** Auteur (e-mail) et son nom, recopié à l'écriture. */
+  by: string;
+  author: string;
+  /** Dernière modification (vide : jamais modifiée). */
+  editedAt: string;
+}
+
+export const ticketCommentBody = z.object({
+  text: z.string().trim().min(1, 'La note est vide.').max(10_000, 'Note trop longue (10 000 caractères au plus).'),
+});
+export type TicketCommentBody = z.input<typeof ticketCommentBody>;
+
+/** Notes conservées par ticket (les plus récentes). */
+export const MAX_TICKET_COMMENTS = 200;
+
 /** Historique conservé par ticket (les plus récents). */
 export const MAX_TICKET_HISTORY = 200;
 
@@ -426,6 +451,8 @@ export type Task = z.infer<typeof taskInputSchema> &
      * (`withTmaHours`) ; null : aucune.
      */
     tmaHours: number | null;
+    /** Notes de suivi, de la plus ancienne à la plus récente. */
+    comments: TicketComment[];
   };
 export type ProjectJalon = z.infer<typeof jalonInputSchema> & ItemBase & { initialDate: string };
 export type Prestation = z.infer<typeof prestationInputSchema> & ItemBase;
@@ -482,7 +509,7 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours' | 'comments'> {
   const { priority: p, ...rest } = raw as T & { priority?: unknown };
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
@@ -498,6 +525,7 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     estimatedHours: typeof raw.estimatedHours === 'number' ? raw.estimatedHours : null,
     spentHours: typeof raw.spentHours === 'number' ? raw.spentHours : null,
     tmaHours: typeof raw.tmaHours === 'number' ? raw.tmaHours : null,
+    comments: Array.isArray(raw.comments) ? (raw.comments as TicketComment[]) : [],
     // Les tâches à cocher d'avant les sprints portaient déjà une priorité, de mêmes valeurs.
     priority: (PRIORITIES as readonly unknown[]).includes(p) ? (p as Priority) : 'normale',
   };

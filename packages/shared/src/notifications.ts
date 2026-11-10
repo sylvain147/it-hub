@@ -9,13 +9,29 @@ import { z } from 'zod';
  */
 
 /** Évènements qui peuvent être envoyés sur Teams (chacun s'active à part). */
-export const NOTIFICATION_EVENTS = ['sprint_demarre', 'sprint_clos', 'idee_ajoutee'] as const;
+export const NOTIFICATION_EVENTS = ['sprint_demarre', 'sprint_clos', 'idee_ajoutee', 'mise_en_prod'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, { title: string; hint: string }> = {
   sprint_demarre: { title: 'Sprint démarré', hint: 'Nom, dates et objectif du sprint qui commence.' },
   sprint_clos: { title: 'Sprint clôturé', hint: 'Nom du sprint et nombre de tickets non terminés reportés.' },
   idee_ajoutee: { title: 'Nouvelle idée d’amélioration', hint: 'Intitulé, domaine et auteur de l’idée.' },
+  mise_en_prod: { title: 'Mise en production', hint: 'Nouvelle version de Hobbit en ligne, avec son patch note (nouveautés depuis la précédente).' },
 };
+
+/**
+ * Entrée du patch note annoncée à la mise en production : transmise par le déploiement (`infra/lib/hub-stack.ts`, à
+ * partir du `patch-notes.json` du front) au worker, qui publie les entrées pas encore annoncées.
+ */
+export interface ReleaseNote {
+  /** Commit sur la branche principale. */
+  id: string;
+  date: string;
+  title: string;
+  pr: number | null;
+  /** Titres des commits de l'entrée. */
+  changes: string[];
+}
+
 
 /**
  * Adresses acceptées : flux Workflows (Power Automate / Logic Apps) et anciens connecteurs « Incoming Webhook ».

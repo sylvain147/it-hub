@@ -70,6 +70,8 @@ Une fois en place, chaque push sur `main` est testé puis déployé, sans clé A
 
 Le **patch note** est construit au build du front à partir de l'historique git : le workflow doit cloner tout l'historique (`actions/checkout` avec `fetch-depth: 0`), sinon il ne montre que la dernière mise à jour.
 
+**Annonce sur Teams** : si le hub est connecté à Teams (notification « Mise en production » active), chaque déploiement publie dans le canal les nouveautés du patch note depuis la version précédente, une fois le front en ligne. Un redéploiement sans nouveau commit n'annonce rien.
+
 Le workflow `CI` vérifie chaque pull request (types, tests, build, synthèse CDK) ; le workflow `Déploiement` reste inactif tant que `AWS_DEPLOY_ROLE_ARN` n'est pas renseigné.
 
 ## 6. Exploitation

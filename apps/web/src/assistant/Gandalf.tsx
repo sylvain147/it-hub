@@ -1,20 +1,37 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { ASSISTANT_HISTORY_MAX, ASSISTANT_STARTERS, type AssistantAnswer, type AssistantMessage } from '@samm/shared';
+import { ASSISTANT_HISTORY_CHARS, ASSISTANT_HISTORY_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STARTERS, type AssistantAnswer, type AssistantMessage } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { MarkdownView } from '../projects/common';
+import { useProjectRefs } from '../tasks/tasks';
+import { ActionCard, type ChatAction } from './actions';
 
 /**
  * Gandalf, l'assistant : bouton volant en bas à droite, qui ouvre un chat où l'on interroge l'IA sur les projets,
  * les échéances, les tickets et sa to-do. La conversation reste dans le navigateur (onglet en cours) et continue
  * d'une page à l'autre ; chaque question est un appel IA, envoyé seulement au clic.
+ *
+ * On peut aussi lui coller un long texte (compte rendu, transcription, e-mail) : il propose alors les tickets, tâches
+ * et jalons à créer, que l'on valide un par un (`actions.tsx`). Une autre page lui confie un texte par `openGandalf`.
  */
+
+const OPEN_EVENT = 'hobbit:gandalf';
+
+/** Ouvre Gandalf avec un texte prêt à envoyer (l'envoi reste un clic de l'utilisateur). */
+export function openGandalf(text: string) {
+  window.dispatchEvent(new CustomEvent<string>(OPEN_EVENT, { detail: text }));
+}
+
+/** Au-delà, un message de l'utilisateur s'affiche replié. */
+const FOLD_CHARS = 600;
 
 interface ChatEntry extends AssistantMessage {
   /** Réponse : projets détaillés et relances proposées. */
   projects?: AssistantAnswer['projects'];
   followUps?: string[];
+  /** Propositions d'actions, avec leur état (créée, ignorée). */
+  actions?: ChatAction[];
   error?: boolean;
 }
 
@@ -41,6 +58,8 @@ export function Gandalf() {
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Projets proposés pour le rattachement des actions, chargés à l'ouverture.
+  const projects = useProjectRefs(open);
 
   useEffect(() => {
     try {
@@ -59,6 +78,15 @@ export function Gandalf() {
     if (window.matchMedia(NARROW).matches) setOpen(false);
   }, [pathname]);
   useEffect(() => {
+    const onOpen = (e: Event) => {
+      setQuestion((e as CustomEvent<string>).detail.slice(0, ASSISTANT_QUESTION_MAX));
+      setOpen(true);
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
+  useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('keydown', onKey);
@@ -72,19 +100,23 @@ export function Gandalf() {
     const history = chat
       .filter((m) => !m.error)
       .slice(-ASSISTANT_HISTORY_MAX * 2)
-      .map(({ role, content }) => ({ role, content }));
+      .map(({ role, content }) => ({ role, content: content.length > ASSISTANT_HISTORY_CHARS ? `${content.slice(0, ASSISTANT_HISTORY_CHARS)}…` : content }));
     setChat((c) => [...c, { role: 'user', content: q }]);
     setQuestion('');
     setBusy(true);
     try {
       const r = await api.askAssistant({ question: q, history });
-      setChat((c) => [...c, { role: 'assistant', content: r.answer, projects: r.projects, followUps: r.followUps }]);
+      setChat((c) => [...c, { role: 'assistant', content: r.answer, projects: r.projects, followUps: r.followUps, actions: r.actions }]);
     } catch (e) {
       setChat((c) => [...c, { role: 'assistant', content: (e as Error).message, error: true }]);
     } finally {
       setBusy(false);
       inputRef.current?.focus();
     }
+  }
+
+  function updateAction(msg: number, i: number, a: ChatAction) {
+    setChat((c) => c.map((m, k) => (k === msg && m.actions ? { ...m, actions: m.actions.map((x, j) => (j === i ? a : x)) } : m)));
   }
 
   function reset() {
@@ -121,8 +153,10 @@ export function Gandalf() {
             {!chat.length && (
               <div className="assistant-empty">
                 <p className="small">
-                  Posez vos questions sur les projets, les échéances, le sprint, vos tickets et votre <Link to="/todo">to-do</Link>. Gandalf répond à partir des données du hub ; il ne
-                  modifie rien.
+                  Posez vos questions sur les projets, les échéances, le sprint, vos tickets et votre <Link to="/todo">to-do</Link>. Gandalf répond à partir des données du hub.
+                </p>
+                <p className="small">
+                  Collez-lui aussi un compte rendu, une transcription de réunion ou un e-mail : il propose les tickets, tâches et jalons à créer, et rien n’est créé sans votre clic.
                 </p>
                 <div className="assistant-chips">
                   {ASSISTANT_STARTERS.map((s) => (
@@ -133,7 +167,14 @@ export function Gandalf() {
             )}
             {chat.map((m, i) => (
               <div key={i} className={`assistant-msg ${m.role}${m.error ? ' error' : ''}`}>
-                {m.role === 'user' ? <p>{m.content}</p> : m.error ? <p>⚠ {m.content}</p> : <MarkdownView markdown={m.content} />}
+                {m.role === 'user' ? <UserText text={m.content} /> : m.error ? <p>⚠ {m.content}</p> : <MarkdownView markdown={m.content} />}
+                {m.actions && m.actions.length > 0 && (
+                  <div className="gandalf-actions">
+                    {m.actions.map((a, k) => (
+                      <ActionCard key={k} action={a} projects={projects} onChange={(x) => updateAction(i, k, x)} />
+                    ))}
+                  </div>
+                )}
                 {m.projects && m.projects.length > 0 && (
                   <p className="muted small assistant-sources">
                     Détail consulté : {m.projects.map((p, k) => <span key={p.id}>{k > 0 && ', '}<Link to={`/projets/${p.id}`}>{p.name}</Link></span>)}
@@ -158,7 +199,7 @@ export function Gandalf() {
               className="input"
               rows={2}
               value={question}
-              maxLength={2000}
+              maxLength={ASSISTANT_QUESTION_MAX}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -166,7 +207,7 @@ export function Gandalf() {
                   void ask(question);
                 }
               }}
-              placeholder="Votre question… (Entrée pour envoyer)"
+              placeholder="Votre question, ou un compte rendu à analyser… (Entrée pour envoyer)"
               aria-label="Question"
             />
             <button className="btn btn-primary" disabled={busy || !question.trim()} onClick={() => void ask(question)}>Envoyer</button>
@@ -174,6 +215,20 @@ export function Gandalf() {
           <p className="muted gandalf-foot">Chaque question est un appel à l’IA (suivi dans la consommation IA). Vérifiez les points importants dans le hub.</p>
         </div>
       )}
+    </>
+  );
+}
+
+/** Message de l'utilisateur ; un long texte collé s'affiche replié. */
+function UserText({ text }: { text: string }) {
+  const [unfolded, setUnfolded] = useState(false);
+  if (text.length <= FOLD_CHARS) return <p>{text}</p>;
+  return (
+    <>
+      <p>{unfolded ? text : `${text.slice(0, FOLD_CHARS)}…`}</p>
+      <button className="btn-link small" onClick={() => setUnfolded(!unfolded)}>
+        {unfolded ? 'Replier' : `Afficher tout (${text.length.toLocaleString('fr-FR')} caractères)`}
+      </button>
     </>
   );
 }

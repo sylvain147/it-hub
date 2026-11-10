@@ -44,7 +44,9 @@ import {
   type Task,
   type TicketView,
   MAX_TICKET_HISTORY,
+  MAX_TICKET_COMMENTS,
   ticketKey,
+  type TicketComment,
 } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, isConditionFailed, nextCounter, queryAll } from '../db/client.js';
@@ -372,6 +374,8 @@ function derived(kind: ProjectItemKind, data: Record<string, unknown>, before: S
         sprintChanges: sprintChanges.slice(-MAX_TICKET_HISTORY),
         // Tenu par le report des relevés TMA (`syncTmaHours`), jamais par la saisie.
         tmaHours: typeof before?.tmaHours === 'number' ? before.tmaHours : null,
+        // Notes de suivi : tenues par `addTicketComment` & co., jamais par la modification du ticket.
+        comments: (before?.comments as TicketComment[] | undefined) ?? [],
         gsi1pk: TICKET_PK,
         gsi1sk: data.id as string,
       };
@@ -501,6 +505,36 @@ export async function moveTicket(fromId: string, itemId: string, toId: string, u
     await logActivity(toId, to.name, user, `a rattaché le ticket « ${title} » au projet`);
     await refreshStats(toId, user);
   }
+}
+
+// ---- Notes de suivi d'un ticket ---------------------------------------------------------
+
+/**
+ * Ajoute une note au fil d'un ticket. Le ticket lui-même n'est pas modifié (ni `updatedAt`, ni historique) ;
+ * l'ajout est noté dans l'activité du projet.
+ */
+export async function addTicketComment(id: string, itemId: string, text: string, by: string, author: string): Promise<TicketComment[]> {
+  const project = await ownerProject(id, 'tasks');
+  const before = await getStored(id, 'tasks', itemId);
+  if (!before) throw notFound('Ticket');
+  const comment: TicketComment = { id: newId(), text, at: nowIso(), by, author, editedAt: '' };
+  const comments = [...((before.comments as TicketComment[]) ?? []), comment].slice(-MAX_TICKET_COMMENTS);
+  await setItemFields(id, 'tasks', itemId, { comments });
+  if (project) await logActivity(id, project.name, by, `a ajouté une note au ticket « ${itemTitle('tasks', before)} »`);
+  return comments;
+}
+
+/** Modifie (`text`) ou supprime (null) une note : seul son auteur le peut. */
+export async function changeTicketComment(id: string, itemId: string, commentId: string, text: string | null, user: string): Promise<TicketComment[]> {
+  const before = await getStored(id, 'tasks', itemId);
+  if (!before) throw notFound('Ticket');
+  const list = (before.comments as TicketComment[]) ?? [];
+  const comment = list.find((x) => x.id === commentId);
+  if (!comment) throw notFound('Note');
+  if (comment.by !== user) throw new HttpError(403, 'Seul l’auteur d’une note peut la modifier ou la supprimer.');
+  const comments = text === null ? list.filter((x) => x.id !== commentId) : list.map((x) => (x.id === commentId ? { ...x, text, editedAt: nowIso() } : x));
+  await setItemFields(id, 'tasks', itemId, { comments });
+  return comments;
 }
 
 /** Met à jour des champs techniques d'un élément sans revalidation (téléversement confirmé, propositions traitées…). */

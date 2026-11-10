@@ -45,6 +45,13 @@ a:hover { text-decoration: underline; }
 .wordmark-leaves .leaf-1 { fill: #7fb04a; }
 .wordmark-leaves .leaf-2 { fill: #a5cc5c; }
 .wordmark-leaves .leaf-3 { fill: #5f9a3a; }
+/* Mordor : l'Œil sur fond noir, et les feuilles virent aux braises. */
+[data-theme='mordor'] .brand-logo { background: #120404; padding: 1px; }
+[data-theme='mordor'] .wordmark-leaves .leaf-stem { stroke: #3a1a12; }
+[data-theme='mordor'] .wordmark-leaves .leaf { stroke: #5c0a03; }
+[data-theme='mordor'] .wordmark-leaves .leaf-1 { fill: #e2480f; }
+[data-theme='mordor'] .wordmark-leaves .leaf-2 { fill: #ffb627; }
+[data-theme='mordor'] .wordmark-leaves .leaf-3 { fill: #b3200c; }
 .brand:hover .wordmark-leaves { transform: rotate(-8deg); transform-origin: 0 100%; transition: transform 0.3s; }
 .side-nav { flex: 1; min-height: 0; overflow-y: auto; }
 .nav-section + .nav-section { margin-top: 6px; }
@@ -1056,6 +1063,7 @@ a.gp-range:hover { filter: brightness(0.92); }
 .theme-choice.on { border-color: var(--blue); background: var(--blue-50); box-shadow: inset 0 0 0 1px var(--blue); }
 .theme-swatch { display: flex; flex-shrink: 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(16, 24, 40, 0.12); }
 .theme-swatch span { width: 14px; height: 32px; }
+.theme-logo { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; background: #120404; object-fit: contain; }
 .theme-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .theme-check { color: var(--blue); font-weight: 700; }
 
@@ -1106,3 +1114,25 @@ a.gp-range:hover { filter: brightness(0.92); }
 .patch-note-changes summary { cursor: pointer; }
 .patch-note-solo { list-style: none; margin-left: -20px !important; }
 .patch-note-details { white-space: pre-wrap; margin: 4px 0 8px; }
+
+/* ---- Notes de suivi d'un ticket ---- */
+.ticket-note-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ticket-note-list > li { border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 8px; padding: 8px 10px; background: #fff; }
+.ticket-note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.ticket-note-actions { margin-left: auto; display: flex; gap: 10px; }
+.ticket-note-list .md > :first-child { margin-top: 0; }
+.ticket-note-list .md > :last-child { margin-bottom: 0; }
+.ticket-note-edit .actions, .ticket-note-new .actions { margin-top: 6px; }
+
+/* ---- Gandalf : propositions d'actions ---- */
+.gandalf-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.gandalf-action { border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 8px; padding: 8px 10px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+.gandalf-action.done { border-left-color: #2e7d32; background: #f1f8f1; }
+.gandalf-action.ignored { flex-direction: row; align-items: center; justify-content: space-between; border-left-color: var(--line); background: transparent; }
+.gandalf-action-q { margin: 0; font-size: 13px; }
+.gandalf-action-field { display: flex; flex-direction: column; gap: 2px; }
+.gandalf-action-row { display: flex; gap: 6px; }
+.gandalf-action-row > * { flex: 1; min-width: 0; }
+.gandalf-action-row .input { font-size: 12.5px; padding: 4px 6px; }
+.gandalf-action-why { margin: 0; }
+.gandalf-action-buttons { display: flex; justify-content: flex-end; gap: 6px; }

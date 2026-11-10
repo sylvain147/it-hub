@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox } from '../components/ui';
-import { byPosition, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
+import { byPosition, defaultDueDate, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
 import { NoteGrid, NoteModal, NoteQuickAdd } from '../notes/notes';
 import { useUsers } from '../users/context';
 import { useProject } from './common';
@@ -50,9 +50,9 @@ export function TodoTab() {
         </p>
         <div className="toolbar-row">
           <QuickAdd
-            placeholder="Ajouter à la to-do du projet… (Entrée)"
+            placeholder="Ajouter à la to-do du projet, pour aujourd’hui… (Entrée)"
             onAdd={async (title) => {
-              await api.createTodo({ title, projectId: project.id });
+              await api.createTodo({ title, projectId: project.id, dueDate: defaultDueDate() });
               await todos.reload();
             }}
           />
