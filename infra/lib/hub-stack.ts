@@ -176,13 +176,16 @@ export class HubStack extends Stack {
       'cognito-idp:AdminUserGlobalSignOut',
       'cognito-idp:AdminUpdateUserAttributes',
     );
-    worker.addToRolePolicy(
-      new iam.PolicyStatement({
-        sid: 'InvokeClaudeOnBedrock',
-        actions: ['bedrock-mantle:CreateInference', 'bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-        resources: ['*'],
-      }),
-    );
+    // Le worker pour les tâches IA asynchrones, l'API pour l'assistant Gandalf (appel synchrone).
+    for (const fn of [api, worker]) {
+      fn.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'InvokeClaudeOnBedrock',
+          actions: ['bedrock-mantle:CreateInference', 'bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+          resources: ['*'],
+        }),
+      );
+    }
 
     // ---- API HTTP (authentifiée par Cognito) -----------------------------------------
     const httpApi = new apigw.HttpApi(this, 'HttpApi', {
