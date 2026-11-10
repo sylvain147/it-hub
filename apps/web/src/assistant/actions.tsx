@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { Spinner } from '../components/ui';
 import { ProjectSelect, defaultDueDate, type ProjectRef } from '../tasks/tasks';
+import { useAssistant } from '../theme';
 
 /**
  * Propositions de Gandalf (« Dois-je créer un ticket dans le projet X pour … ? ») : rien n'est créé sans un clic sur
@@ -27,6 +28,7 @@ function question(kind: AssistantAction['kind'], project: ProjectRef | undefined
 
 export function ActionCard({ action, projects, onChange }: { action: ChatAction; projects: ProjectRef[]; onChange: (a: ChatAction) => void }) {
   const { me } = useAuth();
+  const assistant = useAssistant();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const status = action.status ?? { state: 'proposee' };
@@ -38,7 +40,7 @@ export function ActionCard({ action, projects, onChange }: { action: ChatAction;
   async function create() {
     setBusy(true);
     setError('');
-    const details = [action.details, '_Proposé par Gandalf._'].filter(Boolean).join('\n\n');
+    const details = [action.details, `_Proposé par ${assistant.name}._`].filter(Boolean).join('\n\n');
     try {
       let done: ActionState;
       if (action.kind === 'ticket') {

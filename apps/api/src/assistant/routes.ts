@@ -10,6 +10,7 @@ import {
   assistantActionOutputSchema,
   assistantAskBody,
   parisDay,
+  themeAssistant,
   type AssistantAction,
   type AssistantAnswer,
   type AssistantMessage,
@@ -26,7 +27,7 @@ import * as users from '../users/repo.js';
 import { listNotes } from '../notes/routes.js';
 import { linkLegacyChefs } from '../users/routes.js';
 import { globalContext, mentionedProjects, type AssistantData } from './context.js';
-import { ASSISTANT_SYSTEM } from './prompts.js';
+import { assistantSystem } from './prompts.js';
 
 export const assistantOutputSchema = z.object({
   answer: z.string().describe('Réponse en Markdown'),
@@ -116,7 +117,8 @@ export function assistantRoutes() {
     const out = await callStructured({
       tier: 'fast',
       operation: 'assistant',
-      system: ASSISTANT_SYSTEM,
+      // Le personnage suit le thème de l'utilisateur (Mordor : Saroumane).
+      system: assistantSystem(themeAssistant(data.users.find((u) => u.email === user)?.theme)),
       context: globalContext(data),
       input,
       schema: assistantOutputSchema,
