@@ -8,11 +8,12 @@ import {
   createProjectFileBody,
   followProjectBody,
   digestMeetingBody,
-  emptyDoc,
+  markdownToDoc,
   PROJECT_ITEM_KINDS,
   PROJECT_ITEM_SCHEMAS,
   updateProjectBody,
   type CdcDocument,
+  type ProjectDetail,
   type CdcSummary,
   type Note,
   type ProjectItemKind,
@@ -319,7 +320,7 @@ export function projectRoutes() {
         estimationJours: presta?.chargeJours ?? null,
         jalons: pending.slice(0, 30).map((j) => ({ id: sectionId(), label: j.label, date: j.date })),
       }),
-      sections: [{ id: sectionId(), kind: 'contexte', title: 'Contexte', content: emptyDoc() }],
+      sections: cdcSectionsFromProject(project),
     };
     document.meta.title = document.meta.title.slice(0, 300);
     const { id: cdcId } = await repo.createCdc(document, user, id);
@@ -339,4 +340,30 @@ export function projectRoutes() {
   });
 
   return r;
+}
+
+/** Titre comparé sans casse ni accents (« Contexte », « ANNEXES »…). */
+const plainTitle = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+/**
+ * Sections d'un nouveau CDC, reprises de la fiche projet (modifiables ensuite) : la description fait le Contexte,
+ * chaque section du projet devient une section du CDC, dans le même ordre. Une section du projet nommée « Contexte »
+ * complète le Contexte, une section « Annexes » devient les annexes (en dernier).
+ */
+export function cdcSectionsFromProject(project: Pick<ProjectDetail, 'description' | 'sections'>): CdcDocument['sections'] {
+  const contexte = [project.description.trim()];
+  const annexes: string[] = [];
+  const standard: CdcDocument['sections'] = [];
+  for (const sec of project.sections) {
+    const md = sec.content.trim();
+    const t = plainTitle(sec.title);
+    if (t === 'contexte') contexte.push(md);
+    else if (t === 'annexes') annexes.push(md);
+    else standard.push({ id: sectionId(), kind: 'standard', title: sec.title.trim(), content: markdownToDoc(md) });
+  }
+  return [
+    { id: sectionId(), kind: 'contexte', title: 'Contexte', content: markdownToDoc(contexte.filter(Boolean).join('\n\n')) },
+    ...standard,
+    ...(annexes.some(Boolean) ? [{ id: sectionId(), kind: 'annexes' as const, title: 'Annexes', content: markdownToDoc(annexes.filter(Boolean).join('\n\n')) }] : []),
+  ];
 }
