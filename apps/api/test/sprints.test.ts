@@ -296,12 +296,27 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     expect(s.state).toBe('future');
     expect((await env.call('POST', `/sprints/${s.id}/past`, {})).status).toBe(400);
     await ticket(p1, 'Ticket du sprint passé', { sprintId: s.id });
+    await ticket(p1, 'Ticket terminé du sprint passé', { sprintId: s.id });
+    expect((await patch(p1, 'Ticket terminé du sprint passé', { status: 'termine' })).status).toBe(200);
     await env.call('PUT', `/sprints/${s.id}`, { name: 'Sprint 4', startDate: '2026-02-02', endDate: '2026-02-13' });
     expect((await env.call('POST', `/sprints/${s.id}/past`, { moveTo: s.id })).status).toBe(400);
     const past = await env.call('POST', `/sprints/${s.id}/past`, { moveTo: null });
     expect(past.status).toBe(200);
     expect(past.json.moved).toBe(1);
     expect(past.json.detail.sprint).toMatchObject({ state: 'closed', completedAt: '2026-02-13T19:00:00.000Z' });
+    // Ses tickets, planifiés et terminés après coup, figurent dans sa revue, comme présents dès le lancement.
+    const review = past.json.detail.report;
+    expect(review.counts).toMatchObject({ total: 2, active: 2, atStart: 2, done: 1, removed: 0 });
+    expect(review.issues.map((i: any) => [i.summary, i.status, i.movement.kind, i.doneDay])).toEqual([
+      ['Ticket terminé du sprint passé', 'termine', 'lancement', '2026-02-13'],
+      ['Ticket du sprint passé', 'a_faire', 'lancement', null],
+    ]);
+    expect(review.timeline.at(-1)).toMatchObject({ day: '2026-02-13', active: 2, done: 1 });
+    // Changer ses dates déplace son lancement et sa clôture ; sa revue reste la même.
+    const moved = (await env.call('PUT', `/sprints/${s.id}`, { name: 'Sprint 4', startDate: '2026-02-02', endDate: '2026-02-20' })).json;
+    expect(moved.sprint.completedAt).toBe('2026-02-20T19:00:00.000Z');
+    expect(moved.report.counts).toMatchObject({ total: 2, done: 1 });
+    expect((await env.call('PUT', `/sprints/${s.id}`, { name: 'Sprint 4', startDate: '2026-02-02', endDate: '' })).status).toBe(400);
     expect((await patch(p1, 'Ticket du sprint passé', {})).json.sprintId).toBeNull();
     expect((await env.call('POST', `/sprints/${s.id}/past`, {})).status).toBe(400);
     // Le sprint en cours ne se classe pas ainsi : il se clôture.

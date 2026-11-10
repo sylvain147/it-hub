@@ -68,7 +68,7 @@ export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'start
     ...fields,
     name: fields.name || `Sprint ${id}`,
     id,
-    ...(past ? { state: 'closed' as const, ...pastSprintTimes(fields.startDate, fields.endDate) } : { state: 'future' as const, startedAt: null, completedAt: null }),
+    ...(past ? { state: 'closed' as const, ...pastSprintTimes(fields.startDate, fields.endDate), recordedAt: now } : { state: 'future' as const, startedAt: null, completedAt: null }),
     createdAt: now,
     createdBy: user,
     updatedAt: now,

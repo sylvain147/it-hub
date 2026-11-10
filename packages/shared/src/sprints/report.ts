@@ -6,7 +6,7 @@
  * Partagé entre l'API (calcul à la lecture, entrée de l'IA) et les tests.
  */
 import { ticketKey, type TicketStatus, type TicketView } from '../project.js';
-import type { Sprint } from './sprint.js';
+import { isRecordedPastSprint, type Sprint } from './sprint.js';
 
 /** Libellés des statuts (paramétrage). */
 export type StatusLabels = Record<TicketStatus, string>;
@@ -195,6 +195,33 @@ export function sprintAsOf(sprint: Pick<Sprint, 'completedAt'>, now: string): st
   return sprint.completedAt && sprint.completedAt < now ? sprint.completedAt : now;
 }
 
+/**
+ * Sprint passé enregistré après coup : ses tickets y ont été planifiés, et souvent terminés, après ses dates. Sa revue
+ * reprend les tickets présents dans le sprint à l'instant de l'enregistrement (avant que les non terminés ne le
+ * quittent), comme présents dès le lancement, avec leur statut de cet instant : les changements de statut faits entre
+ * la fin du sprint et l'enregistrement comptent au dernier instant du sprint.
+ */
+function recordedSnapshot(sprint: Sprint, tickets: TicketView[], startMs: number, asOfMs: number, now: string): TicketView[] {
+  const id = sprint.id;
+  const end = ms(sprint.completedAt!);
+  // Anciens sprints enregistrés sans l'instant : premier départ d'un ticket après la clôture, sinon maintenant.
+  const exits = tickets.flatMap((t) => t.sprintChanges.filter((c) => c.from === id && ms(c.at) > end).map((c) => ms(c.at)));
+  const recMs = sprint.recordedAt ? ms(sprint.recordedAt) : exits.length ? Math.min(...exits) : ms(now);
+  const iso = (at: number) => new Date(at).toISOString();
+  return tickets
+    .filter((t) => timeline(t).sprintAt(recMs - 1) === id)
+    .map((t) => {
+      const createdMs = ms(t.createdAt);
+      return {
+        ...t,
+        sprintId: id,
+        sprintChanges: [],
+        createdAt: createdMs > startMs && createdMs <= asOfMs ? t.createdAt : iso(Math.min(createdMs, startMs)),
+        statusChanges: t.statusChanges.filter((c) => ms(c.at) < recMs).map((c) => (ms(c.at) > asOfMs ? { ...c, at: iso(asOfMs) } : c)),
+      };
+    });
+}
+
 export function buildSprintReport(input: ReportInput): SprintReport {
   const { sprint, labels } = input;
   const id = sprint.id;
@@ -202,6 +229,7 @@ export function buildSprintReport(input: ReportInput): SprintReport {
   // À la clôture, les tickets non terminés quittent le sprint à l'instant même : les chiffres s'arrêtent juste avant.
   const asOfMs = ms(asOf) - (asOf === sprint.completedAt ? 1 : 0);
   const startMs = sprint.startedAt ? Math.min(ms(sprint.startedAt), asOfMs) : asOfMs;
+  const tickets = isRecordedPastSprint(sprint) ? recordedSnapshot(sprint, input.tickets, startMs, asOfMs, input.now) : input.tickets;
   const startDay = parisDay(startMs);
   const asOfDay = parisDay(asOfMs);
   const name = (sid: number | null) => (sid === null ? 'Backlog' : (input.sprintNames[sid] ?? `Sprint ${sid}`));
@@ -210,7 +238,7 @@ export function buildSprintReport(input: ReportInput): SprintReport {
   type Row = SprintReportIssue & { t: TicketView; tl: Timeline; entryMs: number; exitMs: number; doneMs: number | null; startedIn: boolean; moves: { day: string; sign: '+' | '−' }[] };
   const rows: Row[] = [];
 
-  for (const t of input.tickets) {
+  for (const t of tickets) {
     const tl = timeline(t);
     const createdMs = ms(t.createdAt);
     const inAt = (at: number) => tl.sprintAt(at) === id;
