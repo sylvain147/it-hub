@@ -610,6 +610,13 @@ function SuggestionsTab() {
           onChange={(v) => setDraft((d) => ({ ...d, contactRoles: v }))}
           reset={() => setDraft((d) => ({ ...d, contactRoles: defaultListSettings().contactRoles }))}
         />
+        <SuggestionList
+          title="Types de tickets"
+          hint="Proposés à la création d’un ticket ; le titre commence par le type en majuscules : « [DEV] - Nom du projet »."
+          values={draft.ticketTypes}
+          onChange={(v) => setDraft((d) => ({ ...d, ticketTypes: v }))}
+          reset={() => setDraft((d) => ({ ...d, ticketTypes: defaultListSettings().ticketTypes }))}
+        />
       </div>
       {bar}
     </>

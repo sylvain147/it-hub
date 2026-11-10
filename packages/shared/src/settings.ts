@@ -14,7 +14,7 @@ import { cardRuleSchema, MAX_CARD_RULES } from './sprints/cards.js';
 
 /**
  * Paramétrage du hub : référentiel des prestataires (et de leurs contacts), libellés et ordre des statuts,
- * libellés de jalons et rôles proposés à la saisie. Modifiable par tous les utilisateurs.
+ * libellés de jalons, rôles et types de tickets proposés à la saisie. Modifiable par tous les utilisateurs.
  *
  * Les statuts gardent leur code (qui porte le comportement de l'application : projet clos, prestation engagée,
  * risque clos…) ; seuls leur libellé, leur ordre et leur visibilité dans les listes se paramètrent.
@@ -60,6 +60,21 @@ export const DEFAULT_CONTACT_ROLES = [
   'Achats',
 ];
 
+/** Types proposés à la création d'un ticket : le titre commence par le type en majuscules (« [DEV] - Nom du projet »). */
+export const DEFAULT_TICKET_TYPES = ['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif'];
+
+const TICKET_TYPE_PREFIX = /^\[[^\]]*\] - /;
+
+/** Titre proposé pour un nouveau ticket : « [DEV] - Nom du projet » (sans projet : « [DEV] - », à compléter). */
+export function ticketTypeTitle(type: string, projectName = ''): string {
+  return `[${type.trim().toUpperCase()}] - ${projectName.trim()}`;
+}
+
+/** Change le type d'un titre déjà saisi : remplace le préfixe « [XXX] - » s'il y en a un, sinon l'ajoute. */
+export function withTicketType(title: string, type: string): string {
+  return ticketTypeTitle(type) + title.replace(TICKET_TYPE_PREFIX, '');
+}
+
 const statusSettingSchema = z.object({
   key: z.string().max(40),
   label: z.string().trim().max(60),
@@ -73,6 +88,8 @@ export const listSettingsSchema = z.object({
   statuses: z.object(Object.fromEntries(STATUS_LIST_KEYS.map((k) => [k, z.array(statusSettingSchema).max(50)])) as Record<StatusListKey, z.ZodArray<typeof statusSettingSchema>>),
   jalonLabels: suggestions,
   contactRoles: suggestions,
+  /** Types de tickets proposés à la création (absent des anciens enregistrements : valeurs d'origine). */
+  ticketTypes: suggestions.default(DEFAULT_TICKET_TYPES),
   /** Fonds conditionnels des cartes du tableau de sprint, dans l'ordre d'évaluation. */
   cardRules: z.array(cardRuleSchema).max(MAX_CARD_RULES, `${MAX_CARD_RULES} règles au maximum`).default([]),
 });
@@ -83,6 +100,7 @@ export function defaultListSettings(): ListSettings {
     statuses: Object.fromEntries(STATUS_LIST_KEYS.map((k) => [k, STATUS_LISTS[k].keys.map((key) => ({ key, label: STATUS_LISTS[k].labels[key]!, hidden: false }))])) as ListSettings['statuses'],
     jalonLabels: [...DEFAULT_JALON_LABELS],
     contactRoles: [...DEFAULT_CONTACT_ROLES],
+    ticketTypes: [...DEFAULT_TICKET_TYPES],
     cardRules: [],
   };
 }
@@ -112,7 +130,7 @@ export function normalizeListSettings(raw: Partial<ListSettings> | null | undefi
     const ok = cardRuleSchema.safeParse(r);
     return ok.success ? [ok.data] : [];
   });
-  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles), cardRules };
+  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles), ticketTypes: clean(raw?.ticketTypes, def.ticketTypes), cardRules };
 }
 
 export function statusLabel(lists: ListSettings, list: StatusListKey, key: string): string {

@@ -23,6 +23,17 @@ describe('paramétrage : statuts, jalons et rôles', () => {
     expect(json.lists.statuses.project[0]).toEqual({ key: 'idee', label: 'Idée', hidden: false });
     expect(json.lists.jalonLabels).toContain('Mise en production');
     expect(json.lists.contactRoles).toContain('Chef de projet prestataire');
+    expect(json.lists.ticketTypes).toEqual(['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif']);
+  });
+
+  it('paramètre les types de tickets', async () => {
+    const { json: s } = await env.call('GET', '/settings');
+    const res = await env.call('PUT', '/settings/lists', { ...s.lists, ticketTypes: ['Dev', ' Recette ', 'Dev', 'Formation'] });
+    expect(res.json.ticketTypes).toEqual(['Dev', 'Recette', 'Formation']);
+    // Envoyé sans types (ancien écran) ou enregistré avant eux : valeurs d'origine.
+    const { ticketTypes: _t, ...old } = res.json;
+    expect((await env.call('PUT', '/settings/lists', old)).json.ticketTypes).toEqual(['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif']);
+    expect(normalizeListSettings({ jalonLabels: [] } as any).ticketTypes).toContain('Dev');
   });
 
   it('renomme, réordonne et masque les statuts ; les statuts verrouillés restent visibles', async () => {

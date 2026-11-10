@@ -1,12 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketStatus } from '@samm/shared';
+import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeTitle, withTicketType, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, ItemModal, MarkdownField, PriorityTag } from '../projects/common';
-import { StatusOptions } from '../settings/context';
+import { StatusOptions, useSettings } from '../settings/context';
 import { UserSelect, useUsers } from '../users/context';
 import { Swatch, useTicketLabel } from './charts';
 
@@ -15,6 +15,9 @@ import { Swatch, useTicketLabel } from './charts';
  * statuts du tableau (paramétrables) et se range dans un sprint ou au backlog. Mêmes composants pour l'onglet
  * « Tickets » d'un projet et la page « Sprints ».
  */
+
+/** Projet d'un ticket dans les formulaires : vide pour « aucun projet » (`NO_PROJECT_ID` côté serveur). */
+const formProjectId = (id: string) => (id === NO_PROJECT_ID ? '' : id);
 
 /** Ticket, avec son projet quand on le connaît. */
 export type TicketRow = Task & { projectId: string; projectName?: string };
@@ -205,7 +208,7 @@ export function sprintNameOf(t: Pick<Task, 'sprintId'>, sprints: Sprint[]) {
 
 /**
  * Création ou modification d'un ticket : intitulé, projet (à la création), statut, sprint, responsable, échéance
- * et description (Markdown).
+ * et description (Markdown). À la création, un type (paramétrage `ticketTypes`) propose le titre « [DEV] - Nom du projet ».
  */
 export function TicketModal({
   ticket,
@@ -215,7 +218,7 @@ export function TicketModal({
   onSaved,
 }: {
   ticket: TicketRow | null;
-  defaults?: { projectId?: string; sprintId?: number | null; status?: TicketStatus };
+  defaults?: { projectId?: string; projectName?: string; sprintId?: number | null; status?: TicketStatus; type?: string };
   /** Sprints en cours et à venir (chargés si absents). */
   sprints?: Sprint[];
   onClose: () => void;
@@ -226,15 +229,31 @@ export function TicketModal({
   const loaded = useOpenSprints();
   const open = sprints ?? loaded;
   const projects = useLoad(() => api.listProjects(), []);
+  const { lists } = useSettings();
+  const [type, setType] = useState(ticket ? '' : (defaults?.type ?? ''));
+  // Tant que l'intitulé n'a pas été retouché, il suit le type et le projet choisis.
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // Curseur en fin d'intitulé, pour compléter directement « [DEV] - Nom du projet ».
+  const focusTitleEnd = () =>
+    requestAnimationFrame(() => {
+      const el = titleRef.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    });
+  useEffect(() => {
+    if (!ticket) focusTitleEnd();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [f, setF] = useState({
-    title: ticket?.title ?? '',
+    title: ticket?.title ?? (defaults?.type ? ticketTypeTitle(defaults.type, formProjectId(defaults.projectId ?? '') ? defaults.projectName : '') : ''),
     details: ticket?.details ?? '',
     status: ticket?.status ?? defaults?.status ?? ('a_faire' as TicketStatus),
     priority: ticket?.priority ?? ('normale' as Priority),
     sprintId: ticket ? ticket.sprintId : (defaults?.sprintId ?? null),
     dueDate: ticket?.dueDate ?? '',
     deskId: ticket?.deskId ?? '',
-    projectId: ticket?.projectId ?? defaults?.projectId ?? '',
+    // Vide : aucun projet (le ticket est enregistré hors projet).
+    projectId: formProjectId(ticket?.projectId ?? defaults?.projectId ?? ''),
     assigneeId: ticket ? ticket.assigneeId : me.email,
     assignee: ticket && !ticket.assigneeId ? ticket.assignee : '',
     estimatedHours: hoursText(ticket?.estimatedHours),
@@ -248,8 +267,9 @@ export function TicketModal({
     const times = { estimatedHours: parseHours(f.estimatedHours), spentHours: parseHours(f.spentHours) };
     const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
-    if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, f.projectId !== ticket.projectId ? { ...fields, projectId: f.projectId } : fields);
-    else await api.createItem(f.projectId, 'tasks', fields);
+    const projectId = f.projectId || NO_PROJECT_ID;
+    if (ticket) await api.updateItem(ticket.projectId, 'tasks', ticket.id, projectId !== ticket.projectId ? { ...fields, projectId } : fields);
+    else await api.createItem(projectId, 'tasks', fields);
     await onSaved();
   }
 
@@ -266,6 +286,16 @@ export function TicketModal({
   }
 
   const activeProjects = (projects.data ?? []).filter((p) => !['termine', 'abandonne'].includes(p.status));
+  const projectName = !f.projectId ? '' : ((projects.data ?? []).find((p) => p.id === f.projectId)?.name ?? (f.projectId === defaults?.projectId ? (defaults?.projectName ?? '') : ''));
+  const moved = !!ticket && (f.projectId || NO_PROJECT_ID) !== ticket.projectId;
+  useEffect(() => {
+    if (!ticket && type && !titleTouched) set('title', ticketTypeTitle(type, projectName));
+  }, [type, projectName]); // eslint-disable-line react-hooks/exhaustive-deps
+  function chooseType(t: string) {
+    setType(t);
+    if (titleTouched) set('title', withTicketType(f.title, t));
+    focusTitleEnd();
+  }
   const sprintGone = f.sprintId !== null && !open.some((s) => s.id === f.sprintId);
 
   return (
@@ -274,7 +304,7 @@ export function TicketModal({
       onClose={onClose}
       onSave={save}
       wide
-      canSave={!!f.title.trim() && !!f.projectId && (external ? !!f.assignee.trim() : true) && !Number.isNaN(parseHours(f.estimatedHours)) && !Number.isNaN(parseHours(f.spentHours))}
+      canSave={!!f.title.trim() && (external ? !!f.assignee.trim() : true) && !Number.isNaN(parseHours(f.estimatedHours)) && !Number.isNaN(parseHours(f.spentHours))}
       extraFooter={
         ticket && (
           <>
@@ -287,21 +317,41 @@ export function TicketModal({
         )
       }
     >
+      {!ticket && lists.ticketTypes.length > 0 && (
+        <div className="field span-2">
+          <span>Type</span>
+          <div className="seg seg-wrap" role="group" aria-label="Type de ticket">
+            {lists.ticketTypes.map((t) => (
+              <button key={t} type="button" className={t === type ? 'on' : undefined} aria-pressed={t === type} onClick={() => chooseType(t)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <label className="field span-2">
         <span>Intitulé *</span>
-        <input className="input" autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} />
+        <input
+          ref={titleRef}
+          className="input"
+          autoFocus
+          value={f.title}
+          onChange={(e) => {
+            setTitleTouched(true);
+            set('title', e.target.value);
+          }}
+        />
       </label>
       <label className="field">
-        <span>Projet *</span>
+        <span>Projet</span>
         <select className="input" value={f.projectId} onChange={(e) => set('projectId', e.target.value)}>
-          {!ticket && <option value="">Choisir un projet…</option>}
-          <option value={NO_PROJECT_ID}>{NO_PROJECT_LABEL}</option>
+          <option value="">Aucun projet</option>
           {ticket && ticket.projectId !== NO_PROJECT_ID && !activeProjects.some((p) => p.id === ticket.projectId) && <option value={ticket.projectId}>{ticket.projectName}</option>}
           {activeProjects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        {ticket && f.projectId !== ticket.projectId && <span className="muted small">Le ticket sera déplacé ; il garde son numéro et son historique.</span>}
+        {moved && <span className="muted small">Le ticket sera déplacé ; il garde son numéro et son historique.</span>}
       </label>
       <label className="field">
         <span>Statut</span>
