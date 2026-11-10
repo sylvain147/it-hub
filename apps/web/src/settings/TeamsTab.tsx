@@ -83,8 +83,9 @@ export function TeamsTab() {
             <ol className="small teams-steps">
               <li>Dans Teams, ouvrez le canal voulu, menu <strong>⋯</strong> du canal → <strong>Flux de travail</strong> (Workflows).</li>
               <li>
-                Dans <strong>Rechercher des modèles</strong>, tapez <strong>webhook</strong> et choisissez <strong>« Publier dans un canal lorsqu’une demande webhook est reçue »</strong>{' '}
-                (ou « Envoyer des alertes webhook à un canal »). Il n’apparaît pas dans les suggestions : passez par la recherche.
+                Dans <strong>Rechercher des modèles</strong>, tapez <strong>webhook</strong> et choisissez <strong>« Envoyer des alertes webhook à un canal »</strong>{' '}
+                (ou « Send webhook alerts from anyone to Teams »). Pas ceux « de personnes spécifiques » ni « de collaborateurs d’une organisation » : ils exigent
+                une connexion Microsoft que Hobbit n’a pas.
               </li>
               <li>Donnez-lui un nom (« Hobbit »), vérifiez l’équipe et le canal, puis validez.</li>
               <li>Copiez l’adresse affichée à la fin (bouton de copie) et collez-la ci-dessous.</li>

@@ -104,6 +104,9 @@ export async function sendTeams(webhookUrl: string, m: TeamsMessage, appUrl: str
   } catch (e) {
     throw new Error((e as Error).name === 'TimeoutError' ? 'Teams n’a pas répondu à temps.' : `Teams est injoignable (${(e as Error).message}).`);
   }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Teams demande une connexion Microsoft pour ce flux : recréez-le avec le modèle « Envoyer des alertes webhook à un canal » (déclenchable par tout le monde), pas « de personnes spécifiques » ni « de collaborateurs d’une organisation ».');
+  }
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).slice(0, 200);
     throw new Error(`Teams a refusé le message (erreur ${res.status})${detail ? ` : ${detail}` : ''}. Vérifiez que le flux Workflows est toujours actif.`);

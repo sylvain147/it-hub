@@ -97,6 +97,8 @@ describe('notifications Teams', () => {
     const test = await env.call('POST', '/notifications/teams/test', undefined, ADMIN);
     expect(test.status).toBe(502);
     expect(test.json.error).toContain('Flow is disabled');
+    teamsStatus = 401; // flux réservé aux comptes Microsoft
+    expect((await env.call('POST', '/notifications/teams/test', undefined, ADMIN)).json.error).toContain('Envoyer des alertes webhook à un canal');
     teamsStatus = 202;
     await env.call('POST', '/idees', { title: 'Après la panne' }, MEMBRE);
     expect((await env.call('GET', '/notifications/teams', undefined, ADMIN)).json.lastError).toBeNull();
