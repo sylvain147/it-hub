@@ -1,6 +1,7 @@
 export * from './cdc.js';
 export * from './api.js';
 export * from './markdown.js';
+export * from './code.js';
 export * from './files/spec.js';
 export * from './files/parse.js';
 export * from './files/excerpt.js';

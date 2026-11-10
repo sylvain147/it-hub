@@ -59,7 +59,9 @@ function block(t: Token): RichNode[] {
     }
     case 'code': {
       const c = t as Tokens.Code;
-      return [{ type: 'codeBlock', content: c.text ? [{ type: 'text', text: c.text }] : [] }];
+      // Langage du bloc (« ```json ») : conservé pour la coloration.
+      const language = c.lang?.trim().split(/\s+/)[0]?.toLowerCase() || null;
+      return [{ type: 'codeBlock', attrs: { language }, content: c.text ? [{ type: 'text', text: c.text }] : [] }];
     }
     case 'hr':
       return [{ type: 'horizontalRule' }];
@@ -249,8 +251,13 @@ function blockToMd(n: RichNode, indent: string): string {
         .split('\n')
         .map((l) => indent + '> ' + l)
         .join('\n');
-    case 'codeBlock':
-      return indent + '```\n' + (n.content ?? []).map((c) => c.text ?? '').join('') + '\n```';
+    case 'codeBlock': {
+      const code = (n.content ?? []).map((c) => c.text ?? '').join('');
+      // Clôture plus longue que toute suite de « ` » du code.
+      const fence = '`'.repeat(Math.max(3, ...(code.match(/`+/g) ?? []).map((m) => m.length + 1)));
+      const language = typeof n.attrs?.language === 'string' ? n.attrs.language : '';
+      return indentLines(fence + language + '\n' + code + '\n' + fence, indent);
+    }
     case 'horizontalRule':
       return indent + '---';
     case 'image':
