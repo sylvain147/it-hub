@@ -16,6 +16,7 @@ import type {
   SprintInput,
   CreateSprintBody,
   SprintsOverview,
+  TicketView,
   HubUser,
   Me,
   PersonalTask,
@@ -234,6 +235,7 @@ export const api = {
   attachCdc: (cdcId: string, projectId: string | null) => request<CdcDetail>('PATCH', `/cdcs/${cdcId}/project`, { projectId }),
 
   sprints: () => request<SprintsOverview>('GET', '/sprints'),
+  allTickets: () => request<TicketView[]>('GET', '/sprints/tickets'),
   planProject: (sprintId: number, projectId: string) => request<{ planned: number }>('POST', `/sprints/${sprintId}/plan-project`, { projectId }),
   createSprint: (b: CreateSprintBody) => request<Sprint>('POST', '/sprints', b),
   updateSprint: (sprintId: number, b: SprintInput) => request<SprintDetail>('PUT', `/sprints/${sprintId}`, b),

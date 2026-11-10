@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -10,6 +10,7 @@ import { DueLabel, ItemModal, PriorityTag } from '../projects/common';
 import { useSettings } from '../settings/context';
 import { Swatch } from './charts';
 import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
+import { AllTickets } from './AllTickets';
 import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, type TicketRow } from './tickets';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
@@ -33,8 +34,13 @@ async function attempt(fn: () => Promise<unknown>, done?: string) {
   }
 }
 
-/** Sprints : tableau du sprint en cours, planification des sprints à venir depuis le backlog, sprints clos. */
+/**
+ * Page « Tickets » : onglet « Sprints » (tableau du sprint en cours, planification des sprints à venir depuis le backlog,
+ * sprints clos) et onglet « Tous les tickets » (liste avec recherche, `?onglet=liste`).
+ */
 export function SprintsPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('onglet') === 'liste' ? 'liste' : 'sprints';
   const data = useLoad(() => api.sprints(), []);
   const { email } = useAuth();
   const projects = useLoad(() => api.listProjects(), []);
@@ -62,10 +68,10 @@ export function SprintsPage() {
     <div className="page page-wide">
       <div className="page-head">
         <div>
-          <h1>Sprints</h1>
+          <h1>Tickets</h1>
           <p className="muted small">
             Les tickets des projets se planifient dans les sprints depuis le backlog, puis avancent sur le tableau du sprint en cours. L’assistant rédige à la demande la
-            préparation ou le compte rendu d’un sprint.
+            préparation ou le compte rendu d’un sprint. L’onglet « Tous les tickets » les liste tous, avec une recherche.
           </p>
         </div>
         <div className="actions">
@@ -73,13 +79,18 @@ export function SprintsPage() {
           <button className="btn btn-primary" onClick={() => setEditing({ ticket: null, sprintId: null })}>+ Nouveau ticket</button>
         </div>
       </div>
+      <div className="tabs tabs-page">
+        <button className={tab === 'sprints' ? 'tab active' : 'tab'} onClick={() => setParams({}, { replace: true })}>Sprints</button>
+        <button className={tab === 'liste' ? 'tab active' : 'tab'} onClick={() => setParams({ onglet: 'liste' }, { replace: true })}>Tous les tickets</button>
+      </div>
       <div className="filters">
         <MyProjectsCheck mine={mine} setMine={setMine} />
         {mine && <span className="muted small">Seuls les tickets des projets dont vous êtes chef de projet ou que vous suivez sont affichés.</span>}
       </div>
       <ErrorBox error={data.error} />
       {!o && !data.error && <Spinner />}
-      {o && (
+      {o && tab === 'liste' && <AllTickets sprints={o.sprints} open={open} mineIds={mine ? mineIds : null} onChanged={reload} />}
+      {o && tab === 'sprints' && (
         <>
           {active ? (
             <ActiveSprint o={o} sprint={active} onOpen={open_} onAdd={(status) => setEditing({ ticket: null, sprintId: active.id, status })} onChanged={reload} onEdit={() => setSprintForm(active)} onClose={() => setClosing({ sprint: active, past: false })} />

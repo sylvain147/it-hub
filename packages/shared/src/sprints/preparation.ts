@@ -16,6 +16,8 @@ export interface PreparationIssue {
   dueDate: string;
   projectId: string;
   project: string;
+  /** Ticket Desk du prestataire (vide : aucun). */
+  deskId: string;
 }
 
 export interface SprintHistoryEntry {
@@ -76,6 +78,7 @@ export function buildSprintPreparation(input: PreparationInput): SprintPreparati
     dueDate: t.dueDate,
     projectId: t.projectId,
     project: t.projectName,
+    deskId: t.deskId,
   });
 
   const planned = input.tickets.filter((t) => t.sprintId === sprint.id).sort(byUrgency).map(toIssue);

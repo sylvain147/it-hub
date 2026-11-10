@@ -68,6 +68,8 @@ Une fois en place, chaque push sur `main` est testé puis déployé, sans clé A
    - `AWS_DEPLOY_ROLE_ARN` = sortie `HubItGithubOidc.DeployRoleArn`
    - `AWS_REGION` = `eu-west-3`
 
+Le **patch note** est construit au build du front à partir de l'historique git : le workflow doit cloner tout l'historique (`actions/checkout` avec `fetch-depth: 0`), sinon il ne montre que la dernière mise à jour.
+
 Le workflow `CI` vérifie chaque pull request (types, tests, build, synthèse CDK) ; le workflow `Déploiement` reste inactif tant que `AWS_DEPLOY_ROLE_ARN` n'est pas renseigné.
 
 ## 6. Exploitation

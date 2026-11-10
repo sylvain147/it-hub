@@ -23,7 +23,7 @@ import { ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../c
 import { MarkdownField, MarkdownView } from '../projects/common';
 import { PeopleChart, ProgressChart, ScopeChart, TimeChart, useTicketLabel } from './charts';
 import { SprintStateBadge, sprintDates } from './SprintsPage';
-import { TicketStatusChip } from './tickets';
+import { DeskBadge, TicketStatusChip } from './tickets';
 
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -59,7 +59,7 @@ export function SprintPage() {
     await load();
   });
 
-  if (error) return <div className="page"><ErrorBox error={error} /><Link to="/sprints">← Sprints</Link></div>;
+  if (error) return <div className="page"><ErrorBox error={error} /><Link to="/sprints">← Tickets</Link></div>;
   if (!d || !view) return <div className="page"><Spinner /></div>;
   const sprint = d.sprint;
   const kinds = sprintDocKinds(sprint.state);
@@ -68,7 +68,7 @@ export function SprintPage() {
 
   return (
     <div className="page page-wide sprint-page">
-      <Link to="/sprints" className="muted small no-print">← Sprints</Link>
+      <Link to="/sprints" className="muted small no-print">← Tickets</Link>
       <div className="project-head">
         <div>
           <div className="eyebrow">{view === 'preparation' ? 'Préparation de sprint' : 'Revue de sprint'}</div>
@@ -104,7 +104,7 @@ export function SprintPage() {
       {isPastSprint(sprint, parisDay(Date.now())) && (
         <p className="alert alert-warn small no-print">
           Ce sprint s’est terminé le {shortDay(sprint.endDate)} sans avoir été démarré : il n’y a rien à préparer. Classez-le comme sprint passé depuis la page{' '}
-          <Link to="/sprints">Sprints</Link>.
+          <Link to="/sprints">Tickets</Link>.
         </p>
       )}
       <p className="muted small no-print">Tous les chiffres sont calculés à partir des tickets et de l’historique de leurs statuts et de leurs sprints.</p>
@@ -194,6 +194,7 @@ function ReviewView({ r }: { r: SprintReport }) {
               <tr>
                 <th>Clé</th>
                 <th>Intitulé</th>
+                <th>Desk</th>
                 <th>Projet</th>
                 <th>Responsable</th>
                 <th>Statut</th>
@@ -206,6 +207,7 @@ function ReviewView({ r }: { r: SprintReport }) {
                 <tr key={i.id} className={i.active ? '' : 'row-done'}>
                   <td className="nowrap ticket-key">{i.key}</td>
                   <td>{i.summary}</td>
+                <td className="nowrap">{i.deskId ? <DeskBadge id={i.deskId} /> : <span className="muted">–</span>}</td>
                   <td><ProjectLink id={i.projectId} name={i.project} /></td>
                   <td className="nowrap small">{i.assignee}</td>
                   <td className="nowrap"><TicketStatusChip status={i.status} /></td>
@@ -236,6 +238,7 @@ function PreparationView({ p }: { p: SprintPreparation }) {
             <tr>
               <th>Clé</th>
               <th>Intitulé</th>
+              <th>Desk</th>
               <th>Projet</th>
               <th>Responsable</th>
               <th>Statut</th>
@@ -247,6 +250,7 @@ function PreparationView({ p }: { p: SprintPreparation }) {
               <tr key={i.id} className={i.status === 'termine' ? 'row-done' : ''}>
                 <td className="nowrap ticket-key">{i.key}</td>
                 <td>{i.summary}</td>
+                <td className="nowrap">{i.deskId ? <DeskBadge id={i.deskId} /> : <span className="muted">–</span>}</td>
                 <td><ProjectLink id={i.projectId} name={i.project} /></td>
                 <td className={i.assignee === 'Non assigné' ? 'nowrap small danger-text' : 'nowrap small'}>{i.assignee}</td>
                 <td className="nowrap"><TicketStatusChip status={i.status} /></td>
@@ -285,7 +289,7 @@ function PreparationView({ p }: { p: SprintPreparation }) {
       <div className="grid-wide">
         <section className="card">
           <h2>Tickets prévus</h2>
-          {table(p.planned, 'Aucun ticket n’est encore prévu dans ce sprint : planifiez-en depuis la page Sprints.')}
+          {table(p.planned, 'Aucun ticket n’est encore prévu dans ce sprint : planifiez-en depuis la page Tickets.')}
         </section>
         <section className="card">
           <h2>Charge et rythme</h2>

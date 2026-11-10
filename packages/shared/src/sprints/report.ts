@@ -108,6 +108,8 @@ export interface SprintReportIssue {
   summary: string;
   projectId: string;
   project: string;
+  /** Ticket Desk du prestataire (vide : aucun). */
+  deskId: string;
   assignee: string;
   /** Statut à la date d'arrêt des données. */
   status: TicketStatus;
@@ -284,6 +286,7 @@ export function buildSprintReport(input: ReportInput): SprintReport {
       summary: t.title,
       projectId: t.projectId,
       project: t.projectName,
+      deskId: t.deskId,
       assignee: t.assignee || 'Non assigné',
       status,
       active,

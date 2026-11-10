@@ -94,6 +94,9 @@ export function sprintRoutes() {
     return c.json(await repo.createSprint({ ...b, startDate, endDate }, userName(c), endDate < today), 201);
   });
 
+  /** Tous les tickets (projets et hors projet, terminés compris), du plus récent au plus ancien : liste de la page Tickets. */
+  r.get('/tickets', async (c) => c.json((await pr.listTickets()).sort((a, b) => b.number - a.number)));
+
   r.get('/:sprintId', async (c) => c.json(await sprintDetail(idParam(c))));
 
   r.put('/:sprintId', async (c) => {

@@ -73,9 +73,9 @@ Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation. **Sans IA (« Créer à partir du projet »), toutes les sections de la fiche projet sont reprises** : la description devient le Contexte, chaque section du projet une section du CDC, à modifier ensuite librement.
 - **Accueil** : ma to-do, mes tickets ouverts, échéances des 30 prochains jours tous projets confondus (lien vers la frise), projets à surveiller, activité récente.
 
-### 🧭 Sprints
+### 🧭 Tickets et sprints
 
-Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté).
+Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté). Entrée « Tickets » du menu : onglet **Sprints** (tableau, planification, backlog, sprints clos) et onglet **Tous les tickets** (tous les tickets, terminés compris, avec une **recherche** par numéro, intitulé, projet, responsable ou ticket Desk, et un filtre par statut).
 
 - **Tickets** : rattachés à un projet ou **hors projet** (« Aucun projet » dans la fiche du ticket). **Un type facultatif à la création** (Cadrage, Dev, Recette, MEP, Correctif, paramétrables dans Paramétrage → listes) propose le titre « [DEV] - Nom du projet », que l'on complète ; dans l'onglet « Tickets » d'un projet, un bouton par type (ou « Sans type ») ouvre la fiche pré-remplie ; un second clic sur le type choisi le retire. Changer le projet d'un ticket le déplace, ou le sort de tout projet, en gardant son numéro et son historique.
 - **Priorité** des tickets (basse, normale, haute, critique) : affichée sur les listes et les cartes (sauf « normale ») ; le backlog, les sprints et les colonnes du tableau sont triés par priorité.
@@ -88,11 +88,11 @@ Le suivi des tickets par sprints, directement dans le hub (pas d'outil à côté
 - **Tableau du sprint en cours** : une colonne par statut, on **glisse** les tickets d'une colonne à l'autre (sur mobile : menu de statut sur la carte) ; filtres par projet et « seulement les miens ».
 - **Fonds conditionnels des cartes** (Paramétrage → Tableau des sprints) : des règles colorent le fond des cartes — échéance dépassée, échéance dans les N jours, même statut depuis plus de N jours, projet, responsable, personne extérieure, sans ticket Desk. La première règle qui correspond l'emporte ; une légende les rappelle au-dessus du tableau.
 - **Clôturer** le sprint : les tickets non terminés partent dans le sprint suivant (ou au backlog) ; les chiffres du sprint clos sont figés.
-- **Sprint passé** : un sprint créé avec une date de fin déjà passée est enregistré directement comme clos, rangé à sa date parmi les sprints clos. Un sprint à venir dont la fin est dépassée ne se démarre ni ne se prépare : on le **classe comme sprint passé**. Les chiffres venant de l'historique réel des tickets, un sprint ajouté après coup reste vide.
+- **Sprint passé** : un sprint créé avec une date de fin déjà passée est enregistré directement comme clos, rangé à sa date parmi les sprints clos. Un sprint à venir dont la fin est dépassée ne se démarre ni ne se prépare : on le **classe comme sprint passé**. Sa revue reprend les tickets qu'il contenait quand il a été classé, avec leur statut de ce moment-là (comme présents dès le lancement).
 - **Revue d'un sprint** (en cours ou clos), calculée à partir de l'historique des statuts et des sprints de chaque ticket :
   - chiffres clés : tickets actifs, terminés (avec et sans la recette), ajouts en cours de sprint, échéances dépassées ;
   - graphiques : avancement, charge par personne, périmètre et clôtures jour par jour, temps passé par statut ;
-  - tableau des tickets avec leur projet et leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) ;
+  - tableau des tickets avec leur projet, leur ticket Desk et leur **mouvement** (au lancement, reporté du sprint précédent, ajouté, créé, retiré → sprint suivant ou backlog) ;
   - **points d'attention**.
 - **Préparation d'un sprint** (à venir ou en cours) : tickets prévus comparés au **rythme** des derniers sprints (tickets terminés par sprint), charge par personne, tickets sans responsable, **reports probables** du sprint en cours, **backlog** (échéances les plus proches), points à clarifier.
 - **Documents rédigés par l'assistant** sur clic, à partir des seuls chiffres : **compte rendu** (message clé, faits marquants, risques, pistes) ou **préparation** (objectif proposé, périmètre et capacité, arbitrages, points à clarifier, ordre du jour de la planification). Modifiables, **téléchargeables en Word**, et ajoutés au **journal d'un projet** en un clic. Les descriptions des tickets ne sont pas envoyées au modèle.
@@ -162,6 +162,11 @@ Référentiels communs, modifiables par tous les utilisateurs :
 ### 📊 Consommation IA
 
 Coût estimé du mois par opération, modèle et utilisateur, avec un **plafond mensuel** au-delà duquel les fonctions IA sont suspendues (l'édition manuelle reste possible).
+
+### 📰 Patch note
+
+- Dans le menu de l'utilisateur : les mises à jour du hub, de la plus récente à la plus ancienne (titre, date, détail des modifications). Une pastille signale une mise à jour pas encore vue.
+- **Automatique** : chaque mise à jour du code (pull request fusionnée sur `main`) ajoute une entrée au prochain déploiement, tirée de l'historique git (titre de la pull request et messages de ses commits).
 
 ### 💬 Retours sur l'application
 

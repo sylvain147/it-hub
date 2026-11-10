@@ -66,7 +66,7 @@ export function TicketsTab() {
           </>
         )}
         <p className="muted small mt">
-          Les tickets se planifient dans les sprints et avancent sur le tableau du sprint en cours : <Link to="/sprints">page Sprints</Link>.
+          Les tickets se planifient dans les sprints et avancent sur le tableau du sprint en cours : <Link to="/sprints">page Tickets</Link>.
         </p>
       </section>
       {editing && (
