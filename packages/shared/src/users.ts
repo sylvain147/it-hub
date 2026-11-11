@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { taskInputSchema, type ItemBase } from './project.js';
 import type { ThemeId } from './themes.js';
+import type { UserTools } from './tools.js';
 
 /**
  * Utilisateurs du hub et rôles.
@@ -89,6 +90,8 @@ export interface HubUser {
   perimeters: Perimeter[];
   /** Thème de couleur choisi par l'utilisateur (`THEMES`). */
   theme: ThemeId;
+  /** Section « Outils » du menu, composée sur sa fiche ; null : jamais réglée (tous les outils du hub). */
+  tools: UserTools | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

@@ -23,6 +23,7 @@ import { SettingsPage } from './settings/SettingsPage';
 import { TodoPage } from './users/TodoPage';
 import { FeedbackPage } from './feedback/FeedbackPage';
 import { UsersPage } from './users/UsersPage';
+import { MePage } from './users/MePage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import { IdeasPage } from './ideas/IdeasPage';
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
       { path: 'sprints', element: <SprintsPage /> },
       { path: 'sprints/:sprintId', element: <SprintPage /> },
       { path: 'utilisateurs', element: <UsersPage /> },
+      { path: 'moi', element: <MePage /> },
       { path: 'parametrage', element: <SettingsPage /> },
       { path: 'retours', element: <FeedbackPage /> },
       { path: 'patch-note', element: <PatchNotePage /> },

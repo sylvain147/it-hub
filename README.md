@@ -4,7 +4,7 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes — où l'on transcrit aussi une réunion —, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur** (dont **Mordor**, rouge et noir, où l'Œil de Sauron remplace le hobbit et Saroumane remplace Gandalf), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes — où l'on transcrit aussi une réunion —, idées d'amélioration) et **Outils** (composée par chacun sur sa fiche : lecteur de fichiers, suivi TMA, liens personnels). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), **Ma fiche** (mes informations, mon thème et mes outils), le **thème de couleur** (dont **Mordor**, qui réserve quelques surprises), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 
@@ -42,7 +42,9 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 
 ### 💡 Idées d'amélioration
 
-- **La liste des idées de l'équipe** (ERP par défaut, ou tout autre domaine) : intitulé, description, **priorité** (basse → critique), statut (nouvelle, retenue, en cours, réalisée, écartée), projet concerné. Triée par priorité puis par nombre de **soutiens** (👍, un par personne). Saisie rapide en une ligne ; priorité et statut se changent directement dans la liste.
+- **Les idées de l'équipe en cartes** (ERP par défaut, ou tout autre domaine) : intitulé, début de la description, **priorité** (basse → critique, modifiable sur la carte), statut, domaine, projet concerné, auteur. Un gros bouton **👍 soutenir** (un par personne) à gauche de chaque carte.
+- **Onglets par statut** avec leur nombre (à traiter, nouvelle, retenue, en cours, réalisée, écartée, toutes), **domaines en pastilles**, recherche, tri (priorité, les plus soutenues, les plus récentes) et « les miennes et celles que je soutiens ».
+- Une idée nouvelle se **retient** ou s'**écarte** d'un clic ; une idée close se rouvre. Saisie rapide en une ligne en haut de la page.
 - **→ Ticket** : une idée devient, sur clic, un ticket au backlog (du projet choisi ou hors projet), avec sa priorité ; l'idée passe « en cours » et garde le lien vers le ticket.
 
 ### 🎙️ Transcrire une réunion (page Notes)
@@ -61,7 +63,8 @@ Petit jeu caché de **l'Anneau unique** : de temps en temps (une chance sur 40 �
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
 - **Fiche projet** : nom, code, statut (idée, cadrage → planifié → en cours → recette → production → terminé, en pause, abandonné), **bloqué** (avec la raison), **domaines** (choix multiple parmi ceux du paramétrage : IT, Logistique, Marketing, Finance au départ ; la liste des projets se filtre par domaine), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), **chefs de projet (un ou plusieurs utilisateurs du hub, ex. un pour l’ERP et un pour le Web, choisis dans une liste déroulante filtrable)**, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, suivie de **sections libres** ajoutées à la demande (titre + texte, ex. objectifs, hors périmètre).
-- **Frise d'avancement** (page du projet et accueil) : une flèche par étape, cadrage → planifié → en cours → recette → en production → terminé ; les étapes passées et l'étape en cours sont colorées. Un projet **bloqué** (« ⛔ Signaler un blocage ») garde son étape, en rouge, avec la raison du blocage.
+- **Frise d'avancement** (page du projet et accueil) : une flèche par étape, cadrage → planifié → en cours → recette → en production → terminé, chacune de la couleur de son statut ; les étapes passées et l'étape en cours sont colorées. Sur la page du projet, **un clic sur une étape y passe le projet**.
+- **Météo** en emoji à côté du nom du projet : ☀️ au vert, ☁️ vigilance, ⛈️ en difficulté. Un projet **bloqué** (« ⛔ Signaler un blocage ») garde son étape, en rouge, avec la raison du blocage.
 - **Suivre un projet** (☆ Suivre, sur la page du projet ou dans la liste) : il compte alors parmi **« Mes projets »**, avec ceux dont je suis l’un des chefs de projet. La case « Mes projets » filtre la liste des projets, le planning et les sprints (tableau, planification, backlog) ; le choix est retenu d'une page à l'autre.
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
 - **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description (avec des **captures d’écran collées** directement), statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». **⚡ Process complet** : crée d'un coup les tickets Cadrage, Dev, Recette, Correctif et MEP du projet (« [DEV] - Nom du projet », précision facultative), avec un responsable, une priorité et un sprint communs ; on décoche les étapes inutiles. Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.

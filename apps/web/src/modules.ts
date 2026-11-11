@@ -12,7 +12,8 @@ import type { Permission } from '@samm/shared';
 export const MENU_SECTIONS = [
   { id: 'projets', title: 'Projets' },
   { id: 'quotidien', title: 'Au quotidien' },
-  { id: 'prestataires', title: 'Prestataires et flux' },
+  /** Composée par chacun sur sa fiche (« Ma fiche ») : outils du hub de cette section et liens personnels. */
+  { id: 'outils', title: 'Outils' },
 ] as const;
 export type MenuSection = (typeof MENU_SECTIONS)[number]['id'];
 
@@ -83,7 +84,7 @@ export const MODULES: HubModule[] = [
     description: 'Décortiquer les fichiers à plat, CSV et exports des flux : l’assistant apprend chaque format une fois, la lecture est ensuite instantanée et reste sur votre poste.',
     path: '/fichiers',
     icon: '🗂️',
-    section: 'prestataires',
+    section: 'outils',
   },
   {
     id: 'tma',
@@ -91,9 +92,12 @@ export const MODULES: HubModule[] = [
     description: 'Importer les exports de tickets Desk et le relevé mensuel du prestataire : temps passé par ticket et par intervenant, récurrences par thème, synthèse rédigée par l’IA.',
     path: '/tma',
     icon: '⏱️',
-    section: 'prestataires',
+    section: 'outils',
   },
 ];
+
+/** Outils du hub que chacun peut mettre dans sa section « Outils ». */
+export const TOOL_MODULES = MODULES.filter((m) => m.section === 'outils');
 
 export const ADMIN_LINKS: { title: string; path: string; icon: string; permission?: Permission }[] = [
   { title: 'Utilisateurs', path: '/utilisateurs', icon: '👥', permission: 'manageUsers' },

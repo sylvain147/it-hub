@@ -35,6 +35,7 @@ export async function currentHubUser(email: string, displayName = ''): Promise<H
         backupId: '',
         perimeters: [],
         theme: DEFAULT_THEME,
+        tools: null,
         createdAt: now,
         createdBy: key,
         updatedAt: now,

@@ -41,6 +41,21 @@ export function ProjectPage() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  /** Clic sur une étape de la frise : le projet y passe. */
+  async function changeStatus(status: ProjectDetail['status']) {
+    if (!project || status === project.status) return;
+    setStatusBusy(true);
+    try {
+      setProject(await api.updateProject(project.id, project.rev, { ...fieldsOf(project), status }));
+      toast('Statut du projet mis à jour.');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -128,7 +143,7 @@ export function ProjectPage() {
         </div>
 
         <div className="project-steps-row">
-          <ProjectSteps project={project} />
+          <ProjectSteps project={project} onSelect={(status) => void changeStatus(status)} busy={statusBusy} />
           <button className={project.blocked ? 'btn btn-sm' : 'btn btn-sm btn-danger-ghost'} onClick={() => setBlocking(true)}>
             {project.blocked ? 'Débloquer / modifier la raison' : '⛔ Signaler un blocage'}
           </button>

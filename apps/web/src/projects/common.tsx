@@ -94,18 +94,35 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
  * statut (`pstatus-*`). Les étapes passées sont en couleur claire, l'étape en cours en couleur pleine ; un projet bloqué a son étape en rouge, avec la raison. Hors frise (idée, en pause, abandonné) : tout
  * reste gris, avec le statut à côté.
  */
-export function ProjectSteps({ project, compact }: { project: { status: ProjectStatus; blocked?: boolean; blockedReason?: string }; compact?: boolean }) {
+export function ProjectSteps({
+  project,
+  compact,
+  onSelect,
+  busy,
+}: {
+  project: { status: ProjectStatus; blocked?: boolean; blockedReason?: string };
+  compact?: boolean;
+  /** Frise cliquable (page du projet) : un clic sur une étape y passe le projet. */
+  onSelect?: (status: ProjectStatus) => void;
+  busy?: boolean;
+}) {
   const { label } = useSettings();
   const current = projectStepIndex(project.status);
   const blocked = !!project.blocked;
   return (
-    <div className={`psteps${compact ? ' psteps-compact' : ''}`}>
+    <div className={`psteps${compact ? ' psteps-compact' : ''}${onSelect ? ' psteps-clickable' : ''}`}>
       <ol className="psteps-arrows" aria-label={`Avancement : ${label('project', project.status)}${blocked ? ' (bloqué)' : ''}`}>
         {PROJECT_STEPS.map((step, i) => {
           const state = i < current ? 'past' : i === current ? (blocked ? 'blocked' : 'current') : 'future';
           return (
             <li key={step} className={`pstep pstep-${state} pstep-${step}`} title={label('project', step)} aria-current={i === current ? 'step' : undefined}>
-              <span>{state === 'blocked' && '⛔ '}{label('project', step)}</span>
+              {onSelect ? (
+                <button type="button" className="pstep-btn" disabled={busy || i === current} onClick={() => onSelect(step)} title={i === current ? `Étape actuelle : ${label('project', step)}` : `Passer le projet à l’étape « ${label('project', step)} »`}>
+                  <span>{state === 'blocked' && '⛔ '}{label('project', step)}</span>
+                </button>
+              ) : (
+                <span>{state === 'blocked' && '⛔ '}{label('project', step)}</span>
+              )}
             </li>
           );
         })}

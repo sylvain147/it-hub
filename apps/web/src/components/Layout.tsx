@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
-import { ADMIN_LINKS, MENU_SECTIONS, MODULES, type MenuSection } from '../modules';
-import { ROLE_LABELS } from '@samm/shared';
+import { ADMIN_LINKS, MENU_SECTIONS, MODULES, TOOL_MODULES, type MenuSection } from '../modules';
+import { ROLE_LABELS, toolsOrDefault } from '@samm/shared';
 import { useAuth } from '../auth';
 import { ToastHost } from './ui';
 import { Brand } from './Brand';
@@ -69,6 +69,8 @@ const FOLDED_KEY = 'hub.menu.replie';
 /** Menu par sections, repliables (choix retenu sur le poste) ; la section de la page affichée reste ouverte. */
 function SideNav() {
   const { pathname } = useLocation();
+  const { me } = useAuth();
+  const tools = toolsOrDefault(me.tools, TOOL_MODULES.map((m) => m.id));
   const [folded, setFolded] = useState<MenuSection[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '[]') as MenuSection[];
@@ -85,8 +87,12 @@ function SideNav() {
   return (
     <nav className="side-nav">
       {MENU_SECTIONS.map((sec) => {
-        const items = MODULES.filter((m) => m.section === sec.id && m.menu !== false);
-        if (!items.length) return null;
+        // Section « Outils » : les outils choisis sur sa fiche, dans son ordre, puis ses liens.
+        const items =
+          sec.id === 'outils'
+            ? tools.modules.flatMap((id) => TOOL_MODULES.filter((m) => m.id === id))
+            : MODULES.filter((m) => m.section === sec.id && m.menu !== false);
+        if (!items.length && sec.id !== 'outils') return null;
         const current = items.some((m) => isCurrent(m.path));
         const open = current || !folded.includes(sec.id);
         return (
@@ -102,6 +108,18 @@ function SideNav() {
                   {m.id === 'todo' && <TodoBadge />}
                 </NavLink>
               ))}
+            {open &&
+              sec.id === 'outils' &&
+              tools.links.map((l, i) => (
+                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="nav-link" title={l.url}>
+                  <span className="nav-icon">{l.icon || '🔗'}</span> {l.label} <span className="nav-ext">↗</span>
+                </a>
+              ))}
+            {open && sec.id === 'outils' && !items.length && !tools.links.length && (
+              <NavLink to="/moi?onglet=outils" className="nav-link nav-link-muted">
+                <span className="nav-icon">＋</span> Choisir mes outils
+              </NavLink>
+            )}
           </div>
         );
       })}
@@ -132,6 +150,9 @@ function UserMenu({ name, email, role, admin, onSignOut }: { name: string; email
             </button>
           ))}
           {admin.length > 0 && <hr />}
+          <button role="menuitem" className={pathname === '/moi' ? 'active' : undefined} onClick={() => navigate('/moi')}>
+            <span className="nav-icon">🪪</span> Ma fiche
+          </button>
           <button role="menuitem" className={pathname === '/patch-note' ? 'active' : undefined} onClick={() => navigate('/patch-note')}>
             <span className="nav-icon">📰</span> Patch note {unread && <span className="badge badge-warn">Nouveau</span>}
           </button>

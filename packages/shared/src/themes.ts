@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { userToolsSchema } from './tools.js';
 
 /**
  * Thèmes de couleur de l'interface, au choix de chaque utilisateur (enregistré sur sa fiche).
@@ -50,12 +51,12 @@ export const THEME_DEFS: Record<ThemeId, ThemeDef> = {
   ardoise: { label: 'Ardoise', description: 'Gris neutre.', colors: { navy: '#2b2f36', navy2: '#4a515c', blue: '#4b6177', blue50: '#eef1f4' } },
   mordor: {
     label: 'Mordor',
-    description: 'Rouge et noir, sous l’Œil de Sauron (il remplace le hobbit) ; Saroumane remplace Gandalf.',
+    description: 'Rouge et noir. À vos risques et périls…',
     colors: { navy: '#140707', navy2: '#5c0d0a', blue: '#b3261e', blue50: '#fbeceb' },
     logo: '/oeil-de-sauron.png',
     assistant: {
       name: 'Saroumane',
-      avatar: '/saroumane.png',
+      avatar: '/saroumane.svg',
       tone: 'Tu parles avec la superbe de Saroumane le Blanc, maître d’Orthanc : une pointe hautaine et théâtrale (une courte formule au plus par réponse), sans jamais nuire à l’exactitude, à la concision ni à la courtoisie.',
     },
   },
@@ -71,6 +72,6 @@ export function themeAssistant(id: string | undefined | null): AssistantPersona 
   return THEME_DEFS[themeOrDefault(id)].assistant ?? DEFAULT_ASSISTANT;
 }
 
-/** Préférences que chacun règle pour lui-même (`PUT /api/me/preferences`). */
-export const mePreferencesSchema = z.object({ theme: z.enum(THEMES) });
+/** Préférences que chacun règle pour lui-même (`PUT /api/me/preferences`) : chacune facultative, seules celles envoyées changent. */
+export const mePreferencesSchema = z.object({ theme: z.enum(THEMES).optional(), tools: userToolsSchema.optional() });
 export type MePreferences = z.input<typeof mePreferencesSchema>;
