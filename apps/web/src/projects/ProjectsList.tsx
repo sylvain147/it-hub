@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import {
   CLOSED_PROJECT_STATUSES,
   HEALTHS,
+  HEALTH_ICONS,
+  HEALTH_LABELS,
   isMyProject,
   PRIORITIES,
   type ProjectStatus,
@@ -12,7 +14,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner, formatDate, shortUser } from '../components/ui';
-import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge } from './common';
+import { DueLabel, PriorityTag, ProjectStatusBadge } from './common';
 import { useUsers } from '../users/context';
 import { useSettings } from '../settings/context';
 import { FollowButton, MyProjectsCheck, useMyProjectsFilter } from './mine';
@@ -78,8 +80,8 @@ export function ProjectsList() {
       {data && data.length > 0 && (
         <div className="kpis">
           <div className="kpi"><span className="kpi-value">{counters.actifs}</span><span className="kpi-label">projets actifs</span></div>
-          <div className={`kpi${counters.rouge ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.rouge}</span><span className="kpi-label">🔴 en difficulté</span></div>
-          <div className={`kpi${counters.orange ? ' kpi-warn' : ''}`}><span className="kpi-value">{counters.orange}</span><span className="kpi-label">🟠 en vigilance</span></div>
+          <div className={`kpi${counters.rouge ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.rouge}</span><span className="kpi-label">⛈️ en difficulté</span></div>
+          <div className={`kpi${counters.orange ? ' kpi-warn' : ''}`}><span className="kpi-value">{counters.orange}</span><span className="kpi-label">☁️ en vigilance</span></div>
           <div className={`kpi${counters.bloques ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.bloques}</span><span className="kpi-label">⛔ bloqués</span></div>
           <div className={`kpi${counters.retard ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.retard}</span><span className="kpi-label">tickets en retard</span></div>
         </div>
@@ -129,7 +131,6 @@ export function ProjectsList() {
               <tr>
                 <th>Projet</th>
                 <th>Statut</th>
-                <th>Météo</th>
                 <th>Chefs de projet</th>
                 <th>Prochaine échéance</th>
                 <th className="num">Tickets</th>
@@ -141,14 +142,13 @@ export function ProjectsList() {
               {rows.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <Link to={`/projets/${p.id}`} className="strong">{p.name}</Link> <PriorityTag priority={p.priority} hideNormal />
+                    <span className="weather-emoji" title={`${HEALTH_LABELS[p.health]}${p.healthComment ? ` : ${p.healthComment}` : ''}`}>{HEALTH_ICONS[p.health]}</span> <Link to={`/projets/${p.id}`} className="strong">{p.name}</Link> <PriorityTag priority={p.priority} hideNormal />
                     <div className="muted small">{[p.code, p.demandeur, p.domains.join(', ')].filter(Boolean).join(' · ')}</div>
                   </td>
                   <td>
                     <ProjectStatusBadge status={p.status} />
                     {p.blocked && <div className="due-late small" title={p.blockedReason}>⛔ Bloqué</div>}
                   </td>
-                  <td title={p.healthComment}><HealthBadge health={p.health} /></td>
                   <td>
                     {p.chefDeProjetIds.length || p.chefDeProjet ? (
                       <span className="chef-badges">
