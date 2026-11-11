@@ -36,7 +36,7 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 ### 🗓️ Planning
 
 - **Frise des projets en cours** : une ligne par projet (sa durée, du début à la fin visée, en fond), ses jalons en **étiquettes lisibles** (à venir, ⚠ en retard, ✓ atteints ; un jalon sur une période couvre ses dates), rangées sur plusieurs lignes quand elles se chevauchent, et la date du jour.
-- Trois vues : **mois, trimestre** (par défaut) et **année**, avec ◀ ▶ pour passer à la période précédente ou suivante ; une seule case, « Mes projets ».
+- Quatre vues : **semaine** (jour par jour, week-end grisé), **mois, trimestre** (par défaut) et **année**, avec ◀ ▶ pour passer à la période précédente ou suivante ; une seule case, « Mes projets ».
 - **Un clic sur un jalon l'ouvre** dans l'onglet « Planning » de son projet, mis en évidence.
 - En dessous, **les échéances de la période** avec leur projet et leur état (et leur décalage). Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
 
