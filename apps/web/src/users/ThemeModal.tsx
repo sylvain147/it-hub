@@ -41,7 +41,6 @@ export function ThemeModal({ onClose }: { onClose: () => void }) {
                 <span style={{ background: t.colors.blue }} />
                 <span style={{ background: t.colors.blue50 }} />
               </span>
-              {t.logo && <img className="theme-logo" src={t.logo} alt="" />}
               <span className="theme-text">
                 <strong>{t.label}</strong>
                 <span className="small muted">{t.description}</span>

@@ -59,6 +59,20 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('prune');
   });
 
+  it('laisse chacun composer ses outils, sans toucher à son thème', async () => {
+    expect((await env.call('GET', '/me', undefined, MEMBRE)).json.tools).toBeNull();
+    const tools = { modules: ['tma', 'fichiers', 'tma'], links: [{ label: 'SharePoint', url: 'https://exemple.sharepoint.com/projets' }] };
+    const r = await env.call('PUT', '/me/preferences', { tools }, MEMBRE);
+    expect(r.status).toBe(200);
+    expect(r.json.tools).toEqual({ modules: ['tma', 'fichiers'], links: [{ label: 'SharePoint', url: 'https://exemple.sharepoint.com/projets', icon: '🔗' }] });
+    expect(r.json.theme).toBe('prune');
+    expect((await env.call('PUT', '/me/preferences', { tools: { modules: [], links: [{ label: 'X', url: 'javascript:alert(1)' }] } }, MEMBRE)).status).toBe(400);
+    // Changer de thème garde les outils ; ceux des autres ne bougent pas.
+    expect((await env.call('PUT', '/me/preferences', { theme: 'comte' }, MEMBRE)).json.tools.modules).toEqual(['tma', 'fichiers']);
+    expect((await env.call('GET', '/me', undefined, ADMIN)).json.tools).toBeNull();
+    await env.call('PUT', '/me/preferences', { theme: 'prune' }, MEMBRE);
+  });
+
   it('renseigne le poste, le backup et le périmètre d’un utilisateur', async () => {
     const legacy = (await env.call('GET', '/users', undefined, ADMIN)).json.find((u: any) => u.email === RESP);
     expect(legacy).toMatchObject({ jobTitle: '', backupId: '', perimeters: [] });

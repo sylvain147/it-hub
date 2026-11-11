@@ -24,7 +24,7 @@ export const userKeys = {
 
 type UserItem = HubUser & { pk: string; sk: string };
 /** Les utilisateurs créés avant la fiche (poste, backup, périmètres) ou le choix du thème n'ont pas ces champs. */
-const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => ({ ...u, jobTitle: u.jobTitle ?? '', backupId: u.backupId ?? '', perimeters: u.perimeters ?? [], theme: themeOrDefault(u.theme) });
+const stripUser = ({ pk: _pk, sk: _sk, ...u }: UserItem): HubUser => ({ ...u, jobTitle: u.jobTitle ?? '', backupId: u.backupId ?? '', perimeters: u.perimeters ?? [], theme: themeOrDefault(u.theme), tools: u.tools ?? null });
 
 /** L'annuaire sert à chaque requête (contrôle d'accès) : courte mise en cache dans le processus. */
 let cache: { at: number; users: HubUser[] } | null = null;
@@ -63,10 +63,19 @@ export async function createUser(u: HubUser): Promise<boolean> {
   }
 }
 
-/** Préférences personnelles (thème) : mise à jour ciblée, sans toucher au reste de la fiche. */
-export async function setUserTheme(email: string, theme: HubUser['theme']): Promise<void> {
+/** Préférences personnelles (thème, outils) : mise à jour ciblée des seules préférences envoyées, sans toucher au reste de la fiche. */
+export async function setUserPreferences(email: string, prefs: Partial<Pick<HubUser, 'theme' | 'tools'>>): Promise<void> {
+  const entries = Object.entries(prefs).filter(([, v]) => v !== undefined);
+  if (!entries.length) return;
   await ddb().send(
-    new UpdateCommand({ TableName: T(), Key: userKeys.user(email), UpdateExpression: 'SET theme = :t', ConditionExpression: 'attribute_exists(pk)', ExpressionAttributeValues: { ':t': theme } }),
+    new UpdateCommand({
+      TableName: T(),
+      Key: userKeys.user(email),
+      UpdateExpression: 'SET ' + entries.map(([k]) => `#${k} = :${k}`).join(', '),
+      ConditionExpression: 'attribute_exists(pk)',
+      ExpressionAttributeNames: Object.fromEntries(entries.map(([k]) => [`#${k}`, k])),
+      ExpressionAttributeValues: Object.fromEntries(entries.map(([k, v]) => [`:${k}`, v])),
+    }),
   );
   clearUserCache();
 }
