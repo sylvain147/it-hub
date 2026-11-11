@@ -90,8 +90,8 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
 }
 
 /**
- * Frise d'avancement d'un projet : une flèche par étape (cadrage → terminé). Les étapes passées et l'étape en cours
- * sont colorées ; un projet bloqué a son étape en rouge, avec la raison. Hors frise (idée, en pause, abandonné) : tout
+ * Frise d'avancement d'un projet : une flèche par étape (cadrage → terminé), chacune de la couleur du badge de son
+ * statut (`pstatus-*`). Les étapes passées sont en couleur claire, l'étape en cours en couleur pleine ; un projet bloqué a son étape en rouge, avec la raison. Hors frise (idée, en pause, abandonné) : tout
  * reste gris, avec le statut à côté.
  */
 export function ProjectSteps({ project, compact }: { project: { status: ProjectStatus; blocked?: boolean; blockedReason?: string }; compact?: boolean }) {
@@ -104,7 +104,7 @@ export function ProjectSteps({ project, compact }: { project: { status: ProjectS
         {PROJECT_STEPS.map((step, i) => {
           const state = i < current ? 'past' : i === current ? (blocked ? 'blocked' : 'current') : 'future';
           return (
-            <li key={step} className={`pstep pstep-${state}`} title={label('project', step)} aria-current={i === current ? 'step' : undefined}>
+            <li key={step} className={`pstep pstep-${state} pstep-${step}`} title={label('project', step)} aria-current={i === current ? 'step' : undefined}>
               <span>{state === 'blocked' && '⛔ '}{label('project', step)}</span>
             </li>
           );

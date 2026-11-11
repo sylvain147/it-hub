@@ -416,6 +416,7 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .health-rouge { background: #fef3f2; color: var(--danger); }
 .pstatus-idee, .pstatus-en_pause { background: #f2f4f7; color: #475467; }
 .pstatus-cadrage { background: #f4f3ff; color: var(--ai); }
+.pstatus-planifie { background: #ecfdff; color: #0e7090; }
 .pstatus-en_cours { background: var(--blue-50); color: var(--blue); }
 .pstatus-recette { background: #fffaeb; color: var(--warn); }
 .pstatus-production, .pstatus-termine { background: #ecfdf3; color: var(--ok); }
@@ -676,8 +677,14 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .pstep { flex: 1 1 0; min-width: 0; position: relative; margin-left: -4px; padding: 6px 10px 6px 16px; font-size: 12px; font-weight: 600; text-align: center; background: #eef0f3; color: #98a2b3; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%); }
 .pstep:first-child { margin-left: 0; padding-left: 10px; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); border-radius: 6px 0 0 6px; }
 .pstep span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pstep-past { background: var(--blue-50); color: var(--blue); }
-.pstep-current { background: var(--blue); color: #fff; }
+/* Couleur de chaque étape : celle du badge de son statut (claire : étape passée, pleine : étape en cours). */
+.pstep-cadrage { --step-light: #f4f3ff; --step: var(--ai); }
+.pstep-planifie { --step-light: #ecfdff; --step: #0e7090; }
+.pstep-en_cours { --step-light: var(--blue-50); --step: var(--blue); }
+.pstep-recette { --step-light: #fffaeb; --step: var(--warn); }
+.pstep-production, .pstep-termine { --step-light: #ecfdf3; --step: var(--ok); }
+.pstep-past { background: var(--step-light); color: var(--step); }
+.pstep-current { background: var(--step); color: #fff; }
 .pstep-blocked { background: var(--danger); color: #fff; }
 .psteps-compact .pstep { padding-top: 4px; padding-bottom: 4px; font-size: 11px; }
 .psteps-blocked { flex-basis: 100%; font-size: 12.5px; color: var(--danger); background: #fef3f2; border: 1px solid #fecdca; border-radius: 6px; padding: 4px 8px; }
