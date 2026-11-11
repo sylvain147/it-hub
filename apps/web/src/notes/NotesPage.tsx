@@ -8,8 +8,13 @@ import { useProjectRefs } from '../tasks/tasks';
 import { NoteGrid, NoteModal, NoteQuickAdd } from './notes';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
+import { MeetingPanel } from '../meetings/MeetingPanel';
+import { useMeetingRecorder } from '../meetings/recorder';
 
-/** Mes notes en vrac : recherche, filtre par projet. Les administrateurs choisissent de qui voir les notes. */
+/**
+ * Mes notes en vrac : recherche, filtre par projet. Les administrateurs choisissent de qui voir les notes.
+ * On y transcrit aussi une réunion en direct (`?reunion`, avec `&projet=` pour présélectionner le projet).
+ */
 export function NotesPage() {
   const { me } = useAuth();
   const { name, active } = useUsers();
@@ -29,6 +34,21 @@ export function NotesPage() {
         const next = new URLSearchParams(p);
         if (on) next.set('vue', 'archives');
         else next.delete('vue');
+        return next;
+      },
+      { replace: true },
+    );
+  const recorder = useMeetingRecorder();
+  const meeting = params.has('reunion');
+  const setMeeting = (on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (on) next.set('reunion', '1');
+        else {
+          next.delete('reunion');
+          next.delete('projet');
+        }
         return next;
       },
       { replace: true },
@@ -67,9 +87,20 @@ export function NotesPage() {
               {active.filter((u) => u.email !== me.email).map((u) => <option key={u.email} value={u.email}>{u.name}</option>)}
             </select>
           )}
+          {!meeting && (
+            <button className="btn" onClick={() => setMeeting(true)}>
+              {recorder.recording ? <><span className="rec-dot" /> Transcription en cours</> : '🎙️ Transcrire une réunion'}
+            </button>
+          )}
           <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Nouvelle note</button>
         </div>
       </div>
+
+      {meeting && (
+        <section className="card">
+          <MeetingPanel projectId={params.get('projet') ?? undefined} onClose={() => setMeeting(false)} onNoteSaved={reload} />
+        </section>
+      )}
 
       <section className="card">
         {scope !== 'all' && <NoteQuickAdd ownerId={scope === me.email ? undefined : scope} onAdded={reload} />}

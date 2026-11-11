@@ -26,7 +26,7 @@ import { UsersPage } from './users/UsersPage';
 import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import { IdeasPage } from './ideas/IdeasPage';
-import { MeetingPage } from './meetings/MeetingPage';
+import { MeetingRedirect } from './meetings/recorder';
 import { applyStoredTheme } from './theme';
 import './styles.css';
 
@@ -40,7 +40,8 @@ const router = createBrowserRouter([
       { path: 'projets/:id', element: <ProjectPage /> },
       { path: 'planning', element: <GlobalPlanningPage /> },
       { path: 'idees', element: <IdeasPage /> },
-      { path: 'reunion', element: <MeetingPage /> },
+      // La transcription de réunion a rejoint la page Notes.
+      { path: 'reunion', element: <MeetingRedirect /> },
       { path: 'notes', element: <NotesPage /> },
       { path: 'cdc', element: <Navigate to="/projets" replace /> },
       // Les cahiers des charges se créent désormais depuis un projet.
