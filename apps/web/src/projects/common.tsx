@@ -4,7 +4,6 @@ import {
   docToMarkdown,
   formatJson,
   jsonTokens,
-  HEALTH_ICONS,
   HEALTH_LABELS,
   markdownToDoc,
   PRIORITY_LABELS,
@@ -75,10 +74,15 @@ export function useItemActions() {
 // Badges et formats
 // ---------------------------------------------------------------------------
 
+/** Météo en point de couleur (vert, orange, rouge) ; `title` : texte au survol (par défaut, le libellé). */
+export function HealthDot({ health, size, title }: { health: Health; size?: 'lg'; title?: string }) {
+  return <span className={`health-dot health-dot-${health}${size ? ` health-dot-${size}` : ''}`} title={title ?? HEALTH_LABELS[health]} role="img" aria-label={HEALTH_LABELS[health]} />;
+}
+
 export function HealthBadge({ health, withLabel = true }: { health: Health; withLabel?: boolean }) {
   return (
     <span className={`badge health-${health}`} title={HEALTH_LABELS[health]}>
-      {HEALTH_ICONS[health]}
+      <HealthDot health={health} />
       {withLabel && ` ${HEALTH_LABELS[health]}`}
     </span>
   );

@@ -61,7 +61,7 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
 export const HEALTHS = ['vert', 'orange', 'rouge'] as const;
 export type Health = (typeof HEALTHS)[number];
 export const HEALTH_LABELS: Record<Health, string> = { vert: 'Au vert', orange: 'Vigilance', rouge: 'En difficulté' };
-export const HEALTH_ICONS: Record<Health, string> = { vert: '☀️', orange: '☁️', rouge: '⛈️' };
+export const HEALTH_ICONS: Record<Health, string> = { vert: '🟢', orange: '🟠', rouge: '🔴' };
 
 export const PRESTA_STATUSES = ['a_chiffrer', 'devis_recu', 'commande', 'en_cours', 'livre', 'facture', 'annule'] as const;
 export type PrestaStatus = (typeof PRESTA_STATUSES)[number];

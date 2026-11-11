@@ -17,7 +17,7 @@ import {
 } from '@samm/shared';
 import { api, ApiError } from '../api';
 import { ErrorBox, Modal, MultiSelect, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
-import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
+import { DueLabel, HealthDot, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
 import { hasPending } from './ProjectPage';
 import { StatusOptions, useSettings } from '../settings/context';
 import { UserChoices, useUsers } from '../users/context';
@@ -133,7 +133,7 @@ export function OverviewTab() {
 
       <aside className="overview-side">
         <section className="card weather" onClick={() => setWeather(true)} role="button" title="Mettre à jour la météo">
-          <div className="weather-icon">{HEALTH_ICONS[p.health]}</div>
+          <HealthDot health={p.health} size="lg" />
           <div>
             <div className="strong">{HEALTH_LABELS[p.health]}</div>
             <div className="muted small">{p.healthComment || 'Cliquez pour commenter la météo du projet.'}</div>
@@ -275,7 +275,7 @@ function WeatherDialog({ onClose }: { onClose: () => void }) {
       <div className="health-choices">
         {HEALTHS.map((h) => (
           <button key={h} className={`health-choice${health === h ? ' on' : ''}`} onClick={() => setHealth(h)}>
-            <span className="weather-icon">{HEALTH_ICONS[h]}</span>
+            <HealthDot health={h} size="lg" />
             {HEALTH_LABELS[h]}
           </button>
         ))}
