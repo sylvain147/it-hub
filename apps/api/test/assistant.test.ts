@@ -110,6 +110,17 @@ describe('assistant (chat global)', () => {
     expect((await env.call('POST', '/assistant', { question: 'x'.repeat(60_001) }, MEMBRE)).status).toBe(400);
   });
 
+  it('propose ce qu’on lui demande de créer, avec le type, la priorité et le projet', async () => {
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Crée-moi un ticket sur la migration ERP pour le développement, c’est urgent' }, MEMBRE);
+    expect(calls.at(-1)!.context).toContain('## Types de tickets\nCadrage, Dev, Recette, MEP, Correctif');
+    expect(calls.at(-1)!.context).toContain('- Chloé Durand (chloe.durand@exemple.fr)');
+    expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'ticket', title: '[DEV] - Migration ERP', projectId: erp, priority: 'haute', assigneeId: '' })]);
+    const todo = await env.call('POST', '/assistant', { question: 'Ajoute à ma to-do de relancer le prestataire' }, MEMBRE);
+    expect(todo.json.actions).toEqual([expect.objectContaining({ kind: 'todo', projectId: '' })]);
+    setProvider(new MockProvider(0));
+  });
+
   it('devient Saroumane sous le thème Mordor, avec un prompt système fixe par personnage', async () => {
     const calls = spy();
     await env.call('POST', '/assistant', { question: 'Bonjour' }, MEMBRE);
@@ -147,6 +158,23 @@ describe('assistant (chat global)', () => {
       expect.objectContaining({ projectId: 'p1', projectName: 'Paie', dueDate: '2026-12-01' }),
       expect.objectContaining({ projectId: '', projectName: '', dueDate: '' }),
       expect.objectContaining({ kind: 'jalon', title: 'Mise en production', projectId: 'p1' }),
+    ]);
+    // Type de ticket du paramétrage en préfixe (sans le doubler), responsable seulement s'il est actif.
+    const users = [{ email: 'paul@exemple.fr', active: true }, { email: 'ancien@exemple.fr', active: false }] as any;
+    expect(
+      sanitizeActions(
+        [
+          a({ ticketType: 'dev', title: '', projectId: 'p1', assigneeId: 'Paul@exemple.fr' }),
+          a({ ticketType: 'Dev', title: '[DEV] - Paie - Export', assigneeId: 'ancien@exemple.fr' }),
+          a({ ticketType: 'Inconnu', title: 'Corriger' }),
+        ],
+        projects,
+        { ticketTypes: ['Dev', 'MEP'], users },
+      ).map((x) => [x.title, x.assigneeId]),
+    ).toEqual([
+      ['[DEV] - Paie', 'paul@exemple.fr'],
+      ['[DEV] - Paie - Export', ''],
+      ['Corriger', ''],
     ]);
   });
 

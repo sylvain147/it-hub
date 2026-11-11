@@ -85,8 +85,10 @@ export class MockProvider implements LlmProvider {
     ].filter(Boolean);
     // Texte long (compte rendu collé) : une proposition par phrase d'action (« il faut… », « à faire : … »), sur le premier projet cité.
     const projectId = /\(\/projets\/([^)]+)\)$/m.exec(between(input, 'projets_detailles'))?.[1] ?? '';
-    const actions: AssistantOutput['actions'] =
-      question.length < 200
+    const command = question.length < 200 ? commandAction(question, projectId, context) : null;
+    const actions: AssistantOutput['actions'] = command
+      ? [command]
+      : question.length < 200
         ? []
         : question
             .split(/\n|(?<=\.)\s+/)
@@ -96,10 +98,12 @@ export class MockProvider implements LlmProvider {
             .map((l, i) => ({
               kind: /^(relancer|envoyer)/i.test(l) ? 'todo' : 'ticket',
               title: l.replace(/^(il faut|à faire|action|todo)\s*:?\s*/i, '').replace(/\.$/, '').slice(0, 120) || l,
+              ticketType: '',
               details: '',
               projectId,
               dueDate: '',
               priority: i === 0 ? 'haute' : 'normale',
+              assigneeId: '',
               reason: 'Phrase d’action du texte (simulation)',
             }));
     return {
@@ -329,4 +333,22 @@ function guessRecordTypes(lines: string[]): SpecPatch['upsertRecordTypes'] {
       ...(max > width ? [{ ...base, key: 'contenu', label: 'Contenu', start: width + 1, length: max - width, type: 'text' as const }] : []),
     ],
   }));
+}
+
+/**
+ * Demande courte de création (« Crée-moi un ticket sur la poste, essentiel, pour le développement ») : une proposition,
+ * sur le premier projet cité, avec le type de ticket et la priorité déduits des mots de la demande (simulation).
+ */
+function commandAction(question: string, projectId: string, context: string): AssistantOutput['actions'][number] | null {
+  const q = question.toLowerCase();
+  if (!/^\s*(cr[ée]e|ajoute|mets|met|planifie|rappelle|note|programme)/.test(q)) return null;
+  const kind = /\bjalon\b/.test(q) ? 'jalon' : /\bticket\b/.test(q) ? 'ticket' : /to-?do|t[âa]che|rappelle/.test(q) ? 'todo' : null;
+  if (!kind) return null;
+  const types = (/## Types de tickets\n([^\n]*)/.exec(context)?.[1] ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+  const words: [RegExp, string][] = [[/d[ée]v/, 'dev'], [/recette|test/, 'recette'], [/cadrage/, 'cadrage'], [/mep|mise en prod/, 'mep'], [/correct|bug/, 'correctif']];
+  const ticketType = kind === 'ticket' ? (types.find((t) => words.some(([re, k]) => re.test(q) && t.toLowerCase() === k)) ?? '') : '';
+  const projectName = projectId ? (new RegExp(`\\[([^\\]]+)\\]\\(/projets/${projectId}\\)`).exec(context)?.[1] ?? '') : '';
+  const priority = /critique|bloquant/.test(q) ? 'critique' : /important|urgent|prioritaire/.test(q) ? 'haute' : 'normale';
+  const title = ticketType ? projectName : question.replace(/^\s*\S+(\s+moi)?\s+(un|une|le|la)?\s*(ticket|t[âa]che|jalon|to-?do)?\s*/i, '').slice(0, 120) || question;
+  return { kind, title: title || question, ticketType, details: '', projectId, dueDate: '', priority, assigneeId: '', reason: 'Demande de création (simulation)' };
 }

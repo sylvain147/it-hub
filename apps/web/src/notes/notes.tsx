@@ -7,6 +7,7 @@ import { ItemModal, MarkdownField, MarkdownView } from '../projects/common';
 import { ProjectSelect, type ProjectRef } from '../tasks/tasks';
 import { useAuth } from '../auth';
 import { UserSelect, useUsers } from '../users/context';
+import { GandalfActionsButton } from '../assistant/Gandalf';
 
 /**
  * Notes en vrac : le bloc-notes personnel de chacun, rattaché ou non à un projet. Les administrateurs voient
@@ -198,6 +199,7 @@ export function NoteGrid({
                 {n.title || <span className="muted">Sans titre</span>}
               </button>
               <span className="note-tools">
+                <GandalfActionsButton what={project ? `une note sur le projet ${project.name}` : 'une note'} title={n.title} content={n.content} className="btn-icon note-pin" />
                 {!n.archived && (
                   <button className={n.pinned ? 'btn-icon note-pin on' : 'btn-icon note-pin'} title={n.pinned ? 'Désépingler' : 'Épingler en tête'} onClick={() => void update(n, { pinned: !n.pinned })}>📌</button>
                 )}
@@ -314,6 +316,7 @@ export function NoteModal({
           <>
             <button className="btn btn-danger-ghost" onClick={() => void remove()}>Supprimer</button>
             <button className="btn btn-ghost" onClick={() => void archive()}>{f.archived ? '↩ Sortir des archives' : '🗄 Archiver'}</button>
+            <GandalfActionsButton what="une note" title={f.title} content={f.content} className="btn btn-ghost" withLabel />
             <span className="muted small">
               Créée le {formatDate(note.createdAt.slice(0, 10))}
               {note.createdBy !== note.ownerId && ` par ${name(note.createdBy)}`}

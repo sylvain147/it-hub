@@ -6,6 +6,7 @@ import { useAuth } from '../auth';
 import { Spinner } from '../components/ui';
 import { ProjectSelect, defaultDueDate, type ProjectRef } from '../tasks/tasks';
 import { useAssistant } from '../theme';
+import { UserSelect } from '../users/context';
 
 /**
  * Propositions de Gandalf (« Dois-je créer un ticket dans le projet X pour … ? ») : rien n'est créé sans un clic sur
@@ -45,10 +46,10 @@ export function ActionCard({ action, projects, onChange }: { action: ChatAction;
       let done: ActionState;
       if (action.kind === 'ticket') {
         const projectId = action.projectId || NO_PROJECT_ID;
-        const t = (await api.createItem(projectId, 'tasks', { title: action.title, details, priority: action.priority, dueDate: action.dueDate, assigneeId: me.email })) as Task;
+        const t = (await api.createItem(projectId, 'tasks', { title: action.title, details, priority: action.priority, dueDate: action.dueDate, assigneeId: action.assigneeId || me.email })) as Task;
         done = { state: 'creee', label: `Ticket ${ticketKey(t)} créé`, path: action.projectId ? `/projets/${action.projectId}?onglet=tickets` : '/sprints?onglet=liste' };
       } else if (action.kind === 'todo') {
-        await api.createTodo({ title: action.title, details: action.details, dueDate: action.dueDate || defaultDueDate(), projectId: action.projectId, assigneeId: me.email });
+        await api.createTodo({ title: action.title, details: action.details, dueDate: action.dueDate || defaultDueDate(), projectId: action.projectId, assigneeId: action.assigneeId || me.email });
         done = { state: 'creee', label: 'Ajoutée à la to-do', path: action.projectId ? `/projets/${action.projectId}?onglet=todo` : '/todo' };
       } else {
         await api.createItem(action.projectId, 'jalons', { label: action.title, date: action.dueDate });
@@ -91,6 +92,9 @@ export function ActionCard({ action, projects, onChange }: { action: ChatAction;
           projects={projects}
           emptyLabel={action.kind === 'jalon' ? 'Choisir le projet…' : action.kind === 'ticket' ? 'Aucun projet' : 'Aucun (tâche personnelle)'}
         />
+        {action.kind !== 'jalon' && (
+          <UserSelect className="input input-sm" value={action.assigneeId || me.email} onChange={(email) => set({ assigneeId: email })} />
+        )}
         <input className="input input-sm" type="date" value={action.dueDate} onChange={(e) => set({ dueDate: e.target.value })} aria-label={action.kind === 'jalon' ? 'Date du jalon' : 'Échéance'} title={action.kind === 'jalon' ? 'Date du jalon' : 'Échéance'} />
       </div>
       {(action.details || action.reason) && (

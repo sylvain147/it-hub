@@ -24,6 +24,21 @@ export function openGandalf(text: string) {
   window.dispatchEvent(new CustomEvent<string>(OPEN_EVENT, { detail: text }));
 }
 
+/**
+ * Bouton « Actions avec Gandalf » d'une note ou d'une entrée du journal : ouvre Gandalf avec le texte, prêt à envoyer,
+ * pour qu'il propose les tickets, tâches et jalons à créer (rien n'est envoyé ni créé sans clic).
+ */
+export function GandalfActionsButton({ what, title, content, className = 'btn-icon', withLabel }: { what: string; title?: string; content: string; className?: string; withLabel?: boolean }) {
+  const assistant = useAssistant();
+  const intro = `Voici ${what}${title?.trim() ? ` « ${title.trim()} »` : ''}. Propose-moi les tickets, tâches et jalons à créer.\n\n`;
+  const text = (intro + content.trim()).slice(0, ASSISTANT_QUESTION_MAX);
+  return (
+    <button className={className} disabled={!content.trim()} title={`${assistant.name} propose les tickets, tâches et jalons à créer à partir de ce texte ; vous validez chacun`} onClick={() => openGandalf(text)}>
+      <img src={assistant.avatar} alt="" className="gandalf-mini" /> {withLabel && `Actions avec ${assistant.name}`}
+    </button>
+  );
+}
+
 /** Au-delà, un message de l'utilisateur s'affiche replié. */
 const FOLD_CHARS = 600;
 
@@ -157,7 +172,8 @@ export function Gandalf() {
                   Posez vos questions sur les projets, les échéances, le sprint, vos tickets et votre <Link to="/todo">to-do</Link>. {name} répond à partir des données du hub.
                 </p>
                 <p className="small">
-                  Collez-lui aussi un compte rendu, une transcription de réunion ou un e-mail : il propose les tickets, tâches et jalons à créer, et rien n’est créé sans votre clic.
+                  Demandez-lui aussi de créer un ticket, une tâche ou un jalon (« Crée-moi un ticket de dev sur La Poste, c’est important »), ou collez-lui un compte rendu,
+                  une transcription de réunion ou un e-mail : il propose ce qu’il faut créer, et rien n’est créé sans votre clic.
                 </p>
                 <div className="assistant-chips">
                   {ASSISTANT_STARTERS.map((s) => (
@@ -208,7 +224,7 @@ export function Gandalf() {
                   void ask(question);
                 }
               }}
-              placeholder="Votre question, ou un compte rendu à analyser… (Entrée pour envoyer)"
+              placeholder="Une question, une demande ou un compte rendu… (Entrée pour envoyer)"
               aria-label="Question"
             />
             <button className="btn btn-primary" disabled={busy || !question.trim()} onClick={() => void ask(question)}>Envoyer</button>
