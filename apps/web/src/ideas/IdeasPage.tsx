@@ -23,6 +23,23 @@ import { ProjectSelect, useProjectRefs, type ProjectRef } from '../tasks/tasks';
 import { useUsers } from '../users/context';
 
 type StatusFilter = IdeaStatus | 'actives' | 'toutes';
+type Sort = 'priorite' | 'soutiens' | 'recentes';
+
+/** Onglets de statut : les idées à traiter d'abord, puis chaque statut, puis toutes. */
+const STATUS_TABS: { id: StatusFilter; label: string }[] = [
+  { id: 'actives', label: 'À traiter' },
+  ...IDEA_STATUSES.map((s) => ({ id: s as StatusFilter, label: IDEA_STATUS_LABELS[s] })),
+  { id: 'toutes', label: 'Toutes' },
+];
+
+const SORTS: Record<Sort, { label: string; fn: (a: Idea, b: Idea) => number }> = {
+  priorite: { label: 'Priorité', fn: byIdeaPriority },
+  soutiens: { label: 'Les plus soutenues', fn: (a, b) => b.votes.length - a.votes.length || byIdeaPriority(a, b) },
+  recentes: { label: 'Les plus récentes', fn: (a, b) => b.createdAt.localeCompare(a.createdAt) },
+};
+
+const matchStatus = (i: Idea, status: StatusFilter) =>
+  status === 'toutes' || (status === 'actives' ? !CLOSED_IDEA_STATUSES.includes(i.status) : i.status === status);
 
 async function attempt<T>(fn: () => Promise<T>, done?: string): Promise<T | null> {
   try {
@@ -36,8 +53,9 @@ async function attempt<T>(fn: () => Promise<T>, done?: string): Promise<T | null
 }
 
 /**
- * Idées d'amélioration de l'équipe (ERP, outils…) : liste classée par priorité puis par nombre de soutiens,
- * saisie rapide, et création d'un ticket à partir d'une idée retenue.
+ * Idées d'amélioration de l'équipe (ERP, outils…) : des cartes avec leurs soutiens (👍), rangées par statut
+ * (onglets avec leur nombre), filtrées par domaine, triées par priorité, soutiens ou date ; saisie rapide ;
+ * une idée nouvelle se retient ou s'écarte d'un clic, et une idée retenue devient un ticket.
  */
 export function IdeasPage() {
   const { email } = useAuth();
@@ -46,34 +64,39 @@ export function IdeasPage() {
   const projects = useProjectRefs();
   const [domain, setDomain] = useState<string>('');
   const [status, setStatus] = useState<StatusFilter>('actives');
+  const [sort, setSort] = useState<Sort>('priorite');
+  const [mine, setMine] = useState(false);
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Idea | 'new' | null>(null);
   const [ticketFor, setTicketFor] = useState<Idea | null>(null);
   const [quick, setQuick] = useState({ title: '', priority: 'normale' as Priority });
 
   const domains = useMemo(() => [...new Set([DEFAULT_IDEA_DOMAIN, ...(data ?? []).map((i) => i.domain).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'fr')), [data]);
-  const rows = useMemo(() => {
+  // Filtres hors statut : les compteurs des onglets les suivent.
+  const base = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return (data ?? [])
-      .filter((i) => {
-        if (domain && i.domain !== domain) return false;
-        if (status === 'actives' && CLOSED_IDEA_STATUSES.includes(i.status)) return false;
-        if (status !== 'actives' && status !== 'toutes' && i.status !== status) return false;
-        return !needle || [i.title, i.details, i.domain].some((s) => s.toLowerCase().includes(needle));
-      })
-      .sort(byIdeaPriority);
-  }, [data, domain, status, q]);
-  const counts = useMemo(() => Object.fromEntries(PRIORITIES.map((p) => [p, rows.filter((i) => i.priority === p).length])) as Record<Priority, number>, [rows]);
+    return (data ?? []).filter(
+      (i) =>
+        (!domain || i.domain === domain) &&
+        (!mine || i.createdBy === email || i.votes.includes(email)) &&
+        (!needle || [i.title, i.details, i.domain].some((s) => s.toLowerCase().includes(needle))),
+    );
+  }, [data, domain, mine, q, email]);
+  const rows = useMemo(() => base.filter((i) => matchStatus(i, status)).sort(SORTS[sort].fn), [base, status, sort]);
 
   const replace = (i: Idea) => setData((d) => d && d.map((x) => (x.id === i.id ? i : x)));
-  const patch = async (i: Idea, b: Partial<Idea>) => {
-    const out = await attempt(() => api.updateIdea(i.id, b));
+  const patch = async (i: Idea, b: Partial<Idea>, done?: string) => {
+    const out = await attempt(() => api.updateIdea(i.id, b), done);
+    if (out) replace(out);
+  };
+  const vote = async (i: Idea) => {
+    const out = await attempt(() => api.voteIdea(i.id, !i.votes.includes(email)));
     if (out) replace(out);
   };
 
   async function quickAdd() {
     if (!quick.title.trim()) return;
-    const out = await attempt(() => api.createIdea({ title: quick.title, priority: quick.priority, domain: domain || DEFAULT_IDEA_DOMAIN }));
+    const out = await attempt(() => api.createIdea({ title: quick.title, priority: quick.priority, domain: domain || DEFAULT_IDEA_DOMAIN }), 'Idée ajoutée.');
     if (out) {
       setData((d) => [...(d ?? []), out]);
       setQuick((x) => ({ ...x, title: '' }));
@@ -87,120 +110,115 @@ export function IdeasPage() {
       <div className="page-head">
         <div>
           <h1>💡 Idées d’amélioration</h1>
-          <p className="muted">
-            Les idées de l’équipe, classées par priorité puis par nombre de soutiens (👍). Quand une idée est retenue, « → Ticket » la place dans le backlog d’un projet.
-          </p>
+          <p className="muted">Les idées de l’équipe. Soutenez celles qui vous parlent (👍) ; une idée retenue devient un ticket en un clic.</p>
         </div>
         <div className="row-actions">
-          <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Nouvelle idée</button>
+          <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Nouvelle idée détaillée</button>
         </div>
       </div>
 
-      <div className="filters">
-        <select className="input input-auto" value={domain} onChange={(e) => setDomain(e.target.value)} aria-label="Domaine">
-          <option value="">Tous les domaines</option>
-          {domains.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select className="input input-auto" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} aria-label="Statut">
-          <option value="actives">À traiter (hors réalisées et écartées)</option>
-          <option value="toutes">Toutes</option>
-          {IDEA_STATUSES.map((s) => <option key={s} value={s}>{IDEA_STATUS_LABELS[s]}</option>)}
-        </select>
-        <input className="input" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <section className="card idea-quick">
+        <div className="idea-quick-row">
+          <input
+            className="input input-title"
+            value={quick.title}
+            onChange={(e) => setQuick((x) => ({ ...x, title: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && void quickAdd()}
+            placeholder={`💡 Une idée${domain ? ` pour ${domain}` : ''} ? Écrivez-la, puis Entrée`}
+          />
+          <select className="input input-auto" value={quick.priority} onChange={(e) => setQuick((x) => ({ ...x, priority: e.target.value as Priority }))} aria-label="Priorité">
+            {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
+          </select>
+          <button className="btn btn-primary" disabled={!quick.title.trim()} onClick={() => void quickAdd()}>Ajouter</button>
+        </div>
+      </section>
+
+      <div className="tabs idea-tabs">
+        {STATUS_TABS.map((t) => {
+          const n = base.filter((i) => matchStatus(i, t.id)).length;
+          return (
+            <button key={t.id} className={status === t.id ? 'tab active' : 'tab'} onClick={() => setStatus(t.id)}>
+              {t.label} {n > 0 && <span className="pill pill-muted">{n}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="toolbar-row idea-quick">
-        <input
-          className="input quick-add"
-          value={quick.title}
-          onChange={(e) => setQuick((x) => ({ ...x, title: e.target.value }))}
-          onKeyDown={(e) => e.key === 'Enter' && void quickAdd()}
-          placeholder={`Nouvelle idée${domain ? ` (${domain})` : ''}, puis Entrée`}
-        />
-        <select className="input input-auto" value={quick.priority} onChange={(e) => setQuick((x) => ({ ...x, priority: e.target.value as Priority }))} aria-label="Priorité">
-          {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
+      <div className="idea-filters">
+        <div className="idea-domains" role="group" aria-label="Domaine">
+          <button className={!domain ? 'idea-chip on' : 'idea-chip'} onClick={() => setDomain('')}>Tous les domaines</button>
+          {domains.map((d) => (
+            <button key={d} className={domain === d ? 'idea-chip on' : 'idea-chip'} onClick={() => setDomain(domain === d ? '' : d)}>{d}</button>
+          ))}
+        </div>
+        <span className="tb-flex" />
+        <input className="input input-auto" type="search" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher" />
+        <select className="input input-auto" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Tri">
+          {(Object.keys(SORTS) as Sort[]).map((k) => <option key={k} value={k}>{SORTS[k].label}</option>)}
         </select>
-        <button className="btn" disabled={!quick.title.trim()} onClick={() => void quickAdd()}>Ajouter</button>
+        <label className="check"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Les miennes et celles que je soutiens</label>
       </div>
 
       <ErrorBox error={error} />
       {loading && !data ? (
         <Spinner />
       ) : !rows.length ? (
-        <EmptyState>
-          {data?.length ? (
-            'Aucune idée ne correspond aux filtres.'
-          ) : (
-            'Aucune idée pour l’instant.'
-          )}
-        </EmptyState>
+        <EmptyState>{data?.length ? 'Aucune idée ne correspond.' : 'Aucune idée pour l’instant : lancez-vous, la première est souvent la meilleure !'}</EmptyState>
       ) : (
-        <>
-          <p className="muted small">
-            {rows.length} idée{rows.length > 1 ? 's' : ''} ·{' '}
-            {[...PRIORITIES].reverse().filter((p) => counts[p]).map((p) => `${counts[p]} ${PRIORITY_LABELS[p].toLowerCase()}`).join(' · ')}
-          </p>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Priorité</th>
-                  <th>Idée</th>
-                  <th>Statut</th>
-                  <th className="num">Soutiens</th>
-                  <th>Ticket</th>
-                  <th>Proposée</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((i) => {
-                  const voted = i.votes.includes(email);
-                  return (
-                    <tr key={i.id} className={CLOSED_IDEA_STATUSES.includes(i.status) ? 'row-muted' : undefined}>
-                      <td>
-                        <select className={`input input-sm input-auto prio-${i.priority}`} value={i.priority} onChange={(e) => void patch(i, { priority: e.target.value as Priority })} aria-label="Priorité">
-                          {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <button className="btn-link strong" onClick={() => setEditing(i)}>{i.title}</button>
-                        <div className="muted small">{[i.domain, projectName(i.projectId)].filter(Boolean).join(' · ')}</div>
-                      </td>
-                      <td>
-                        <select className="input input-sm input-auto" value={i.status} onChange={(e) => void patch(i, { status: e.target.value as IdeaStatus })} aria-label="Statut">
-                          {IDEA_STATUSES.map((s) => <option key={s} value={s}>{IDEA_STATUS_LABELS[s]}</option>)}
-                        </select>
-                      </td>
-                      <td className="num">
-                        <button
-                          className={`btn btn-sm${voted ? ' btn-following' : ''}`}
-                          title={i.votes.length ? `Soutenue par ${i.votes.map(name).join(', ')}` : 'Soutenir cette idée'}
-                          aria-pressed={voted}
-                          onClick={async () => {
-                            const out = await attempt(() => api.voteIdea(i.id, !voted));
-                            if (out) replace(out);
-                          }}
-                        >
-                          👍 {i.votes.length}
-                        </button>
-                      </td>
-                      <td>
-                        {i.ticket ? (
-                          <Link to={i.ticket.projectId === NO_PROJECT_ID ? '/sprints' : `/projets/${i.ticket.projectId}?onglet=tickets`}>{ticketKey(i.ticket)}</Link>
-                        ) : CLOSED_IDEA_STATUSES.includes(i.status) ? (
-                          <span className="muted">—</span>
-                        ) : (
-                          <button className="btn btn-sm btn-ghost" onClick={() => setTicketFor(i)}>→ Ticket</button>
-                        )}
-                      </td>
-                      <td className="small">{formatDate(i.createdAt.slice(0, 10))}<div className="muted">{name(i.createdBy)}</div></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
+        <ul className="idea-list">
+          {rows.map((i) => {
+            const voted = i.votes.includes(email);
+            const closed = CLOSED_IDEA_STATUSES.includes(i.status);
+            return (
+              <li key={i.id} className={`idea-card idea-${i.status}${closed ? ' idea-closed' : ''}`}>
+                <button
+                  className={voted ? 'idea-vote on' : 'idea-vote'}
+                  aria-pressed={voted}
+                  title={i.votes.length ? `Soutenue par ${i.votes.map(name).join(', ')}${voted ? ' (cliquer pour retirer votre soutien)' : ''}` : 'Soutenir cette idée'}
+                  onClick={() => void vote(i)}
+                >
+                  <span className="idea-vote-icon">👍</span>
+                  <strong>{i.votes.length}</strong>
+                </button>
+                <div className="idea-main">
+                  <div className="idea-title-row">
+                    <button className="idea-title" onClick={() => setEditing(i)}>{i.title}</button>
+                    <span className={`badge idea-status-${i.status}`}>{IDEA_STATUS_LABELS[i.status]}</span>
+                  </div>
+                  {i.details.trim() && (
+                    <div className="idea-details" onClick={() => setEditing(i)}>
+                      <MarkdownView markdown={i.details} className="small" />
+                    </div>
+                  )}
+                  <div className="idea-meta small">
+                    <select className={`input input-sm input-auto prio-${i.priority}`} value={i.priority} onChange={(e) => void patch(i, { priority: e.target.value as Priority })} aria-label="Priorité" title="Priorité">
+                      {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
+                    </select>
+                    {i.domain && <span className="badge badge-domain">{i.domain}</span>}
+                    {i.projectId && <span className="badge">📁 {projectName(i.projectId)}</span>}
+                    <span className="muted">{name(i.createdBy)} · {formatDate(i.createdAt.slice(0, 10))}</span>
+                  </div>
+                </div>
+                <div className="idea-actions">
+                  {i.ticket ? (
+                    <Link className="btn btn-sm btn-ghost" to={i.ticket.projectId === NO_PROJECT_ID ? '/sprints' : `/projets/${i.ticket.projectId}?onglet=tickets`}>🎫 {ticketKey(i.ticket)}</Link>
+                  ) : (
+                    <>
+                      {i.status === 'nouvelle' && (
+                        <>
+                          <button className="btn btn-sm" onClick={() => void patch(i, { status: 'retenue' }, 'Idée retenue.')}>✓ Retenir</button>
+                          <button className="btn btn-sm btn-ghost" onClick={() => void patch(i, { status: 'ecartee' }, 'Idée écartée.')}>Écarter</button>
+                        </>
+                      )}
+                      {!closed && <button className="btn btn-sm btn-primary" onClick={() => setTicketFor(i)}>→ Ticket</button>}
+                      {closed && <button className="btn btn-sm btn-ghost" onClick={() => void patch(i, { status: 'nouvelle' }, 'Idée rouverte.')}>↩ Rouvrir</button>}
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {editing && (
