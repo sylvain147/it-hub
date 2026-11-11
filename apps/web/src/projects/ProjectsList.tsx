@@ -12,7 +12,8 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner, formatDate, shortUser } from '../components/ui';
-import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge, euros } from './common';
+import { DueLabel, HealthBadge, PriorityTag, ProjectStatusBadge } from './common';
+import { useUsers } from '../users/context';
 import { useSettings } from '../settings/context';
 import { FollowButton, MyProjectsCheck, useMyProjectsFilter } from './mine';
 import { NewProjectDialog } from './NewProjectDialog';
@@ -23,6 +24,7 @@ type Sort = 'recent' | 'echeance' | 'priorite' | 'nom';
 export function ProjectsList() {
   const { lists } = useSettings();
   const { email } = useAuth();
+  const { name } = useUsers();
   const { data, setData, error, loading } = useLoad(() => api.listProjects(), []);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<StatusFilter>('actifs');
@@ -131,7 +133,6 @@ export function ProjectsList() {
                 <th>Chefs de projet</th>
                 <th>Prochaine échéance</th>
                 <th className="num">Tickets</th>
-                <th className="num">Budget</th>
                 <th>Modifié</th>
                 <th aria-label="Suivi" />
               </tr>
@@ -148,7 +149,15 @@ export function ProjectsList() {
                     {p.blocked && <div className="due-late small" title={p.blockedReason}>⛔ Bloqué</div>}
                   </td>
                   <td title={p.healthComment}><HealthBadge health={p.health} /></td>
-                  <td>{p.chefDeProjet || <span className="muted">—</span>}</td>
+                  <td>
+                    {p.chefDeProjetIds.length || p.chefDeProjet ? (
+                      <span className="chef-badges">
+                        {(p.chefDeProjetIds.length ? p.chefDeProjetIds.map(name) : [p.chefDeProjet]).map((n) => <span key={n} className="badge badge-chef">{n}</span>)}
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td>
                     {p.stats.nextJalon ? (
                       <><DueLabel date={p.stats.nextJalon.date} /> <div className="muted small">{p.stats.nextJalon.label}</div></>
@@ -163,7 +172,6 @@ export function ProjectsList() {
                     {p.stats.openTasks}
                     {p.stats.overdueTasks > 0 && <div className="due-late small">{p.stats.overdueTasks} en retard</div>}
                   </td>
-                  <td className="num">{p.stats.montantPrevu ? euros(p.stats.montantPrevu) : p.budgetPrevu != null ? euros(p.budgetPrevu) : <span className="muted">—</span>}</td>
                   <td className="small">{formatDate(p.updatedAt.slice(0, 10))}<div className="muted">{shortUser(p.updatedBy)}</div></td>
                   <td>
                     <FollowButton small project={p} onChange={(followers) => setData((d) => d && d.map((x) => (x.id === p.id ? { ...x, followers } : x)))} />
