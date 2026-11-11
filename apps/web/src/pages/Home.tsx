@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { CLOSED_PROJECT_STATUSES, HEALTHS, ticketKey } from '@samm/shared';
-import { MODULES } from '../modules';
 import { api } from '../api';
 import { useLoad } from '../hooks';
-import { shortUser } from '../components/ui';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
-import { DueLabel, HealthBadge, ProjectStatusBadge } from '../projects/common';
+import { DueLabel, HealthBadge, ProjectSteps } from '../projects/common';
 import { ActivityList } from '../projects/OverviewTab';
 import { ticketPath } from '../sprints/tickets';
 
@@ -21,8 +19,10 @@ export function Home() {
   const { name } = useUsers();
 
   const active = (projects ?? []).filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status));
-  // Projets à surveiller d'abord (météo rouge, puis orange), puis les plus récemment modifiés.
-  const watch = [...active].sort((a, b) => HEALTHS.indexOf(b.health) - HEALTHS.indexOf(a.health) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
+  // Projets à surveiller d'abord (bloqués, puis météo rouge, puis orange), puis les plus récemment modifiés.
+  const watch = [...active]
+    .sort((a, b) => Number(b.blocked) - Number(a.blocked) || HEALTHS.indexOf(b.health) - HEALTHS.indexOf(a.health) || b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 8);
   // La to-do et les tickets restent deux listes distinctes, chacune par échéance.
   const byDueDate = (a: { dueDate: string }, b: { dueDate: string }) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
   // Ma to-do dans l'ordre choisi par glisser-déposer, puis par échéance.
@@ -40,18 +40,6 @@ export function Home() {
     <div className="page page-wide">
       <h1>Bonjour {me.name.split(' ')[0]} 👋</h1>
       <p className="muted">Hobbit, le hub de l’équipe IT.</p>
-      <div className="module-grid">
-        {MODULES.filter((m) => m.home !== false).map((m) => (
-          <Link key={m.id} to={m.path} className="module-card">
-            <div className="module-icon">{m.icon}</div>
-            <div>
-              <h3>{m.title}</h3>
-              <p>{m.description}</p>
-            </div>
-          </Link>
-        ))}
-      </div>
-
       <div className="home-grid">
         <section className="card">
           <div className="card-head">
@@ -134,21 +122,18 @@ export function Home() {
           {watch.length === 0 ? (
             <p className="muted">Aucun projet actif. <Link to="/projets">Créer un projet</Link></p>
           ) : (
-            <div className="project-cards">
+            <div className="home-projects">
               {watch.map((p) => (
-                <Link key={p.id} to={`/projets/${p.id}`} className="project-card">
-                  <div className="project-card-head">
-                    <strong>{p.name}</strong>
-                    <HealthBadge health={p.health} withLabel={false} />
+                <Link key={p.id} to={`/projets/${p.id}`} className="home-project">
+                  <div className="home-project-name">
+                    <strong title={p.name}><HealthBadge health={p.health} withLabel={false} /> {p.name}</strong>
+                    <span className="muted small">
+                      {p.stats.openTasks} ticket{p.stats.openTasks > 1 ? 's' : ''} ouvert{p.stats.openTasks > 1 ? 's' : ''}
+                      {p.stats.overdueTasks > 0 && <span className="due-late"> · {p.stats.overdueTasks} en retard</span>}
+                      {p.domains.length > 0 && ` · ${p.domains.join(', ')}`}
+                    </span>
                   </div>
-                  <div className="row-actions">
-                    <ProjectStatusBadge status={p.status} />
-                    {p.stats.overdueTasks > 0 && <span className="badge badge-danger">{p.stats.overdueTasks} en retard</span>}
-                  </div>
-                  <div className="muted small">
-                    {p.stats.openTasks} ticket{p.stats.openTasks > 1 ? 's' : ''} ouvert{p.stats.openTasks > 1 ? 's' : ''} · {p.stats.prestataires.join(', ') || 'aucun prestataire'}
-                  </div>
-                  {p.healthComment && <div className="small clamp">{p.healthComment}</div>}
+                  <ProjectSteps project={p} compact />
                 </Link>
               ))}
             </div>

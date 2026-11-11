@@ -3,9 +3,9 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { JOB_TYPE_LABELS, type JobInfo, type ProjectDetail } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling } from '../hooks';
-import { ErrorBox, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
-import { HealthBadge, PriorityTag, ProjectProvider, ProjectStatusBadge } from './common';
-import { OverviewTab } from './OverviewTab';
+import { ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
+import { HealthBadge, PriorityTag, ProjectProvider, ProjectStatusBadge, ProjectSteps } from './common';
+import { OverviewTab, fieldsOf } from './OverviewTab';
 import { TicketsTab } from './TicketsTab';
 import { TodoTab } from './TodoTab';
 import { PlanningTab } from './PlanningTab';
@@ -40,6 +40,7 @@ export function ProjectPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [blocking, setBlocking] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -116,6 +117,7 @@ export function ProjectPage() {
               <ProjectStatusBadge status={project.status} />
               <HealthBadge health={project.health} />
               <PriorityTag priority={project.priority} hideNormal />
+              {project.domains.map((d) => <span key={d} className="badge badge-domain">{d}</span>)}
               {project.tags.map((t) => <span key={t} className="badge tag">{t}</span>)}
               <span className="muted small">Modifié le {formatDateTime(project.updatedAt)} par {shortUser(project.updatedBy)}</span>
             </div>
@@ -124,6 +126,14 @@ export function ProjectPage() {
             <FollowButton project={project} onChange={(followers) => setProject((p) => p && { ...p, followers })} />
           </div>
         </div>
+
+        <div className="project-steps-row">
+          <ProjectSteps project={project} />
+          <button className={project.blocked ? 'btn btn-sm' : 'btn btn-sm btn-danger-ghost'} onClick={() => setBlocking(true)}>
+            {project.blocked ? 'Débloquer / modifier la raison' : '⛔ Signaler un blocage'}
+          </button>
+        </div>
+        {blocking && <BlockDialog project={project} onSaved={setProject} onClose={() => setBlocking(false)} />}
 
         {job && jobId && (
           <div className="job-banner job-banner-inline">
@@ -161,4 +171,44 @@ export function ProjectPage() {
 
 export function hasPending(s: NonNullable<ProjectDetail['items']['notes'][number]['suggestions']>) {
   return [...s.tasks, ...s.jalons, ...s.risks].some((x) => x.state === 'proposee');
+}
+
+/** Projet bloqué : il reste à son étape, marquée en rouge sur la frise, avec la raison. */
+function BlockDialog({ project, onSaved, onClose }: { project: ProjectDetail; onSaved: (p: ProjectDetail) => void; onClose: () => void }) {
+  const [reason, setReason] = useState(project.blockedReason);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  async function save(blocked: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.updateProject(project.id, project.rev, { ...fieldsOf(project), blocked, blockedReason: blocked ? reason.trim() : '' }));
+      toast(blocked ? 'Projet signalé comme bloqué.' : 'Projet débloqué.');
+      onClose();
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title={project.blocked ? 'Projet bloqué' : 'Signaler un blocage'}
+      onClose={onClose}
+      footer={
+        <>
+          {project.blocked && <button className="btn" disabled={busy} onClick={() => void save(false)}>✓ Débloquer le projet</button>}
+          <span className="tb-flex" />
+          <button className="btn" onClick={onClose}>Annuler</button>
+          <button className="btn btn-primary" disabled={busy || !reason.trim()} onClick={() => void save(true)}>{busy && <Spinner small />} {project.blocked ? 'Enregistrer' : 'Bloquer le projet'}</button>
+        </>
+      }
+    >
+      <ErrorBox error={error} />
+      <label className="field">
+        <span>Raison du blocage *</span>
+        <textarea className="input" rows={3} maxLength={500} autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="ex. En attente de la validation du devis par la direction" />
+      </label>
+      <p className="muted small">Le projet reste à son étape ; elle passe en rouge sur la frise, avec cette raison, sur l’accueil et ici.</p>
+    </Modal>
+  );
 }

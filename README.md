@@ -4,7 +4,7 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes, transcription de réunion, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur** (dont **Mordor**, rouge et noir, où l'Œil de Sauron remplace le hobbit et Saroumane remplace Gandalf), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes — où l'on transcrit aussi une réunion —, idées d'amélioration) et **Prestataires et flux** (lecteur de fichiers, suivi TMA). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), le **thème de couleur** (dont **Mordor**, rouge et noir, où l'Œil de Sauron remplace le hobbit et Saroumane remplace Gandalf), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 
@@ -21,33 +21,36 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - **Un bloc-notes personnel**, en vrac : titre facultatif, texte mis en forme, rattaché ou non à un projet. Saisie rapide en une zone de texte (Ctrl + Entrée).
 - Les notes sont **personnelles** : seul leur titulaire les voit, avec les **administrateurs**, qui consultent celles d'une personne ou de toute l'équipe et peuvent **ajouter une note à quelqu'un** (« ajoutée par … »). Pour partager un compte rendu ou une décision, on passe par le journal du projet.
 - **Épingler** une note la garde en tête ; **archiver** la range à part (onglet « Archivées », d'où on la ressort) sans la supprimer ; recherche plein texte et filtre par projet. Les notes d'un projet se retrouvent aussi dans son onglet « To-do et notes ».
+- **🎙️ Transcrire une réunion** (bouton de la page Notes) : voir plus bas.
+- **Actions avec Gandalf** (son portrait sur chaque note) : Gandalf reçoit la note et propose les tickets, tâches et jalons à créer.
 - **Taille des post-it** : la poignée en bas à droite d'une note l'agrandit (jusqu'à trois colonnes de large, hauteur libre) pour la lire sans l'ouvrir ; double-clic : la note entière, ou de nouveau la taille normale (flèches du clavier sur la poignée). La taille est retenue pour chaque note.
 
 ### 🧙 Gandalf, l'assistant
 
 - **Un chat avec l'IA sur tout le hub**, ouvert par la **bulle de Gandalf en bas à droite** de chaque page (la conversation continue d'une page à l'autre ; Échap ou × la referme) : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.
 - Il s'appuie sur les **données du hub, rassemblées par l'application** : projets et leurs indicateurs, jalons en retard et à venir, sprint en cours, mes tickets et les tickets en retard, ma to-do (avec ses sous-tâches) et celle des projets, mes notes. Un projet cité par son nom ou son code (dans la question ou les échanges précédents) est envoyé en détail. Jamais les notes ni la to-do personnelle des autres.
-- **Coller un long texte** (compte rendu, transcription de réunion, e-mail, notes en vrac) : Gandalf le résume et **propose les actions à créer**, une carte par proposition — « Dois-je créer un ticket dans le projet ERP ? », « Dois-je ajouter une tâche à votre to-do ? », « Dois-je ajouter un jalon ? ». On retouche l'intitulé, le projet ou la date, puis **Créer** ou **Ignorer** : rien n'est créé sans ce clic. Depuis « Transcrire une réunion », « 🧙 Actions avec Gandalf » lui confie la transcription.
+- **Lui demander de créer quelque chose** : « Crée-moi un ticket de dev sur La Poste Essentiel », « Ajoute à ma to-do de relancer le prestataire vendredi », « Mets un jalon de mise en production le 15 janvier sur l'ERP ». Il reconnaît le projet, le **type de ticket** (« pour le développement » → « [DEV] - Nom du projet »), la priorité (« urgent », « important »), le responsable et la date, et propose l'élément à créer.
+- **Coller un long texte** (compte rendu, transcription de réunion, e-mail, notes en vrac) : Gandalf le résume et **propose les actions à créer**, une carte par proposition — « Dois-je créer un ticket dans le projet ERP ? », « Dois-je ajouter une tâche à votre to-do ? », « Dois-je ajouter un jalon ? ». On retouche l'intitulé, le projet, le responsable ou la date, puis **Créer** ou **Ignorer** : rien n'est créé sans ce clic. Depuis une note, une entrée du journal d'un projet ou une transcription de réunion, « Actions avec Gandalf » lui confie le texte.
 - **Il ne modifie rien de lui-même**. La conversation reste dans l'onglet du navigateur (rien n'est enregistré) ; chaque question est un appel au modèle rapide, compté dans la consommation IA.
 
 ### 🗓️ Planning
 
-- **Frise de tous les projets** : une ligne par projet (période du début à la fin visée), ses jalons (à venir, en retard, atteints ; une barre pour un jalon sur une période) et la date du jour. Sur 1 semaine (jour par jour), 1 mois, 3 mois, 6 mois, 12 mois ou toute la durée (1 mois par défaut), avec ◀ ▶ pour passer à la période précédente ou suivante ; projets clos et éléments terminés masquables.
-- **Un clic sur un point ouvre l'élément** : un jalon mène à l'onglet « Planning » de son projet, une tâche à la to-do (du projet ou la mienne), l'élément étant mis en évidence.
-- **To-do sur la frise** (affichable ou non) : les tâches qui ont une échéance, sur la ligne de leur projet, et une ligne « Ma to-do » pour les miennes hors projet.
-- En dessous, **les échéances de la période mois par mois** (jalons et tâches), avec leur projet, leur glissement et leur état. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
+- **Frise des projets en cours** : une ligne par projet (sa durée, du début à la fin visée, en fond), ses jalons en **étiquettes lisibles** (à venir, ⚠ en retard, ✓ atteints ; un jalon sur une période couvre ses dates), rangées sur plusieurs lignes quand elles se chevauchent, et la date du jour.
+- Trois vues : **mois, trimestre** (par défaut) et **année**, avec ◀ ▶ pour passer à la période précédente ou suivante ; une seule case, « Mes projets ».
+- **Un clic sur un jalon l'ouvre** dans l'onglet « Planning » de son projet, mis en évidence.
+- En dessous, **les échéances de la période** avec leur projet et leur état (et leur décalage). Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
 
 ### 💡 Idées d'amélioration
 
 - **La liste des idées de l'équipe** (ERP par défaut, ou tout autre domaine) : intitulé, description, **priorité** (basse → critique), statut (nouvelle, retenue, en cours, réalisée, écartée), projet concerné. Triée par priorité puis par nombre de **soutiens** (👍, un par personne). Saisie rapide en une ligne ; priorité et statut se changent directement dans la liste.
 - **→ Ticket** : une idée devient, sur clic, un ticket au backlog (du projet choisi ou hors projet), avec sa priorité ; l'idée passe « en cours » et garde le lien vers le ticket.
 
-### 🎙️ Transcrire une réunion
+### 🎙️ Transcrire une réunion (page Notes)
 
-- Un clic au début de la réunion (Teams, Zoom… dans une autre fenêtre) : **ce qui est dit s'écrit au fil de l'eau**, horodaté à la minute. Le **son n'est pas enregistré** : seul le texte est gardé (brouillon sur le poste). Reconnaissance vocale du navigateur (Chrome, Edge) ; pour capter les autres participants, écouter la réunion sur les haut-parleurs.
-- Ouverte depuis la page d'un projet (entrée du menu ou lien du journal), elle **présélectionne ce projet**, sauf si une transcription est déjà commencée.
+- Depuis la page **Notes** (« 🎙️ Transcrire une réunion ») : un clic au début de la réunion (Teams, Zoom… dans une autre fenêtre) : **ce qui est dit s'écrit au fil de l'eau**, horodaté à la minute. Le **son n'est pas enregistré** : seul le texte est gardé (brouillon sur le poste). Reconnaissance vocale du navigateur (Chrome, Edge) ; pour capter les autres participants, écouter la réunion sur les haut-parleurs.
+- Ouverte depuis le journal d'un projet, elle **présélectionne ce projet**, sauf si une transcription est déjà commencée.
 - La transcription **continue d'une page à l'autre** du hub (pastille « Transcription en cours ») ; le texte se corrige pendant l'écoute.
-- À la fin : **compte rendu par l'IA** dans le journal du projet (avec tickets, jalons et risques à valider, comme « Analyser une réunion »), ou **garder comme note**.
+- À la fin : **garder comme note**, **compte rendu par l'IA** dans le journal du projet (avec tickets, jalons et risques à valider, comme « Analyser une réunion »), ou **actions avec Gandalf**.
 
 ### 💍 L'Anneau unique
 
@@ -57,22 +60,23 @@ Petit jeu caché de **l'Anneau unique** : de temps en temps (une chance sur 40 �
 
 Un projet regroupe tout ce que le chargé de projet suit ; le cahier des charges n'est plus qu'une de ses fonctionnalités.
 
-- **Fiche projet** : nom, code, statut (idée → cadrage → en cours → recette → production → terminé, en pause, abandonné), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), **chefs de projet (un ou plusieurs utilisateurs du hub, ex. un pour l’ERP et un pour le Web, choisis dans une liste déroulante filtrable)**, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, suivie de **sections libres** ajoutées à la demande (titre + texte, ex. objectifs, hors périmètre).
+- **Fiche projet** : nom, code, statut (idée, cadrage → planifié → en cours → recette → production → terminé, en pause, abandonné), **bloqué** (avec la raison), **domaines** (choix multiple parmi ceux du paramétrage : IT, Logistique, Marketing, Finance au départ ; la liste des projets se filtre par domaine), priorité, **météo** (au vert / vigilance / en difficulté, avec commentaire), **chefs de projet (un ou plusieurs utilisateurs du hub, ex. un pour l’ERP et un pour le Web, choisis dans une liste déroulante filtrable)**, demandeur, dates, budget prévu, étiquettes, et en texte riche la **description**, suivie de **sections libres** ajoutées à la demande (titre + texte, ex. objectifs, hors périmètre).
+- **Frise d'avancement** (page du projet et accueil) : une flèche par étape, cadrage → planifié → en cours → recette → en production → terminé ; les étapes passées et l'étape en cours sont colorées. Un projet **bloqué** (« ⛔ Signaler un blocage ») garde son étape, en rouge, avec la raison du blocage.
 - **Suivre un projet** (☆ Suivre, sur la page du projet ou dans la liste) : il compte alors parmi **« Mes projets »**, avec ceux dont je suis l’un des chefs de projet. La case « Mes projets » filtre la liste des projets, le planning et les sprints (tableau, planification, backlog) ; le choix est retenu d'une page à l'autre.
 - **Vue d'ensemble** : indicateurs (tickets, prochain jalon, budget engagé, risques), **points d'attention** calculés (tickets et jalons en retard, risques critiques, propositions de l'assistant à valider), échéances des 15 prochains jours, équipe, historique.
-- **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description (avec des **captures d’écran collées** directement), statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
+- **Tickets** : le travail du projet, numéroté (« T-12 ») : intitulé, description (avec des **captures d’écran collées** directement), statut, sprint (ou backlog), échéance, responsable. Ajout rapide au backlog, filtre « seulement les miens ». **⚡ Process complet** : crée d'un coup les tickets Cadrage, Dev, Recette, Correctif et MEP du projet (« [DEV] - Nom du projet », précision facultative), avec un responsable, une priorité et un sprint communs ; on décoche les étapes inutiles. Le **responsable est un utilisateur du hub** (par défaut, celui qui crée le ticket) ; une personne extérieure (prestataire, métier) peut être saisie en texte.
 - **To-do et notes** : la to-do du projet (partagée) et mes notes sur le projet (personnelles).
 - **Planning** : jalons sur une frise, ponctuels ou sur une **période** (date de début et date de fin), avec la **date initiale** conservée pour mesurer le glissement. Le module Planning les rassemble pour tous les projets.
 - **Prestations** : devis et commandes des prestataires (statut, charge, montant, références de devis et de bon de commande, livraison, CDC lié) ; budget prévu / engagé / restant.
 - **Intervenants** : par organisation, avec rôle, e-mail, téléphone ; « écrire à tous ».
 - **Documents et liens** : pièces jointes (devis, PV de recette… 50 Mo max., stockage privé) et liens (outils de tickets externes, SharePoint, Git, environnements…).
-- **Journal** : comptes rendus, décisions, informations, points d'attention, rapports ; notes épinglables.
+- **Journal** : comptes rendus, décisions, informations, points d'attention, rapports ; notes épinglables ; « Actions avec Gandalf » sur chaque entrée.
 - **Risques** : probabilité × impact, parade, responsable, matrice.
 - **Assistant** (toujours sur clic) :
   - **Analyser une réunion** : on colle une transcription ou des notes en vrac ; le modèle économique rédige le compte rendu dans le journal et **propose des tickets, jalons et risques**, que l'on coche avant de les ajouter (rien n'est ajouté sans validation) ;
   - **Rapport d'avancement** : rédigé à partir des seules données du projet, avec une météo proposée.
 - **Cahiers des charges** : rédigés depuis le projet (fiche, prestation choisie, planning, risques, notes du journal sélectionnées et, si besoin, une transcription). Le CDC est pré-rempli (projet, prestataire, estimation, échéances, phase) et lié à la prestation. **Sans IA (« Créer à partir du projet »), toutes les sections de la fiche projet sont reprises** : la description devient le Contexte, chaque section du projet une section du CDC, à modifier ensuite librement.
-- **Accueil** : ma to-do, mes tickets ouverts, échéances des 30 prochains jours tous projets confondus (lien vers la frise), projets à surveiller, activité récente.
+- **Accueil** : ma to-do, mes tickets ouverts, échéances des 30 prochains jours tous projets confondus (lien vers la frise), projets actifs avec leur frise d'avancement (bloqués d'abord, puis météo), activité récente.
 
 ### 🧭 Tickets et sprints
 

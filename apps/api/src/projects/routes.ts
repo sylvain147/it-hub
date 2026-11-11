@@ -13,6 +13,8 @@ import {
   PROJECT_ITEM_SCHEMAS,
   updateProjectBody,
   ticketCommentBody,
+  ticketProcessBody,
+  ticketProcessTitles,
   type CdcDocument,
   type ProjectDetail,
   type CdcSummary,
@@ -52,6 +54,7 @@ async function resolveTicket(raw: Record<string, unknown>, before: Record<string
 /** Phase affichée dans l'en-tête du CDC, déduite du statut du projet. */
 const PHASE_OF_STATUS: Partial<Record<ProjectStatus, ProjectPhase>> = {
   cadrage: 'cadrage',
+  planifie: 'cadrage',
   en_cours: 'developpement',
   recette: 'testing',
   production: 'production',
@@ -192,6 +195,21 @@ export function projectRoutes() {
       return c.json(await pr.getItem(target, kind, item.id));
     }
     return c.json(item);
+  });
+
+  /** Process complet : les tickets des étapes choisies (cadrage, dev, recette, correctif, MEP), créés d'un coup et dans l'ordre. */
+  r.post('/:id/tickets/process', async (c) => {
+    const id = c.req.param('id');
+    const user = userName(c);
+    const b = await body(c, ticketProcessBody);
+    const project = await pr.requireProject(id);
+    const { steps, complement, ...common } = b;
+    // Responsable et sprint vérifiés une fois, avant toute création.
+    const shared = await resolveTicket({ ...common, title: '-' }, null, user);
+    for (const title of ticketProcessTitles(project.name, steps, complement)) {
+      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { ...shared, title }) as Record<string, unknown>, user);
+    }
+    return c.json(await projectDetail(id), 201);
   });
 
   // ---- Notes de suivi d'un ticket (hors champs du ticket) ----------------------------------

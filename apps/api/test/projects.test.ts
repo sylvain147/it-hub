@@ -371,6 +371,36 @@ describe('module Projets', () => {
     expect(sources).toHaveLength(1);
   });
 
+  it('enregistre les domaines, le statut « Planifié » et le blocage avec sa raison', async () => {
+    const { json: p } = await env.call('GET', `/projects/${id}`);
+    // Projets enregistrés avant les domaines et le blocage : valeurs vides.
+    expect(p).toMatchObject({ domains: [], blocked: false, blockedReason: '' });
+    const fields = { ...pick(p), status: 'planifie', domains: ['IT', 'Logistique', 'IT'], blocked: true, blockedReason: 'En attente du devis' };
+    const res = await env.call('PUT', `/projects/${id}`, { rev: p.rev, fields });
+    expect(res.status).toBe(200);
+    expect(res.json).toMatchObject({ status: 'planifie', domains: ['IT', 'Logistique'], blocked: true, blockedReason: 'En attente du devis' });
+    expect(res.json.activity[0].text).toBe('a modifié le statut, le blocage du projet');
+    const list = (await env.call('GET', '/projects')).json.find((x: any) => x.id === id);
+    expect(list).toMatchObject({ domains: ['IT', 'Logistique'], blocked: true });
+    const unblocked = await env.call('PUT', `/projects/${id}`, { rev: res.json.rev, fields: { ...fields, status: 'en_cours', blocked: false, blockedReason: '' } });
+    expect(unblocked.json).toMatchObject({ blocked: false, blockedReason: '' });
+  });
+
+  it('crée un process complet : un ticket par étape, dans l’ordre', async () => {
+    const before = (await env.call('GET', `/projects/${id}`)).json.items.tasks.length;
+    expect((await env.call('POST', `/projects/${id}/tickets/process`, { steps: [] })).status).toBe(400);
+    expect((await env.call('POST', `/projects/${id}/tickets/process`, { steps: ['Dev', 'Inconnu'] })).status).toBe(400);
+    const res = await env.call('POST', `/projects/${id}/tickets/process`, { steps: ['MEP', 'Cadrage', 'Dev', 'Recette', 'Correctif'], complement: 'Lot 2', priority: 'haute' });
+    expect(res.status).toBe(201);
+    const created = res.json.items.tasks.slice(before).sort((a: any, b: any) => a.number - b.number);
+    expect(created.map((t: any) => t.title)).toEqual(['CADRAGE', 'DEV', 'RECETTE', 'CORRECTIF', 'MEP'].map((t) => `[${t}] - Migration Coliéco - Lot 2`));
+    expect(created.every((t: any) => t.priority === 'haute' && t.status === 'a_faire' && t.sprintId === null && t.assigneeId)).toBe(true);
+    // Sans précision, une partie des étapes seulement.
+    const two = await env.call('POST', `/projects/${id}/tickets/process`, { steps: ['Recette', 'Dev'] });
+    expect(two.json.items.tasks.slice(before + 5).map((t: any) => t.title).sort()).toEqual(['[DEV] - Migration Coliéco', '[RECETTE] - Migration Coliéco']);
+    expect((await env.call('POST', '/projects/inconnu/tickets/process', { steps: ['Dev'] })).status).toBe(404);
+  });
+
   it('rattache et détache un CDC existant, et le conserve à la suppression du projet', async () => {
     const legacy = await env.call('POST', '/cdcs', { meta: { title: 'Ancien CDC' } });
     const att = await env.call('PATCH', `/cdcs/${legacy.json.id}/project`, { projectId: id });

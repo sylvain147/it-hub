@@ -118,7 +118,11 @@ export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): s
 // Fiche projet
 // ---------------------------------------------------------------------------
 
-interface MetaItem extends Omit<ProjectFields, 'sections' | 'chefDeProjetIds'> {
+interface MetaItem extends Omit<ProjectFields, 'sections' | 'chefDeProjetIds' | 'domains' | 'blocked' | 'blockedReason'> {
+  /** Absents des projets antérieurs aux domaines et au blocage. */
+  domains?: string[];
+  blocked?: boolean;
+  blockedReason?: string;
   /** Absent des projets antérieurs aux sections libres. */
   sections?: ProjectFields['sections'];
   /** Absent des projets antérieurs aux chefs multiples, qui ont `chefDeProjetId` (retiré au premier enregistrement). */
@@ -148,7 +152,7 @@ function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
   const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, objectifs: _o, horsPerimetre: _h, ...rest } = it;
   const stale = it.activeJobAt && (Date.now() - Date.parse(it.activeJobAt)) / 60000 > config.staleJobMinutes;
   const { chefDeProjetId: _c, ...fiche } = rest;
-  return { ...fiche, chefDeProjetIds: normalizeChefIds(it), sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
+  return { ...fiche, domains: it.domains ?? [], blocked: it.blocked ?? false, blockedReason: it.blockedReason ?? '', chefDeProjetIds: normalizeChefIds(it), sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
 }
 
 async function getMeta(id: string): Promise<MetaItem | null> {
@@ -232,6 +236,7 @@ export async function updateProject(id: string, rev: number, fields: ProjectFiel
   }
   const changes: string[] = [];
   if (before.status !== fields.status) changes.push('le statut');
+  if (!!before.blocked !== fields.blocked) changes.push('le blocage');
   if (before.health !== fields.health) changes.push('la météo');
   if (before.targetDate !== fields.targetDate) changes.push('la date cible');
   if (normalizeChefIds(before).join() !== fields.chefDeProjetIds.join() || before.chefDeProjet !== fields.chefDeProjet) {

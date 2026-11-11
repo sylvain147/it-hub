@@ -4,7 +4,8 @@ import { HEALTH_LABELS, PRIORITIES, PRIORITY_LABELS, type Priority, type Project
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { ErrorBox, Modal, Spinner } from '../components/ui';
-import { StatusOptions } from '../settings/context';
+import { StatusOptions, useSettings } from '../settings/context';
+import { DomainChoices } from './OverviewTab';
 import { UserChoices } from '../users/context';
 
 /**
@@ -20,6 +21,8 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
   const [priority, setPriority] = useState<Priority>('normale');
   const [chefs, setChefs] = useState([email]);
   const [demandeur, setDemandeur] = useState('');
+  const [domains, setDomains] = useState<string[]>([]);
+  const { lists } = useSettings();
   const [targetDate, setTargetDate] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,7 +32,7 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
     setBusy(true);
     setError(null);
     try {
-      const p = await api.createProject({ name, code, status, priority, chefDeProjetIds: chefs, demandeur, targetDate, description });
+      const p = await api.createProject({ name, code, status, priority, chefDeProjetIds: chefs, demandeur, domains, targetDate, description });
       if (onCreated) onCreated(p);
       else navigate(`/projets/${p.id}`);
     } catch (e) {
@@ -86,6 +89,10 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
           <span>Demandeur (direction, service)</span>
           <input className="input" value={demandeur} onChange={(e) => setDemandeur(e.target.value)} placeholder="ex. Logistique" />
         </label>
+        <div className="field">
+          <span>Domaines</span>
+          <DomainChoices value={domains} onChange={setDomains} options={lists.projectDomains} />
+        </div>
         <label className="field span-2">
           <span>Description <span className="muted">(facultatif, complétable ensuite)</span></span>
           <textarea className="input" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Le contexte, le besoin, en quelques phrases." />

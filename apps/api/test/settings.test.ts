@@ -90,8 +90,19 @@ describe('paramétrage : statuts, jalons et rôles', () => {
   it('assainit un paramétrage incomplet', () => {
     const n = normalizeListSettings({ statuses: { project: [{ key: 'termine', label: 'Clos', hidden: false }] } as any });
     expect(n.statuses.project[0]).toEqual({ key: 'termine', label: 'Clos', hidden: false });
-    expect(n.statuses.project).toHaveLength(8);
+    expect(n.statuses.project).toHaveLength(9);
     expect(n.statuses.cdc.map((s) => s.key)).toEqual([...CDC_STATUSES]);
+    // Domaines des projets : valeurs d'origine si absents.
+    expect(n.projectDomains).toEqual(['IT', 'Logistique', 'Marketing', 'Finance']);
+  });
+
+  it('place un statut ajouté depuis l’enregistrement après celui qui le précède', () => {
+    // Paramétrage enregistré avant le statut « Planifié », dans un ordre personnalisé.
+    const saved = ['en_cours', 'idee', 'cadrage', 'recette', 'production', 'en_pause', 'termine', 'abandonne'].map((key) => ({ key, label: key, hidden: false }));
+    const n = normalizeListSettings({ statuses: { project: saved } as any, projectDomains: ['IT', ' RH ', 'IT'] });
+    expect(n.statuses.project.map((s) => s.key)).toEqual(['en_cours', 'idee', 'cadrage', 'planifie', 'recette', 'production', 'en_pause', 'termine', 'abandonne']);
+    expect(n.statuses.project.find((s) => s.key === 'planifie')!.label).toBe('Planifié');
+    expect(n.projectDomains).toEqual(['IT', 'RH']);
   });
 });
 

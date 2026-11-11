@@ -16,10 +16,10 @@ import {
   type ProjectSection,
 } from '@samm/shared';
 import { api, ApiError } from '../api';
-import { ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
+import { ErrorBox, Modal, MultiSelect, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { DueLabel, HealthBadge, MarkdownField, MarkdownView, days, euros, useProject } from './common';
 import { hasPending } from './ProjectPage';
-import { StatusOptions } from '../settings/context';
+import { StatusOptions, useSettings } from '../settings/context';
 import { UserChoices, useUsers } from '../users/context';
 import { ringClass, useRingHolder } from '../anneau/Anneau';
 
@@ -62,6 +62,7 @@ export function OverviewTab() {
             <div><dt>{p.chefDeProjetIds.length > 1 ? 'Chefs de projet' : 'Chef de projet'}</dt><dd>{p.chefDeProjetIds.length ? p.chefDeProjetIds.map(name).join(', ') : p.chefDeProjet ? <>{p.chefDeProjet} <span className="muted small">(hors annuaire)</span></> : '—'}</dd></div>
             <div><dt>Suivi par</dt><dd>{p.followers.length ? p.followers.map(name).join(', ') : '—'}</dd></div>
             <div><dt>Demandeur</dt><dd>{p.demandeur || '—'}</dd></div>
+            <div><dt>Domaines</dt><dd>{p.domains.length ? p.domains.join(', ') : '—'}</dd></div>
             <div><dt>Début</dt><dd>{p.startDate ? formatDate(p.startDate) : '—'}</dd></div>
             <div><dt>Fin visée</dt><dd>{p.targetDate ? <DueLabel date={p.targetDate} done={p.status === 'termine'} /> : '—'}</dd></div>
           </dl>
@@ -292,6 +293,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
   const [f, setF] = useState<ProjectFields>(() => fieldsOf(project));
   const [tags, setTags] = useState(project.tags.join(', '));
+  const { lists } = useSettings();
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof ProjectFields>(k: K, v: ProjectFields[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -300,7 +302,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      const fields = { ...f, tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))].slice(0, 20) };
+      const fields = { ...f, blockedReason: f.blocked ? f.blockedReason : '', tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))].slice(0, 20) };
       setProject(await api.updateProject(project.id, project.rev, fields));
       toast('Fiche enregistrée.');
       onDone();
@@ -365,6 +367,14 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <input className="input" value={f.healthComment} onChange={(e) => set('healthComment', e.target.value)} />
         </label>
         <div className="field span-2">
+          <label className="check">
+            <input type="checkbox" checked={f.blocked} onChange={(e) => set('blocked', e.target.checked)} /> ⛔ Projet bloqué
+          </label>
+          {f.blocked && (
+            <input className="input" value={f.blockedReason} maxLength={500} onChange={(e) => set('blockedReason', e.target.value)} placeholder="Raison du blocage, ex. En attente de la validation du devis par la direction" aria-label="Raison du blocage" />
+          )}
+        </div>
+        <div className="field span-2">
           <span>Chefs de projet <span className="muted">(un ou plusieurs, ex. un pour l’ERP et un pour le Web)</span></span>
           {!f.chefDeProjetIds.length && f.chefDeProjet && <span className="muted small">Actuellement : {f.chefDeProjet} (hors annuaire)</span>}
           <UserChoices value={f.chefDeProjetIds} onChange={(v) => setF((x) => ({ ...x, chefDeProjetIds: v, chefDeProjet: '' }))} />
@@ -373,6 +383,10 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <span>Demandeur</span>
           <input className="input" value={f.demandeur} onChange={(e) => set('demandeur', e.target.value)} />
         </label>
+        <div className="field span-2">
+          <span>Domaines</span>
+          <DomainChoices value={f.domains} onChange={(v) => set('domains', v)} options={lists.projectDomains} />
+        </div>
         <label className="field">
           <span>Date de début</span>
           <input className="input" type="date" value={f.startDate} onChange={(e) => set('startDate', e.target.value)} />
@@ -412,6 +426,20 @@ function FicheForm({ onDone }: { onDone: () => void }) {
       </div>
       <p className="muted small">Dernière modification le {formatDateTime(project.updatedAt)} par {shortUser(project.updatedBy)}.</p>
     </section>
+  );
+}
+
+/** Domaines d'un projet : ceux du paramétrage ; un domaine retiré du paramétrage reste affiché pour pouvoir l'enlever. */
+export function DomainChoices({ value, onChange, options }: { value: string[]; onChange: (v: string[]) => void; options: string[] }) {
+  const all = [...options, ...value.filter((d) => !options.includes(d))];
+  return (
+    <MultiSelect
+      value={value}
+      onChange={onChange}
+      options={all.map((d) => ({ value: d, label: d, hint: options.includes(d) ? undefined : 'retiré du paramétrage' }))}
+      placeholder="Choisir un ou plusieurs domaines…"
+      empty="Aucun domaine ne correspond (à ajouter dans le paramétrage)"
+    />
   );
 }
 

@@ -63,6 +63,9 @@ export const DEFAULT_CONTACT_ROLES = [
 /** Types proposés à la création d'un ticket : le titre commence par le type en majuscules (« [DEV] - Nom du projet »). */
 export const DEFAULT_TICKET_TYPES = ['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif'];
 
+/** Domaines proposés pour un projet (choix multiple). */
+export const DEFAULT_PROJECT_DOMAINS = ['IT', 'Logistique', 'Marketing', 'Finance'];
+
 const TICKET_TYPE_PREFIX = /^\[[^\]]*\] - /;
 
 /** Titre proposé pour un nouveau ticket : « [DEV] - Nom du projet » (sans projet : « [DEV] - », à compléter). */
@@ -94,6 +97,8 @@ export const listSettingsSchema = z.object({
   contactRoles: suggestions,
   /** Types de tickets proposés à la création (absent des anciens enregistrements : valeurs d'origine). */
   ticketTypes: suggestions.default(DEFAULT_TICKET_TYPES),
+  /** Domaines proposés pour les projets (absent des anciens enregistrements : valeurs d'origine). */
+  projectDomains: suggestions.default(DEFAULT_PROJECT_DOMAINS),
   /** Fonds conditionnels des cartes du tableau de sprint, dans l'ordre d'évaluation. */
   cardRules: z.array(cardRuleSchema).max(MAX_CARD_RULES, `${MAX_CARD_RULES} règles au maximum`).default([]),
 });
@@ -105,6 +110,7 @@ export function defaultListSettings(): ListSettings {
     jalonLabels: [...DEFAULT_JALON_LABELS],
     contactRoles: [...DEFAULT_CONTACT_ROLES],
     ticketTypes: [...DEFAULT_TICKET_TYPES],
+    projectDomains: [...DEFAULT_PROJECT_DOMAINS],
     cardRules: [],
   };
 }
@@ -126,7 +132,13 @@ export function normalizeListSettings(raw: Partial<ListSettings> | null | undefi
       seen.add(s.key);
       list.push({ key: s.key, label: s.label?.trim() || spec.labels[s.key]!, hidden: !!s.hidden && !(spec.locked as readonly string[]).includes(s.key) });
     }
-    for (const d of def.statuses[k]) if (!seen.has(d.key)) list.push(d);
+    // Statut manquant (ex. « Planifié », ajouté depuis l'enregistrement) : placé après celui qui le précède d'origine, sinon à la fin.
+    for (const [i, d] of def.statuses[k].entries()) {
+      if (seen.has(d.key)) continue;
+      const prev = def.statuses[k].slice(0, i).reverse().find((p) => list.some((x) => x.key === p.key));
+      list.splice(prev ? list.findIndex((x) => x.key === prev.key) + 1 : list.length, 0, d);
+      seen.add(d.key);
+    }
     statuses[k] = list;
   }
   const clean = (xs: string[] | undefined, fallback: string[]) => (xs ? [...new Set(xs.map((x) => x.trim()).filter(Boolean))] : fallback);
@@ -134,7 +146,7 @@ export function normalizeListSettings(raw: Partial<ListSettings> | null | undefi
     const ok = cardRuleSchema.safeParse(r);
     return ok.success ? [ok.data] : [];
   });
-  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles), ticketTypes: clean(raw?.ticketTypes, def.ticketTypes), cardRules };
+  return { statuses, jalonLabels: clean(raw?.jalonLabels, def.jalonLabels), contactRoles: clean(raw?.contactRoles, def.contactRoles), ticketTypes: clean(raw?.ticketTypes, def.ticketTypes), projectDomains: clean(raw?.projectDomains, def.projectDomains), cardRules };
 }
 
 export function statusLabel(lists: ListSettings, list: StatusListKey, key: string): string {
