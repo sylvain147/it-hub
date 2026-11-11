@@ -1,6 +1,6 @@
 /**
  * Modules du hub. Pour ajouter une fonctionnalité : créer ses pages, puis la déclarer ici
- * (elle apparaît dans le menu, dans sa section, et sur l'accueil) et dans les routes de `main.tsx`.
+ * (elle apparaît dans le menu, dans sa section) et dans les routes de `main.tsx`.
  *
  * Le menu doit rester court : une entrée par module (les sous-pages s'ouvrent depuis la page du module),
  * quatre entrées au plus par section, et ce qui est déjà accessible ailleurs reste hors du menu (`menu: false`).
@@ -23,9 +23,8 @@ export interface HubModule {
   path: string;
   icon: string;
   section: MenuSection;
-  /** false : hors du menu (accessible autrement), mais présent sur l'accueil si `home` n'est pas false. */
+  /** false : hors du menu (accessible autrement). */
   menu?: boolean;
-  home?: boolean;
 }
 
 export const MODULES: HubModule[] = [
@@ -36,22 +35,13 @@ export const MODULES: HubModule[] = [
     path: '/todo',
     icon: '✅',
     section: 'quotidien',
-    home: false,
   },
   {
     id: 'notes',
     title: 'Notes',
-    description: 'Mon bloc-notes personnel : des notes en vrac, rattachées ou non à un projet, que je suis seul à voir.',
+    description: 'Mon bloc-notes personnel : des notes en vrac, rattachées ou non à un projet, que je suis seul à voir. On y transcrit aussi une réunion en direct.',
     path: '/notes',
     icon: '📝',
-    section: 'quotidien',
-  },
-  {
-    id: 'reunion',
-    title: 'Transcrire une réunion',
-    description: 'Un clic au début de la réunion (Teams, Zoom…) : ce qui est dit s’écrit au fil de l’eau, sans enregistrer le son. L’assistant en fait ensuite le compte rendu dans le projet.',
-    path: '/reunion',
-    icon: '🎙️',
     section: 'quotidien',
   },
   {

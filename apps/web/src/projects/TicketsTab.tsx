@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import { EmptyState } from '../components/ui';
 import { useProject } from './common';
 import { useSettings } from '../settings/context';
+import { TicketProcessDialog } from './TicketProcessDialog';
 import { PlanProjectBar, sprintNameOf, TicketLine, TicketModal, useOpenSprints, type TicketRow } from '../sprints/tickets';
 
 /** Onglet « Tickets » d'un projet : ses tickets, au backlog ou planifiés dans un sprint. */
@@ -16,6 +17,7 @@ export function TicketsTab() {
   // Nouveau ticket : type choisi (« » : sans type, le type est facultatif), ou ticket ouvert.
   const [editing, setEditing] = useState<TicketRow | { type: string } | null>(null);
   const [mine, setMine] = useState(false);
+  const [process, setProcess] = useState(false);
   const [showDone, setShowDone] = useState(false);
 
   const rows: TicketRow[] = project.items.tasks.map((t) => ({ ...t, projectId: project.id, projectName: project.name })).filter((t) => !mine || t.assigneeId === email);
@@ -34,6 +36,7 @@ export function TicketsTab() {
             <button key={t} className="btn btn-sm" onClick={() => setEditing({ type: t })} title={`Titre proposé : ${ticketTypeTitle(t, project.name)}`}>{t}</button>
           ))}
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing({ type: '' })}>Sans type</button>
+          <button className="btn btn-sm btn-primary" onClick={() => setProcess(true)} title="Crée d’un coup les tickets Cadrage, Dev, Recette, Correctif et MEP">⚡ Process complet</button>
           <span className="tb-flex" />
           <label className="check">
             <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Seulement les miens
@@ -41,7 +44,7 @@ export function TicketsTab() {
         </div>
         <PlanProjectBar projectId={project.id} projectName={project.name} count={backlog} open={sprints} onDone={reload} />
         {!project.items.tasks.length ? (
-          <EmptyState>Aucun ticket. Choisissez un type ci-dessus pour en créer un, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
+          <EmptyState>Aucun ticket. Choisissez un type ci-dessus pour en créer un, « Process complet » pour créer d’un coup les tickets de cadrage, dev, recette, correctif et MEP, ou faites-les proposer par l’assistant à partir d’un compte rendu de réunion (onglet Journal).</EmptyState>
         ) : (
           <>
             {open.length ? (
@@ -69,6 +72,7 @@ export function TicketsTab() {
           Les tickets se planifient dans les sprints et avancent sur le tableau du sprint en cours : <Link to="/sprints">page Tickets</Link>.
         </p>
       </section>
+      {process && <TicketProcessDialog sprints={sprints} onClose={() => setProcess(false)} />}
       {editing && (
         <TicketModal
           ticket={'id' in editing ? editing : null}

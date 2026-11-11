@@ -8,6 +8,8 @@ import {
   HEALTH_LABELS,
   markdownToDoc,
   PRIORITY_LABELS,
+  PROJECT_STEPS,
+  projectStepIndex,
   type Health,
   type JobInfo,
   type Priority,
@@ -85,6 +87,38 @@ export function HealthBadge({ health, withLabel = true }: { health: Health; with
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   const { label } = useSettings();
   return <span className={`badge pstatus-${status}`}>{label('project', status)}</span>;
+}
+
+/**
+ * Frise d'avancement d'un projet : une flèche par étape (cadrage → terminé), chacune de la couleur du badge de son
+ * statut (`pstatus-*`). Les étapes passées sont en couleur claire, l'étape en cours en couleur pleine ; un projet bloqué a son étape en rouge, avec la raison. Hors frise (idée, en pause, abandonné) : tout
+ * reste gris, avec le statut à côté.
+ */
+export function ProjectSteps({ project, compact }: { project: { status: ProjectStatus; blocked?: boolean; blockedReason?: string }; compact?: boolean }) {
+  const { label } = useSettings();
+  const current = projectStepIndex(project.status);
+  const blocked = !!project.blocked;
+  return (
+    <div className={`psteps${compact ? ' psteps-compact' : ''}`}>
+      <ol className="psteps-arrows" aria-label={`Avancement : ${label('project', project.status)}${blocked ? ' (bloqué)' : ''}`}>
+        {PROJECT_STEPS.map((step, i) => {
+          const state = i < current ? 'past' : i === current ? (blocked ? 'blocked' : 'current') : 'future';
+          return (
+            <li key={step} className={`pstep pstep-${state} pstep-${step}`} title={label('project', step)} aria-current={i === current ? 'step' : undefined}>
+              <span>{state === 'blocked' && '⛔ '}{label('project', step)}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {current < 0 && <span className={`badge pstatus-${project.status}`}>{label('project', project.status)}</span>}
+      {blocked && (
+        <div className="psteps-blocked">
+          <strong>Bloqué</strong>
+          {project.blockedReason ? ` : ${project.blockedReason}` : ' (raison non précisée)'}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PriorityTag({ priority, hideNormal }: { priority: Priority; hideNormal?: boolean }) {

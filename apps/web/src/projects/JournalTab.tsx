@@ -16,6 +16,8 @@ import { EmptyState, Modal, Spinner, formatDate, formatDateTime, shortUser, toas
 import { ItemModal, MarkdownField, MarkdownView, useItemActions, useProject } from './common';
 import { fieldsOf } from './OverviewTab';
 import { hasPending } from './ProjectPage';
+import { meetingPath } from '../meetings/recorder';
+import { GandalfActionsButton } from '../assistant/Gandalf';
 
 export function JournalTab() {
   const { project, jobBusy, onJob } = useProject();
@@ -132,6 +134,7 @@ function NoteCard({ note, onEdit }: { note: Note; onEdit: () => void }) {
         </div>
         <div className="note-actions">
           <button className="btn-icon" title={note.pinned ? 'Désépingler' : 'Épingler en haut du journal'} onClick={() => void togglePin()}>📌</button>
+          <GandalfActionsButton what={`une entrée du journal du projet ${project.name}`} title={note.title} content={note.content} />
           <button className="btn-icon" title="Copier" onClick={copy}>⧉</button>
           <button className="btn-icon" title="Modifier" onClick={onEdit}>✏️</button>
           <button className="btn-icon danger" title="Supprimer" onClick={() => actions.remove('notes', note.id, note.title)}>🗑</button>
@@ -326,7 +329,7 @@ function DigestDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <p className="muted small">
-        Collez la transcription (Teams, dictée…) ou vos notes en vrac — ou <Link to={`/reunion?projet=${project.id}`}>🎙️ transcrivez la réunion en direct</Link>. L’assistant rédige le compte rendu dans le journal et propose les tickets, jalons et risques à
+        Collez la transcription (Teams, dictée…) ou vos notes en vrac — ou <Link to={meetingPath(project.id)}>🎙️ transcrivez la réunion en direct</Link>. L’assistant rédige le compte rendu dans le journal et propose les tickets, jalons et risques à
         ajouter : rien n’est ajouté au projet sans votre validation. La transcription brute est conservée avec le compte rendu.
       </p>
       <div className="form-grid">

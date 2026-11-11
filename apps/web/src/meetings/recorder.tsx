@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router';
 
 /**
  * Transcription d'une réunion en direct, par la reconnaissance vocale du navigateur (Chrome, Edge) : seul le texte
@@ -174,15 +174,25 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** La transcription se fait dans la page Notes (panneau ouvert par `?reunion`). */
+export const MEETING_PATH = '/notes?reunion=1';
+export const meetingPath = (projectId?: string) => (projectId ? `${MEETING_PATH}&projet=${encodeURIComponent(projectId)}` : MEETING_PATH);
+
+/** Ancienne adresse `/reunion?projet=…` : le panneau de transcription de la page Notes. */
+export function MeetingRedirect() {
+  const [params] = useSearchParams();
+  return <Navigate to={meetingPath(params.get('projet') ?? undefined)} replace />;
+}
+
 export const formatElapsed = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 /** Pastille « transcription en cours » sur les autres pages du hub. */
 export function RecordingPill() {
   const { recording, elapsed } = useMeetingRecorder();
-  const { pathname } = useLocation();
-  if (!recording || pathname === '/reunion') return null;
+  const { pathname, search } = useLocation();
+  if (!recording || (pathname === '/notes' && search.includes('reunion'))) return null;
   return (
-    <Link to="/reunion" className="rec-pill" title="Revenir à la transcription">
+    <Link to={MEETING_PATH} className="rec-pill" title="Revenir à la transcription">
       <span className="rec-dot" /> Transcription en cours · {formatElapsed(elapsed)}
     </Link>
   );

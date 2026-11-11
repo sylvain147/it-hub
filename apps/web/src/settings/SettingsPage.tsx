@@ -39,7 +39,7 @@ const TABS: { id: Tab; label: string; permission?: Permission }[] = [
   { id: 'prestataires', label: 'Prestataires et contacts' },
   { id: 'statuts', label: 'Statuts' },
   { id: 'tableau', label: 'Tableau des sprints' },
-  { id: 'listes', label: 'Jalons et rôles' },
+  { id: 'listes', label: 'Listes de valeurs' },
   { id: 'teams', label: 'Teams', permission: 'manageIntegrations' },
 ];
 
@@ -623,6 +623,13 @@ function SuggestionsTab() {
           values={draft.ticketTypes}
           onChange={(v) => setDraft((d) => ({ ...d, ticketTypes: v }))}
           reset={() => setDraft((d) => ({ ...d, ticketTypes: defaultListSettings().ticketTypes }))}
+        />
+        <SuggestionList
+          title="Domaines des projets"
+          hint="Proposés en choix multiple sur la fiche d’un projet (IT, Logistique…) ; la liste des projets se filtre par domaine. Retirer un domaine ne l’enlève pas des projets qui l’ont déjà."
+          values={draft.projectDomains}
+          onChange={(v) => setDraft((d) => ({ ...d, projectDomains: v }))}
+          reset={() => setDraft((d) => ({ ...d, projectDomains: defaultListSettings().projectDomains }))}
         />
       </div>
       {bar}

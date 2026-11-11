@@ -11,6 +11,9 @@ import {
   assistantAskBody,
   parisDay,
   themeAssistant,
+  nameKey,
+  ticketTypeTitle,
+  type HubUser,
   type AssistantAction,
   type AssistantAnswer,
   type AssistantMessage,
@@ -41,21 +44,32 @@ const MAX_ACTIONS = 10;
 
 /**
  * Propositions de l'IA ramenées à ce que le hub accepte : projet existant (sinon aucun), date valide, intitulé non vide,
- * jalon seulement avec un projet. Le nom du projet est recopié par le code.
+ * jalon seulement avec un projet, type de ticket du paramétrage (posé en préfixe du titre), responsable actif.
+ * Le nom du projet est recopié par le code.
  */
-export function sanitizeActions(raw: AssistantOutput['actions'], projects: ProjectSummary[]): AssistantAction[] {
+export function sanitizeActions(
+  raw: AssistantOutput['actions'],
+  projects: ProjectSummary[],
+  refs: { ticketTypes?: string[]; users?: HubUser[] } = {},
+): AssistantAction[] {
   const byId = new Map(projects.map((p) => [p.id, p]));
   return raw
     .map((a) => {
       const project = byId.get(a.projectId.trim().replace(/^\/?projets\//, ''));
+      const type = a.kind === 'ticket' ? refs.ticketTypes?.find((t) => nameKey(t) === nameKey(a.ticketType ?? '')) : undefined;
+      // Titre déjà préfixé par l'IA (« [DEV] - … ») : le préfixe n'est pas doublé.
+      const bare = a.title.trim().replace(/^\[[^\]]*\]\s*-\s*/, type ? '' : '$&');
+      const title = type ? ticketTypeTitle(type, bare || project?.name || '') : bare;
+      const assignee = a.kind !== 'jalon' ? refs.users?.find((u) => u.active && u.email === (a.assigneeId ?? '').trim().toLowerCase()) : undefined;
       return {
         kind: a.kind,
-        title: a.title.trim().slice(0, 300),
+        title: title.trim().slice(0, 300),
         details: a.details.trim().slice(0, 4000),
         projectId: project?.id ?? '',
         projectName: project?.name ?? '',
         dueDate: /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate.trim()) ? a.dueDate.trim() : '',
         priority: a.priority,
+        assigneeId: assignee?.email ?? '',
         reason: a.reason.trim().slice(0, 300),
       };
     })
@@ -131,7 +145,7 @@ export function assistantRoutes() {
       answer: out.answer.trim(),
       followUps: out.followUps.map((q) => q.trim()).filter(Boolean).slice(0, 3),
       projects: focus.map((p) => ({ id: p.id, name: p.name })),
-      actions: sanitizeActions(out.actions, data.projects),
+      actions: sanitizeActions(out.actions, data.projects, { ticketTypes: data.lists.ticketTypes, users: data.users }),
     };
     return c.json(res);
   });

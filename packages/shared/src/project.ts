@@ -12,11 +12,12 @@ const isoDate = z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Date invalide (AAAA-
 // Listes de valeurs
 // ---------------------------------------------------------------------------
 
-export const PROJECT_STATUSES = ['idee', 'cadrage', 'en_cours', 'recette', 'production', 'en_pause', 'termine', 'abandonne'] as const;
+export const PROJECT_STATUSES = ['idee', 'cadrage', 'planifie', 'en_cours', 'recette', 'production', 'en_pause', 'termine', 'abandonne'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   idee: 'Idée',
   cadrage: 'Cadrage',
+  planifie: 'Planifié',
   en_cours: 'En cours',
   recette: 'En recette',
   production: 'En production',
@@ -26,6 +27,17 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
 };
 /** Statuts considérés comme « clos » (exclus des vues par défaut). */
 export const CLOSED_PROJECT_STATUSES: ProjectStatus[] = ['termine', 'abandonne'];
+
+/**
+ * Étapes de la frise d'avancement d'un projet, dans l'ordre (accueil, page du projet). Les autres statuts (idée, en
+ * pause, abandonné) sont hors frise. Un projet bloqué (`blocked`) reste à son étape, marquée en rouge avec la raison.
+ */
+export const PROJECT_STEPS = ['cadrage', 'planifie', 'en_cours', 'recette', 'production', 'termine'] as const satisfies readonly ProjectStatus[];
+
+/** Rang de l'étape d'un statut dans la frise (0 : cadrage), -1 hors frise. */
+export function projectStepIndex(status: ProjectStatus): number {
+  return (PROJECT_STEPS as readonly ProjectStatus[]).indexOf(status);
+}
 
 export const PRIORITIES = ['basse', 'normale', 'haute', 'critique'] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -153,6 +165,15 @@ export const projectFieldsSchema = z.object({
   /** Budget prévisionnel (€ HT), indépendant des prestations saisies. */
   budgetPrevu: z.number().min(0).max(1e9).nullable().default(null),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  /** Domaines concernés (IT, Logistique…), choisis parmi ceux du paramétrage (`projectDomains`). */
+  domains: z
+    .array(z.string().trim().min(1).max(60))
+    .max(20)
+    .default([])
+    .transform((ds) => [...new Set(ds)]),
+  /** Projet bloqué : il reste à son étape, marquée en rouge sur la frise, avec la raison. */
+  blocked: z.boolean().default(false),
+  blockedReason: z.string().trim().max(500).default(''),
 });
 export type ProjectFields = z.infer<typeof projectFieldsSchema>;
 
@@ -252,6 +273,30 @@ export const taskInputSchema = z.object({
   /** Temps passé, en heures (null : non renseigné). */
   spentHours: hours,
 });
+
+/**
+ * Process complet d'un projet : une série de tickets créés d'un coup, dans cet ordre, chacun titré par son type
+ * (« [CADRAGE] - Nom du projet »).
+ */
+export const TICKET_PROCESS_STEPS = ['Cadrage', 'Dev', 'Recette', 'Correctif', 'MEP'] as const;
+
+export const ticketProcessBody = z.object({
+  /** Étapes retenues (au moins une), créées dans l'ordre de `TICKET_PROCESS_STEPS`. */
+  steps: z.array(z.enum(TICKET_PROCESS_STEPS)).min(1, 'Choisissez au moins une étape.').max(TICKET_PROCESS_STEPS.length),
+  /** Précision ajoutée après le nom du projet (« [DEV] - Nom du projet - Export des commandes »), facultative. */
+  complement: z.string().trim().max(200).default(''),
+  priority: z.enum(PRIORITIES).default('normale'),
+  assigneeId: z.string().trim().toLowerCase().max(200).default(''),
+  /** Sprint des tickets (null : backlog). */
+  sprintId: z.number().int().positive().nullable().default(null),
+});
+export type TicketProcessBody = z.input<typeof ticketProcessBody>;
+
+/** Titres des tickets d'un process, dans l'ordre. */
+export function ticketProcessTitles(projectName: string, steps: readonly string[], complement = ''): string[] {
+  const order = TICKET_PROCESS_STEPS.filter((s) => steps.includes(s));
+  return order.map((s) => `[${s.toUpperCase()}] - ${projectName.trim()}${complement.trim() ? ` - ${complement.trim()}` : ''}`);
+}
 
 /** Tri des tickets : priorité la plus haute d'abord, puis numéro. */
 export const byTicketPriority = (a: Pick<Task, 'priority' | 'number'>, b: Pick<Task, 'priority' | 'number'>) =>

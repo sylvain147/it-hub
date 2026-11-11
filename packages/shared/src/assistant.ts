@@ -51,17 +51,21 @@ export interface AssistantAction {
   dueDate: string;
   /** Priorité d'un ticket. */
   priority: Priority;
+  /** Responsable (utilisateur actif du hub, vérifié par le serveur) ; vide : l'utilisateur qui crée. */
+  assigneeId: string;
   /** Motif court : ce qui, dans le texte, justifie la proposition. */
   reason: string;
 }
 
 export const assistantActionOutputSchema = z.object({
   kind: z.enum(ASSISTANT_ACTION_KINDS),
-  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon)'),
+  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, ce qui suit le préfixe « [TYPE] - »'),
+  ticketType: z.string().describe('Ticket : type parmi les types de tickets du hub (ex. Dev), chaîne vide si aucun ne correspond ou pour une tâche ou un jalon'),
   details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases ; chaîne vide si rien'),
   projectId: z.string().describe('Identifiant du projet concerné (celui des liens /projets/<id>), chaîne vide si aucun'),
   dueDate: z.string().describe('AAAA-MM-JJ si une date est donnée ou se déduit du texte, sinon chaîne vide'),
   priority: z.enum(PRIORITIES),
+  assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable, chaîne vide si personne n’est désigné'),
   reason: z.string().describe('Motif court : ce qui, dans le texte, justifie la proposition'),
 });
 

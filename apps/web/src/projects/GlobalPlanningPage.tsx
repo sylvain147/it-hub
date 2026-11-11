@@ -1,26 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { CLOSED_PROJECT_STATUSES, isJalonLate, isMyProject, jalonDrift, jalonPeriod, type PlanningProject, type PlanningTodo, type ProjectJalon } from '@samm/shared';
+import { CLOSED_PROJECT_STATUSES, isJalonLate, isMyProject, jalonDrift, jalonPeriod, type PlanningProject, type ProjectJalon } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, formatDate, Spinner } from '../components/ui';
-import { useUsers } from '../users/context';
 import { DueLabel, HealthBadge } from './common';
 import { MyProjectsCheck, useMyProjectsFilter } from './mine';
 
+/** Trois vues seulement : le mois, le trimestre, l'année. */
 const PERIODS = [
-  { id: 'semaine', label: '1 semaine' },
-  { id: 'mois', label: '1 mois' },
-  { id: '3', label: '3 mois' },
-  { id: '6', label: '6 mois' },
-  { id: '12', label: '12 mois' },
-  { id: 'tout', label: 'Tout' },
+  { id: 'mois', label: 'Mois', months: 1 },
+  { id: 'trimestre', label: 'Trimestre', months: 3 },
+  { id: 'annee', label: 'Année', months: 12 },
 ] as const;
 type PeriodId = (typeof PERIODS)[number]['id'];
 
-const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-const WEEKDAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const DAY = 86400000;
 
 /** Premier jour du mois de `iso`, décalé de `delta` mois. */
@@ -30,294 +27,242 @@ function monthStart(iso: string, delta = 0): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** `iso` décalé de `delta` jours. */
 function addDays(iso: string, delta: number): string {
   return new Date(Date.parse(iso) + delta * DAY).toISOString().slice(0, 10);
 }
 
-/** Lundi de la semaine de `iso`. */
-function weekStart(iso: string): string {
-  return addDays(iso, -((new Date(iso).getUTCDay() + 6) % 7));
+/** Fenêtre [from, to[ : le mois en cours, le trimestre qui commence ce mois-ci, ou l'année glissante (mois précédent compris). */
+function windowOf(period: PeriodId, today: string, offset: number): { from: string; to: string } {
+  const months = PERIODS.find((p) => p.id === period)!.months;
+  const start = period === 'annee' ? -1 : 0;
+  return { from: monthStart(today, start + months * offset), to: monthStart(today, start + months * (offset + 1)) };
 }
 
-/** Fenêtre affichée [from, to[ : la période choisie autour d'aujourd'hui, décalée de `offset` périodes. */
-function windowOf(period: PeriodId, today: string, offset: number, dates: string[]): { from: string; to: string } {
-  switch (period) {
-    case 'semaine': {
-      const from = addDays(weekStart(today), 7 * offset);
-      return { from, to: addDays(from, 7) };
-    }
-    case 'mois':
-      return { from: monthStart(today, offset), to: monthStart(today, offset + 1) };
-    case '3':
-      return { from: monthStart(today, 3 * offset), to: monthStart(today, 3 * offset + 3) };
-    case '6':
-      return { from: monthStart(today, 6 * offset - 1), to: monthStart(today, 6 * offset + 5) };
-    case '12':
-      return { from: monthStart(today, 12 * offset - 2), to: monthStart(today, 12 * offset + 10) };
-    case 'tout': {
-      const all = [today, ...dates].sort();
-      return { from: monthStart(all[0]!), to: monthStart(all.at(-1)!, 1) };
-    }
-  }
+/** Intitulé de la période : « novembre 2026 », « nov. 2026 – janv. 2027 ». */
+function periodLabel(from: string, to: string): string {
+  const last = addDays(to, -1);
+  const m = (iso: string, short: boolean) => `${(short ? MONTHS_SHORT : MONTHS)[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+  return from.slice(0, 7) === last.slice(0, 7) ? m(from, false) : `${m(from, true)} – ${m(last, true)}`;
 }
 
-/** Graduations de la frise : jours (semaine), lundis (mois), mois et lundis (3 mois), mois au-delà. */
-function ticksOf(period: PeriodId, from: string, to: string): { date: string; label?: string; strong?: boolean }[] {
-  const ticks: { date: string; label?: string; strong?: boolean }[] = [];
-  const dayLabel = (d: string) => `${WEEKDAYS[new Date(d).getUTCDay()]} ${Number(d.slice(8))}`;
-  if (period === 'semaine' || period === 'mois') {
-    for (let d = from; d < to; d = addDays(d, 1)) {
-      const monday = new Date(d).getUTCDay() === 1;
-      ticks.push({ date: d, label: period === 'semaine' || monday ? dayLabel(d) : undefined, strong: period === 'semaine' || monday });
-    }
+/** Graduations : les lundis pour un mois, les mois au-delà. */
+function ticksOf(period: PeriodId, from: string, to: string): { date: string; label: string }[] {
+  const ticks: { date: string; label: string }[] = [];
+  if (period === 'mois') {
+    for (let d = from; d < to; d = addDays(d, 1)) if (new Date(d).getUTCDay() === 1) ticks.push({ date: d, label: `lun. ${Number(d.slice(8))}` });
     return ticks;
   }
-  if (period === '3') for (let d = weekStart(from) < from ? addDays(weekStart(from), 7) : from; d < to; d = addDays(d, 7)) ticks.push({ date: d });
   for (let m = from; m < to; m = monthStart(m, 1)) {
-    ticks.push({ date: m, label: `${MONTHS[Number(m.slice(5, 7)) - 1]}${m.slice(5, 7) === '01' || m === from ? ` ${m.slice(0, 4)}` : ''}`, strong: true });
+    const name = (period === 'annee' ? MONTHS_SHORT : MONTHS)[Number(m.slice(5, 7)) - 1]!;
+    ticks.push({ date: m, label: m.slice(5, 7) === '01' ? `${name} ${m.slice(0, 4)}` : name });
   }
   return ticks;
 }
 
-/** Lien vers le jalon dans l'onglet « Planning » de son projet, ou vers la tâche dans sa to-do. */
 const jalonLink = (p: PlanningProject, j: ProjectJalon) => `/projets/${p.id}?onglet=planning&jalon=${encodeURIComponent(j.id)}`;
-const todoLink = (p: PlanningProject | null, t: PlanningTodo) => (p ? `/projets/${p.id}?onglet=todo&tache=${encodeURIComponent(t.id)}` : `/todo?tache=${encodeURIComponent(t.id)}`);
+const jalonState = (j: ProjectJalon) => (j.done ? 'done' : isJalonLate(j) ? 'late' : 'todo');
 
-const jalonClass = (j: ProjectJalon) => (j.done ? 'tl-done' : isJalonLate(j) ? 'tl-late' : 'tl-todo');
-const todoLate = (t: PlanningTodo, today: string) => !t.done && t.dueDate < today;
-const todoClass = (t: PlanningTodo, today: string) => (t.done ? 'tl-done' : todoLate(t, today) ? 'tl-late' : 'tl-todo');
+/** Hauteur d'une ligne d'étiquettes sur la frise (px). */
+const LANE = 28;
 
-/** Ligne de la frise : un projet, ou « Ma to-do » (tâches hors projet). */
-type Row = Pick<PlanningProject, 'jalons' | 'todos'> & { project: PlanningProject | null };
-
-/** Élément de la liste mois par mois : un jalon ou une tâche de la to-do. */
-type Entry = { kind: 'jalon'; date: string; jalon: ProjectJalon; project: PlanningProject } | { kind: 'todo'; date: string; todo: PlanningTodo; project: PlanningProject | null };
+/** Étiquette placée sur la frise : position et largeur en pixels, ligne attribuée pour ne pas chevaucher les autres. */
+interface Placed {
+  jalon: ProjectJalon;
+  left: number;
+  width: number;
+  lane: number;
+  range: boolean;
+}
 
 /**
- * Frise de tous les projets : une ligne par projet avec ses jalons (ponctuels ou sur une période), sa période
- * (début → fin visée) et, au choix, les tâches de la to-do qui ont une échéance ; puis la liste par mois.
+ * Place les jalons d'un projet en étiquettes lisibles : un jalon ponctuel commence à sa date (ou finit à sa date près du
+ * bord droit), un jalon sur une période couvre ses dates. Deux étiquettes qui se chevauchent passent sur des lignes
+ * différentes.
+ */
+function layout(jalons: ProjectJalon[], x: (iso: string) => number, xEnd: (iso: string) => number, width: number): Placed[] {
+  const lanes: number[] = [];
+  return jalons.map((j) => {
+    // Largeur du libellé (police de 12 px), avec le symbole d'état (⚠, ✓) et les marges.
+    const text = Math.min(280, j.label.length * 7.3 + 24 + (j.done || isJalonLate(j) ? 18 : 0));
+    let left: number;
+    let w: number;
+    const range = !!j.startDate;
+    if (range) {
+      left = Math.max(0, x(j.startDate));
+      w = Math.max(xEnd(j.date) - left, 24);
+    } else {
+      w = text;
+      left = x(j.date) + w > width ? Math.max(0, xEnd(j.date) - w) : x(j.date);
+    }
+    // Étiquette réservée en entier, même si la barre de la période est plus courte que son libellé.
+    const end = left + Math.max(w, Math.min(text, width - left)) + 4;
+    let lane = lanes.findIndex((busyUntil) => busyUntil <= left);
+    if (lane < 0) lane = lanes.length;
+    lanes[lane] = end;
+    return { jalon: j, left, width: w, lane, range };
+  });
+}
+
+/** Largeur de la frise, suivie au redimensionnement de la fenêtre. */
+function useWidth(ready: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(800);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.getBoundingClientRect().width || 800);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ready]);
+  return { ref, width };
+}
+
+/**
+ * Planning : les jalons de tous les projets en cours sur une même frise (une ligne par projet, la période du projet en
+ * fond), puis la liste des échéances de la période. Les jalons se saisissent dans l'onglet « Planning » de chaque projet.
  */
 export function GlobalPlanningPage() {
   const { me } = useAuth();
-  const { name } = useUsers();
   const { data, error, loading } = useLoad(() => api.planning(), []);
-  const mine = useLoad(() => api.todos(), []);
-  const [period, setPeriodId] = useState<PeriodId>('mois');
+  const [period, setPeriodId] = useState<PeriodId>('trimestre');
   // Décalage en nombre de périodes (◀ ▶) ; 0 : la période qui contient aujourd'hui.
   const [offset, setOffset] = useState(0);
-  const setPeriod = (p: PeriodId) => {
-    setPeriodId(p);
-    setOffset(0);
-  };
-  const [withClosed, setWithClosed] = useState(false);
   const [mineOnly, setMineOnly] = useMyProjectsFilter();
-  const [onlyPending, setOnlyPending] = useState(false);
-  const [withTodos, setWithTodos] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
-
-  const rows = useMemo<Row[]>(() => {
-    const keep = (done: boolean) => !onlyPending || !done;
-    const projects = (data ?? [])
-      .filter((p) => (withClosed || !CLOSED_PROJECT_STATUSES.includes(p.status)) && (!mineOnly || isMyProject(p, me.email)))
-      .map((p) => ({
-        project: p,
-        jalons: p.jalons.filter((j) => j.date && keep(j.done)).sort((a, b) => a.date.localeCompare(b.date)),
-        todos: withTodos ? p.todos.filter((t) => keep(t.done)) : [],
-      }))
-      .filter((r) => r.jalons.length || r.todos.length || r.project.startDate || r.project.targetDate);
-    // Ordre : prochaine échéance à venir d'abord, puis les projets sans échéance.
-    const nextOf = (r: Row) => [...r.jalons.filter((j) => !j.done).map((j) => j.date), ...r.todos.filter((t) => !t.done).map((t) => t.dueDate)].sort()[0] ?? '9999';
-    projects.sort((a, b) => nextOf(a).localeCompare(nextOf(b)) || a.project.name.localeCompare(b.project.name, 'fr'));
-    // Ma to-do hors projet (tâches qui me sont attribuées).
-    const personal = withTodos
-      ? (mine.data?.personal ?? [])
-          .filter((t) => !t.projectId && t.dueDate && t.assigneeId === me.email && keep(t.done))
-          .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }))
-      : [];
-    return personal.length ? [...projects, { project: null, jalons: [], todos: personal }] : projects;
-  }, [data, mine.data, withClosed, mineOnly, onlyPending, withTodos, me.email]);
-
-  // Fenêtre affichée, en mois entiers.
-  const dates = rows.flatMap((r) => [...r.jalons.flatMap((j) => [j.startDate, j.date]), ...r.todos.map((t) => t.dueDate), r.project?.startDate ?? '', r.project?.targetDate ?? '']).filter(Boolean);
-  const { from, to } = windowOf(period, today, offset, dates);
-  const min = Date.parse(from);
-  const span = Math.max(Date.parse(to) - min, DAY);
-  /** Bord gauche d'un jour (graduations, début des barres). */
-  const edge = (d: string) => ((Date.parse(d) - min) / span) * 100;
-  /** Milieu d'un jour (points et carrés) : bien placés même sur une frise d'une semaine. */
-  const pos = (d: string) => ((Date.parse(d) + DAY / 2 - min) / span) * 100;
-  /** Fin d'un jour (fin des barres), bornée à la fenêtre. */
-  const edgeEnd = (d: string) => (d < to ? edge(addDays(d, 1)) : 100);
+  const { from, to } = windowOf(period, today, offset);
   const inWindow = (d: string) => d >= from && d < to;
-  const ticks = ticksOf(period, from, to);
+  const track = useWidth(!!data?.length);
+  // La colonne des noms est hors de la frise.
+  const width = Math.max(track.width, 200);
+  const min = Date.parse(from);
+  const span = Date.parse(to) - min;
+  const x = (d: string) => ((Date.parse(d) - min) / span) * width;
+  const xEnd = (d: string) => (d < to ? x(addDays(d, 1)) : width);
 
-  const entries: Entry[] = rows.flatMap((r) => [
-    ...(r.project ? r.jalons.filter((j) => inWindow(j.date)).map((j): Entry => ({ kind: 'jalon', date: j.date, jalon: j, project: r.project! })) : []),
-    ...r.todos.filter((t) => inWindow(t.dueDate)).map((t): Entry => ({ kind: 'todo', date: t.dueDate, todo: t, project: r.project })),
-  ]);
-  entries.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === b.kind ? 0 : a.kind === 'jalon' ? -1 : 1));
-  const byMonth = new Map<string, Entry[]>();
-  for (const e of entries) byMonth.set(e.date.slice(0, 7), [...(byMonth.get(e.date.slice(0, 7)) ?? []), e]);
+  const rows = useMemo(
+    () =>
+      (data ?? [])
+        .filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status) && (!mineOnly || isMyProject(p, me.email)))
+        .map((p) => ({ project: p, jalons: p.jalons.filter((j) => j.date).sort((a, b) => (a.startDate || a.date).localeCompare(b.startDate || b.date)) }))
+        .filter((r) => r.jalons.length || r.project.startDate || r.project.targetDate)
+        // Prochaine échéance d'abord, puis les projets sans échéance.
+        .sort((a, b) => {
+          const next = (r: typeof a) => r.jalons.find((j) => !j.done)?.date ?? '9999';
+          return next(a).localeCompare(next(b)) || a.project.name.localeCompare(b.project.name, 'fr');
+        }),
+    [data, mineOnly, me.email],
+  );
+  const shown = rows.map((r) => ({ ...r, visible: r.jalons.filter((j) => j.date >= from && (j.startDate || j.date) < to) }));
+  const entries = shown
+    .flatMap((r) => r.jalons.filter((j) => inWindow(j.date)).map((j) => ({ jalon: j, project: r.project })))
+    .sort((a, b) => a.jalon.date.localeCompare(b.jalon.date));
   const late = rows.reduce((n, r) => n + r.jalons.filter((j) => isJalonLate(j)).length, 0);
-  const lateTodos = rows.reduce((n, r) => n + r.todos.filter((t) => todoLate(t, today)).length, 0);
+  const ticks = ticksOf(period, from, to);
 
   return (
     <div className="page page-wide">
       <div className="page-head">
         <div>
           <h1>Planning des projets</h1>
-          <p className="muted small">
-            Les jalons de tous les projets sur une même frise, avec les tâches de la to-do qui ont une échéance. Les jalons se saisissent dans l’onglet « Planning » de
-            chaque projet.
-          </p>
-        </div>
-        <div className="actions">
-          <div className="seg" role="group" aria-label="Période">
-            {PERIODS.map((x) => (
-              <button key={x.id} className={x.id === period ? 'on' : ''} onClick={() => setPeriod(x.id)}>{x.label}</button>
-            ))}
-          </div>
-          {period !== 'tout' && (
-            <div className="seg" role="group" aria-label="Naviguer">
-              <button onClick={() => setOffset((o) => o - 1)} title="Période précédente">◀</button>
-              <button className={offset === 0 ? 'on' : ''} onClick={() => setOffset(0)} title="Revenir à aujourd’hui">Aujourd’hui</button>
-              <button onClick={() => setOffset((o) => o + 1)} title="Période suivante">▶</button>
-            </div>
-          )}
+          <p className="muted small">Les jalons des projets en cours. Ils se saisissent dans l’onglet « Planning » de chaque projet.</p>
         </div>
       </div>
 
-      <div className="toolbar-row">
-        <MyProjectsCheck mine={mineOnly} setMine={setMineOnly} />
-        <label className="check"><input type="checkbox" checked={withTodos} onChange={(e) => setWithTodos(e.target.checked)} /> Afficher la to-do</label>
-        <label className="check"><input type="checkbox" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} /> Seulement ce qui reste à faire</label>
-        <label className="check"><input type="checkbox" checked={withClosed} onChange={(e) => setWithClosed(e.target.checked)} /> Inclure les projets clos</label>
-        <strong className="small">Du {formatDate(from)} au {formatDate(addDays(to, -1))}</strong>
-        {late > 0 && <span className="badge badge-danger">{late} jalon(s) en retard</span>}
-        {lateTodos > 0 && <span className="badge badge-danger">{lateTodos} tâche(s) en retard</span>}
+      <div className="toolbar-row planning-toolbar">
+        <div className="seg" role="group" aria-label="Période">
+          {PERIODS.map((p) => (
+            <button key={p.id} className={p.id === period ? 'on' : ''} onClick={() => { setPeriodId(p.id); setOffset(0); }}>{p.label}</button>
+          ))}
+        </div>
+        <div className="planning-nav">
+          <button className="btn btn-sm" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente">◀</button>
+          <strong className="planning-period">{periodLabel(from, to)}</strong>
+          <button className="btn btn-sm" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante">▶</button>
+          {offset !== 0 && <button className="btn btn-sm btn-ghost" onClick={() => setOffset(0)}>Aujourd’hui</button>}
+        </div>
         <span className="tb-flex" />
-        <span className="gp-legend small muted">
-          <span><i className="gp-dot tl-todo" /> jalon à venir</span>
-          <span><i className="gp-dot tl-late" /> en retard</span>
-          <span><i className="gp-dot tl-done" /> atteint</span>
-          {withTodos && <span><i className="gp-square" /> to-do</span>}
-          <span><i className="gp-bar-sample gp-range-sample" /> jalon sur une période</span>
-          <span><i className="gp-bar-sample" /> début → fin visée du projet</span>
-        </span>
+        {late > 0 && <span className="badge badge-danger">{late} jalon{late > 1 ? 's' : ''} en retard</span>}
+        <MyProjectsCheck mine={mineOnly} setMine={setMineOnly} />
       </div>
 
       <ErrorBox error={error} />
       {loading && !data && <Spinner />}
-      {data && !rows.length && <EmptyState>{mineOnly ? 'Rien à afficher pour vos projets (chef de projet ou suivis). Décochez « Mes projets » pour voir toute l’équipe.' : <>Aucun jalon daté. Ajoutez les grandes dates dans l’onglet « Planning » de vos projets.</>}</EmptyState>}
+      {data && !rows.length && (
+        <EmptyState>{mineOnly ? 'Aucun jalon sur vos projets (chef de projet ou suivis). Décochez « Mes projets » pour voir toute l’équipe.' : 'Aucun jalon daté. Ajoutez les grandes dates dans l’onglet « Planning » de vos projets.'}</EmptyState>
+      )}
 
       {rows.length > 0 && (
-        <section className="card gp-card">
-          <div className="gp">
-            <div className="gp-row gp-head">
-              <div className="gp-name" />
-              <div className="gp-track">
-                {ticks.filter((t) => t.label && edge(t.date) < 95).map((t) => (
-                  <span key={`${t.date}${t.strong ? 'm' : 's'}`} className={t.date === today ? 'gp-month gp-month-today' : 'gp-month'} style={{ left: `${edge(t.date)}%` }}>
-                    {t.label}
-                  </span>
-                ))}
+        <section className="card pl-card">
+          <div className="pl">
+            <div className="pl-row pl-head">
+              <div className="pl-name" />
+              <div className="pl-track" ref={track.ref}>
+                {ticks.map((t) => <span key={t.date} className="pl-tick" style={{ left: x(t.date) }}>{t.label}</span>)}
               </div>
             </div>
-            {rows.map((r) => {
-              const p = r.project;
-              const start = p?.startDate && p.startDate < to ? (p.startDate > from ? p.startDate : from) : '';
-              const end = p?.targetDate && p.targetDate >= from ? (p.targetDate < to ? p.targetDate : to) : '';
-              const hidden = r.jalons.filter((j) => !inWindow(j.date)).length + r.todos.filter((t) => !inWindow(t.dueDate)).length;
+            {shown.map(({ project: p, visible }) => {
+              const placed = layout(visible, x, xEnd, width);
+              const lanes = Math.max(1, ...placed.map((e) => e.lane + 1));
+              const start = p.startDate && p.startDate < to ? (p.startDate > from ? p.startDate : from) : '';
+              const end = p.targetDate && p.targetDate >= from ? (p.targetDate < to ? p.targetDate : addDays(to, -1)) : '';
               return (
-                <div key={p?.id ?? 'ma-todo'} className="gp-row">
-                  <div className="gp-name">
-                    {p ? (
-                      <>
-                        <HealthBadge health={p.health} withLabel={false} />
-                        <Link to={`/projets/${p.id}?onglet=planning`} title={p.name}>{p.code ? `${p.code} · ` : ''}{p.name}</Link>
-                      </>
-                    ) : (
-                      <Link to="/todo">✅ Ma to-do (hors projet)</Link>
-                    )}
-                    {hidden > 0 && <span className="muted small" title="Éléments hors de la période affichée">+{hidden}</span>}
+                <div key={p.id} className="pl-row">
+                  <div className="pl-name">
+                    <HealthBadge health={p.health} withLabel={false} />
+                    <Link to={`/projets/${p.id}?onglet=planning`} title={p.name}>{p.name}</Link>
                   </div>
-                  <div className="gp-track">
-                    {ticks.map((t) => <span key={`${t.date}${t.strong ? 'm' : 's'}`} className={t.strong ? 'gp-grid' : 'gp-grid gp-grid-light'} style={{ left: `${edge(t.date)}%` }} />)}
+                  <div className="pl-track" style={{ height: lanes * LANE + 12 }}>
+                    {ticks.map((t) => <span key={t.date} className="pl-grid" style={{ left: x(t.date) }} />)}
                     {start && end && end >= start && (
-                      <span className="gp-bar" style={{ left: `${edge(start)}%`, width: `${edgeEnd(end) - edge(start)}%` }} title={`Du ${formatDate(p!.startDate)} au ${formatDate(p!.targetDate)}`} />
+                      <span className="pl-project" style={{ left: x(start), width: xEnd(end) - x(start) }} title={`Projet : ${p.startDate ? `du ${formatDate(p.startDate)} ` : ''}${p.targetDate ? `au ${formatDate(p.targetDate)}` : ''}`} />
                     )}
-                    {/* Jalons sur une période : une barre du début à la fin, le point marque la fin. */}
-                    {r.jalons.filter((j) => j.startDate && j.startDate < to && j.date >= from).map((j) => {
-                      const a = j.startDate > from ? j.startDate : from;
-                      return (
-                        <Link
-                          key={`p${j.id}`}
-                          to={jalonLink(p!, j)}
-                          className={`gp-range ${jalonClass(j)}`}
-                          style={{ left: `${edge(a)}%`, width: `${edgeEnd(j.date) - edge(a)}%` }}
-                          title={`${j.label} — ${jalonPeriod(j, formatDate)}`}
-                        />
-                      );
-                    })}
-                    {/* Libellés alternés au-dessus et en dessous de l'axe : deux jalons proches ne se chevauchent pas. */}
-                    {r.jalons.filter((j) => inWindow(j.date)).map((j, i) => (
+                    {inWindow(today) && <span className="pl-today" style={{ left: x(today) + (xEnd(today) - x(today)) / 2 }} />}
+                    {placed.map(({ jalon: j, left, width: w, lane, range }) => (
                       <Link
                         key={j.id}
-                        to={jalonLink(p!, j)}
-                        className={`gp-jalon ${jalonClass(j)} ${i % 2 ? 'gp-below' : 'gp-above'}${pos(j.date) > 85 ? ' gp-end' : ''}`}
-                        style={{ left: `${pos(j.date)}%` }}
-                        title={`${j.label} — ${jalonPeriod(j, formatDate)}${j.done ? ' (atteint)' : ''} : ouvrir le jalon`}
+                        to={jalonLink(p, j)}
+                        className={`pl-chip pl-${jalonState(j)}${range ? ' pl-range' : ''}`}
+                        style={{ left, top: 6 + lane * LANE, ...(range ? { width: w } : { maxWidth: w }) }}
+                        title={`${j.label} — ${jalonPeriod(j, formatDate)}${j.done ? ' (atteint)' : isJalonLate(j) ? ' (en retard)' : ''}`}
                       >
-                        <i className="gp-dot" />
-                        <span className="gp-label">{j.label}</span>
+                        {j.done ? '✓ ' : isJalonLate(j) ? '⚠ ' : ''}
+                        {j.label}
                       </Link>
                     ))}
-                    {/* To-do : un petit carré à l'échéance, le détail au survol et dans la liste. */}
-                    {r.todos.filter((t) => inWindow(t.dueDate)).map((t) => (
-                      <Link
-                        key={t.id}
-                        to={todoLink(p, t)}
-                        className={`gp-todo ${todoClass(t, today)}`}
-                        style={{ left: `${pos(t.dueDate)}%` }}
-                        title={`To-do : ${t.title} — ${formatDate(t.dueDate)}${t.assigneeId && t.assigneeId !== me.email ? ` (${name(t.assigneeId)})` : ''}${t.done ? ' (faite)' : ''} : ouvrir la tâche`}
-                      >
-                        <i className="gp-square" />
-                      </Link>
-                    ))}
-                    {inWindow(today) && <span className="gp-today" style={{ left: `${pos(today)}%` }} />}
                   </div>
                 </div>
               );
             })}
           </div>
+          <p className="pl-legend muted small">
+            <span className="pl-chip pl-todo pl-sample">À venir</span>
+            <span className="pl-chip pl-late pl-sample">⚠ En retard</span>
+            <span className="pl-chip pl-done pl-sample">✓ Atteint</span>
+            <span><i className="pl-project pl-sample-bar" /> Durée du projet</span>
+          </p>
         </section>
       )}
 
-      {byMonth.size > 0 && (
+      {entries.length > 0 && (
         <section className="card">
-          <h2>Échéances de la période</h2>
-          {[...byMonth].map(([month, list]) => (
-            <div key={month} className="gp-month-block">
-              <h3>{MONTHS[Number(month.slice(5, 7)) - 1]} {month.slice(0, 4)}</h3>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 130 }}>Date</th>
-                      <th>Jalon ou tâche</th>
-                      <th>Projet</th>
-                      <th>Glissement</th>
-                      <th>État</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((e) => (e.kind === 'jalon' ? <JalonRow key={e.jalon.id} j={e.jalon} project={e.project} /> : <TodoRow key={e.todo.id} t={e.todo} project={e.project} today={today} />))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
+          <h2>Échéances : {periodLabel(from, to)}</h2>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: 190 }}>Date</th>
+                  <th>Jalon</th>
+                  <th>Projet</th>
+                  <th>État</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e) => <JalonRow key={e.jalon.id} j={e.jalon} project={e.project} />)}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>
@@ -335,30 +280,9 @@ function JalonRow({ j, project }: { j: ProjectJalon; project: PlanningProject })
       </td>
       <td><Link to={`/projets/${project.id}?onglet=planning`}>{project.name}</Link></td>
       <td>
-        {drift !== 0 ? (
-          <span className={drift > 0 ? 'due-late' : 'ok-text'} title={`Date initiale : ${formatDate(j.initialDate)}`}>{drift > 0 ? '+' : ''}{drift} j</span>
-        ) : (
-          <span className="muted">—</span>
-        )}
+        {j.done ? <span className="badge badge-ok">Atteint</span> : isJalonLate(j) ? <span className="badge badge-danger">En retard</span> : <span className="badge">À venir</span>}
+        {drift > 0 && <span className="due-late small" title={`Date initiale : ${formatDate(j.initialDate)}`}> décalé de {drift} j</span>}
       </td>
-      <td>{j.done ? <span className="badge badge-ok">Atteint</span> : isJalonLate(j) ? <span className="badge badge-danger">En retard</span> : <span className="badge">À venir</span>}</td>
-    </tr>
-  );
-}
-
-function TodoRow({ t, project, today }: { t: PlanningTodo; project: PlanningProject | null; today: string }) {
-  const { me } = useAuth();
-  const { name } = useUsers();
-  return (
-    <tr className={t.done ? 'row-done' : ''}>
-      <td><DueLabel date={t.dueDate} done={t.done} /></td>
-      <td>
-        <span className="badge badge-todo">To-do</span> <Link to={todoLink(project, t)}>{t.title}</Link>
-        {t.assigneeId && t.assigneeId !== me.email && <div className="muted small">{name(t.assigneeId)}</div>}
-      </td>
-      <td>{project ? <Link to={`/projets/${project.id}?onglet=todo`}>{project.name}</Link> : <Link to="/todo">Ma to-do</Link>}</td>
-      <td><span className="muted">—</span></td>
-      <td>{t.done ? <span className="badge badge-ok">Faite</span> : todoLate(t, today) ? <span className="badge badge-danger">En retard</span> : <span className="badge">À faire</span>}</td>
     </tr>
   );
 }

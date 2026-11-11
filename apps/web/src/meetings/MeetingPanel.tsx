@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { ASSISTANT_QUESTION_MAX, MAX_PROJECT_TRANSCRIPT_CHARS } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, ErrorBox, Spinner, toast } from '../components/ui';
@@ -12,29 +12,25 @@ import { useAssistant } from '../theme';
 const MAX_NOTE_CHARS = 50_000;
 
 /**
- * Transcrire une réunion : on lance l'écoute au début de la réunion (Teams, Zoom… dans une autre application),
- * le texte s'écrit au fil de l'eau ; à la fin, l'assistant en fait le compte rendu dans le journal du projet
- * (avec les tickets, jalons et risques à valider), ou on garde la transcription comme note.
+ * Transcrire une réunion, depuis la page Notes : on lance l'écoute au début de la réunion (Teams, Zoom… dans une autre
+ * application), le texte s'écrit au fil de l'eau ; à la fin, on la garde comme note, l'assistant en fait le compte rendu
+ * dans le journal du projet (avec les tickets, jalons et risques à valider), ou Gandalf propose les actions.
+ * `projectId` (lien depuis un projet) présélectionne le projet, sauf pendant une transcription déjà commencée.
  */
-export function MeetingPage() {
+export function MeetingPanel({ projectId, onClose, onNoteSaved }: { projectId?: string; onClose: () => void; onNoteSaved: () => Promise<void> | void }) {
   const r = useMeetingRecorder();
   const { draft, setDraft } = r;
   const navigate = useNavigate();
   const projects = useProjectRefs();
-  const [params, setParams] = useSearchParams();
   const [busy, setBusy] = useState<'ia' | 'note' | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const assistant = useAssistant();
 
-  // Lien depuis un projet (ou le menu, depuis la page d'un projet) : `?projet=` présélectionne le projet, sauf pendant
-  // une transcription en cours ou déjà commencée.
   useEffect(() => {
-    const p = params.get('projet');
-    if (p) {
-      if (!r.recording && !draft.text.trim()) setDraft({ projectId: p });
-      setParams({}, { replace: true });
-    }
-  }, [params, setParams, setDraft, r.recording, draft.text]);
+    if (projectId && !r.recording && !draft.text.trim()) setDraft({ projectId });
+    // Seulement à l'ouverture du panneau.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   // Le texte défile avec la transcription, sauf si l'on est remonté le relire.
   useEffect(() => {
@@ -72,7 +68,9 @@ export function MeetingPage() {
       await api.createNote({ title, content: draft.text.slice(0, MAX_NOTE_CHARS), projectId: draft.projectId });
       toast(draft.text.length > MAX_NOTE_CHARS ? 'Note enregistrée (transcription tronquée : trop longue pour une note).' : 'Transcription enregistrée dans vos notes.');
       r.clear();
-      navigate('/notes');
+      setBusy(null);
+      onClose();
+      await onNoteSaved();
     } catch (e) {
       toast((e as Error).message, 'error');
       setBusy(null);
@@ -86,15 +84,16 @@ export function MeetingPage() {
   }
 
   return (
-    <div className="page">
-      <div className="page-head">
+    <div className="meeting-panel">
+      <div className="card-head">
         <div>
-          <h1>🎙️ Transcrire une réunion</h1>
-          <p className="muted">
+          <h2>🎙️ Transcrire une réunion</h2>
+          <p className="muted small">
             Lancez l’écoute au début de la réunion (Teams, Zoom… dans une autre fenêtre) : ce qui est dit s’écrit ici au fil de l’eau. Le son n’est pas enregistré, seul
-            le texte est gardé. À la fin, l’assistant en fait le compte rendu dans le journal du projet.
+            le texte est gardé. À la fin, gardez-la comme note ou faites-en le compte rendu dans le journal du projet.
           </p>
         </div>
+        <button className="btn btn-sm" onClick={onClose} title={r.recording ? 'La transcription continue en arrière-plan' : undefined}>Fermer</button>
       </div>
 
       {!r.supported ? (
@@ -104,7 +103,7 @@ export function MeetingPage() {
         </EmptyState>
       ) : (
         <>
-          <section className="card meeting-controls">
+          <div className="meeting-controls">
             <div className="form-grid form-grid-4">
               <label className="field span-2">
                 <span>Titre <span className="muted">(facultatif)</span></span>
@@ -136,9 +135,9 @@ export function MeetingPage() {
               changer de page pendant la réunion, la transcription continue (sans fermer l’onglet). La reconnaissance vocale est assurée par le navigateur (service de
               Google pour Chrome, de Microsoft pour Edge).
             </p>
-          </section>
+          </div>
 
-          <section className="card">
+          <div className="mt">
             <textarea
               ref={textRef}
               className="input transcript meeting-text"
@@ -175,7 +174,7 @@ export function MeetingPage() {
               et jalons à créer, quel que soit le projet, sans compte rendu.
               {!draft.projectId && <> Choisissez le projet pour l’activer, ou <Link to="/projets">créez-le</Link>.</>}
             </p>
-          </section>
+          </div>
         </>
       )}
     </div>

@@ -61,6 +61,8 @@ function projectLine(p: ProjectSummary, d: AssistantData): string {
   return [
     `- ${projectLink(p)}${p.code ? ` (${p.code})` : ''}`,
     statusLabel(d.lists, 'project', p.status),
+    p.blocked && `BLOQUÉ${p.blockedReason ? ` (${cut(p.blockedReason, 160)})` : ''}`,
+    p.domains?.length && `domaines : ${p.domains.join(', ')}`,
     `priorité ${p.priority}`,
     `météo ${HEALTH_LABELS[p.health]}${p.healthComment ? ` (${cut(p.healthComment, 120)})` : ''}`,
     p.chefDeProjet && `chef(s) : ${p.chefDeProjet}`,
@@ -145,6 +147,8 @@ export function globalContext(d: AssistantData): string {
   return [
     `# Données du hub au ${weekday} ${d.today}`,
     `Utilisateur : ${d.me.name} (${d.me.email}). « Je », « mes », « moi » désignent cet utilisateur.`,
+    section('Équipe (utilisateurs du hub)', d.users.filter((u) => u.active).map((u) => `- ${u.name} (${u.email})`)),
+    section('Types de tickets', [d.lists.ticketTypes.join(', ')]),
     section('Mes projets (chef de projet ou suivi)', mine.map((p) => projectLine(p, d))),
     section('Autres projets en cours', others.map((p) => projectLine(p, d))),
     closed.length ? section('Projets clos', [closed.map((p) => `${projectLink(p)} (${statusLabel(d.lists, 'project', p.status)})`).join(' ; ')]) : '',
