@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ticketTypeTitle, withTicketType } from '../src/settings.js';
+import { processStepOf, ticketProcessTickets } from '../src/project.js';
 import {
   buildSprintPreparation,
   buildSprintReport,
@@ -205,12 +205,17 @@ describe('fonds conditionnels des cartes', () => {
 });
 
 describe('types de tickets', () => {
-  it('propose « [TYPE] - Nom du projet » et change le type d’un titre retouché', () => {
-    expect(ticketTypeTitle('Dev', 'Migration Coliéco')).toBe('[DEV] - Migration Coliéco');
-    expect(ticketTypeTitle('Recette')).toBe('[RECETTE] - ');
-    expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', 'Recette')).toBe('[RECETTE] - Migration Coliéco : écran des tarifs');
-    expect(withTicketType('Écran des tarifs', 'MEP')).toBe('[MEP] - Écran des tarifs');
-    // Type facultatif : le retirer enlève le préfixe.
-    expect(withTicketType('[DEV] - Migration Coliéco : écran des tarifs', '')).toBe('Migration Coliéco : écran des tarifs');
+  it('lit le type des anciens tickets dans leur titre, et range les types dans le process', () => {
+    expect(normalizeTaskRecord({ title: '[DEV] - Migration Coliéco : écran des tarifs' })).toMatchObject({ type: 'DEV', title: 'Migration Coliéco : écran des tarifs' });
+    expect(normalizeTaskRecord({ title: 'Écran des tarifs' })).toMatchObject({ type: '', title: 'Écran des tarifs' });
+    // Ticket enregistré avec son type : le titre n'est pas touché.
+    expect(normalizeTaskRecord({ title: '[A] - B', type: '' })).toMatchObject({ type: '', title: '[A] - B' });
+    expect(processStepOf('DEV')).toBe('Dev');
+    expect(processStepOf('mep')).toBe('MEP');
+    expect(processStepOf('Formation')).toBeNull();
+    expect(ticketProcessTickets('Paie', ['MEP', 'Dev'], 'Lot 2')).toEqual([
+      { type: 'Dev', title: 'Paie - Lot 2', status: 'a_faire' },
+      { type: 'MEP', title: 'Paie - Lot 2', status: 'attente' },
+    ]);
   });
 });

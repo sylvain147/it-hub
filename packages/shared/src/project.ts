@@ -252,6 +252,8 @@ const hours = z
 
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
+  /** Type du ticket (Cadrage, Dev…, parmi les `ticketTypes` du paramétrage), facultatif ; vide : aucun. */
+  type: z.string().trim().max(60).default(''),
   details: z.string().max(10_000).default(''),
   status: z.enum(TICKET_STATUSES).default('a_faire'),
   priority: z.enum(PRIORITIES).default('normale'),
@@ -279,6 +281,36 @@ export const taskInputSchema = z.object({
  * (« [CADRAGE] - Nom du projet »).
  */
 export const TICKET_PROCESS_STEPS = ['Cadrage', 'Dev', 'Recette', 'Correctif', 'MEP'] as const;
+export type TicketProcessStep = (typeof TICKET_PROCESS_STEPS)[number];
+
+/** Clé de comparaison d'un type de ticket (« DEV », « Dev » et « dev » sont le même type). */
+export const ticketTypeKey = (t: string) => t.trim().toLowerCase();
+
+/** Étape du process d'un type de ticket (null : type hors process, ou aucun). */
+export function processStepOf(type: string): TicketProcessStep | null {
+  return TICKET_PROCESS_STEPS.find((s) => ticketTypeKey(s) === ticketTypeKey(type)) ?? null;
+}
+
+/**
+ * Ce qu'on propose quand un ticket du process est terminé : le statut du projet (le premier est proposé, les autres
+ * sont des raccourcis) et l'étape dont le ticket passe « À faire ». Cadrage terminé : « Planifié » (ou directement
+ * « En cours »), le ticket Dev passe à faire ; Dev terminé : « En recette », ticket Recette ; Recette : ticket Correctif ;
+ * Correctif : ticket MEP ; MEP terminée : « En production ».
+ */
+export const PROCESS_NEXT: Record<TicketProcessStep, { statuses: ProjectStatus[]; nextStep: TicketProcessStep | null }> = {
+  Cadrage: { statuses: ['planifie', 'en_cours'], nextStep: 'Dev' },
+  Dev: { statuses: ['recette'], nextStep: 'Recette' },
+  Recette: { statuses: ['recette'], nextStep: 'Correctif' },
+  Correctif: { statuses: ['recette'], nextStep: 'MEP' },
+  MEP: { statuses: ['production'], nextStep: null },
+};
+
+/** Passage à l'étape suivante, après validation de l'utilisateur (`POST /api/projects/:id/tickets/:itemId/suite`). */
+export const processNextBody = z.object({
+  /** Nouveau statut du projet ; null : inchangé. */
+  projectStatus: z.enum(PROJECT_STATUSES).nullable().default(null),
+});
+export type ProcessNextBody = z.input<typeof processNextBody>;
 
 export const ticketProcessBody = z.object({
   /** Étapes retenues (au moins une), créées dans l'ordre de `TICKET_PROCESS_STEPS`. */
@@ -292,10 +324,13 @@ export const ticketProcessBody = z.object({
 });
 export type TicketProcessBody = z.input<typeof ticketProcessBody>;
 
-/** Titres des tickets d'un process, dans l'ordre. */
-export function ticketProcessTitles(projectName: string, steps: readonly string[], complement = ''): string[] {
-  const order = TICKET_PROCESS_STEPS.filter((s) => steps.includes(s));
-  return order.map((s) => `[${s.toUpperCase()}] - ${projectName.trim()}${complement.trim() ? ` - ${complement.trim()}` : ''}`);
+/**
+ * Tickets d'un process, dans l'ordre : type, titre (nom du projet, et la précision) et statut. Le premier est « À faire »,
+ * les suivants « En attente » : ils passent à faire un à un, quand le précédent est terminé.
+ */
+export function ticketProcessTickets(projectName: string, steps: readonly string[], complement = ''): { type: TicketProcessStep; title: string; status: TicketStatus }[] {
+  const title = `${projectName.trim()}${complement.trim() ? ` - ${complement.trim()}` : ''}`;
+  return TICKET_PROCESS_STEPS.filter((s) => steps.includes(s)).map((type, i) => ({ type, title, status: i === 0 ? 'a_faire' : 'attente' }));
 }
 
 /** Tri des tickets : priorité la plus haute d'abord, puis numéro. */
@@ -554,12 +589,16 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours' | 'comments'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'title' | 'type' | 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours' | 'comments'> {
   const { priority: p, ...rest } = raw as T & { priority?: unknown };
+  // Tickets d'avant le champ « type » : le type était le préfixe du titre (« [DEV] - Nom du projet »).
+  const legacy = typeof raw.type === 'string' ? null : /^\[([^\]]+)\]\s*-\s*/.exec(String(raw.title ?? ''));
   const s = String(raw.status ?? '');
   const status: TicketStatus = (TICKET_STATUSES as readonly string[]).includes(s) ? (s as TicketStatus) : (LEGACY_STATUS[s] ?? (raw.done === true ? 'termine' : 'a_faire'));
   return {
     ...(rest as T),
+    title: legacy ? String(raw.title).slice(legacy[0].length).trim() || String(raw.title) : String(raw.title ?? ''),
+    type: typeof raw.type === 'string' ? raw.type : (legacy?.[1]?.trim() ?? ''),
     status,
     done: status === 'termine',
     sprintId: typeof raw.sprintId === 'number' ? raw.sprintId : null,
@@ -585,6 +624,9 @@ export const todayIso = () => new Date().toISOString().slice(0, 10);
 export function isTaskOverdue(t: Pick<Task, 'done' | 'dueDate'>, today = todayIso()): boolean {
   return !t.done && !!t.dueDate && t.dueDate < today;
 }
+
+/** Jalon tenu par le hub à la date de fin visée du projet (créé avec le projet, suivi quand la date change). */
+export const TARGET_JALON_LABEL = 'Fin du projet';
 
 /** Frise globale : chaque projet avec ses jalons (`GET /api/projects/jalons`). */
 export interface PlanningProject {
@@ -719,5 +761,24 @@ export const createProjectCdcBody = z.object({
   withAi: z.boolean().default(true),
 });
 export type CreateProjectCdcBody = z.input<typeof createProjectCdcBody>;
+
+/**
+ * Report de la fiche projet dans ses cahiers des charges, après confirmation : la description remplace le Contexte,
+ * chaque section modifiée du projet remplace la section du CDC de même titre (ou de son ancien titre), ou s'ajoute.
+ */
+export const syncProjectCdcsBody = z.object({
+  cdcIds: z.array(z.string().max(40)).min(1).max(50),
+  /** La description a changé : le Contexte des CDC est remplacé. */
+  description: z.boolean().default(false),
+  /** Sections du projet modifiées ou ajoutées (identifiants), avec leur titre d'avant pour celles renommées. */
+  sectionIds: z.array(z.string().max(40)).max(30).default([]),
+  previousTitles: z.record(z.string().max(40), z.string().max(200)).default({}),
+});
+export type SyncProjectCdcsBody = z.input<typeof syncProjectCdcsBody>;
+
+export interface SyncProjectCdcsResult {
+  updated: { id: string; title: string; version: string }[];
+  skipped: { id: string; title: string; reason: string }[];
+}
 
 export const attachCdcBody = z.object({ projectId: z.string().max(40).nullable() });

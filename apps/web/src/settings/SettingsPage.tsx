@@ -619,7 +619,7 @@ function SuggestionsTab() {
         />
         <SuggestionList
           title="Types de tickets"
-          hint="Proposés à la création d’un ticket ; le titre commence par le type en majuscules : « [DEV] - Nom du projet »."
+          hint="Le type d’un ticket (facultatif), choisi sur sa fiche et affiché en étiquette. Cadrage, Dev, Recette, Correctif et MEP forment le process complet d’un projet."
           values={draft.ticketTypes}
           onChange={(v) => setDraft((d) => ({ ...d, ticketTypes: v }))}
           reset={() => setDraft((d) => ({ ...d, ticketTypes: defaultListSettings().ticketTypes }))}

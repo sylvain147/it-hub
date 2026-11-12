@@ -79,7 +79,20 @@ import type {
   UsageReport,
   VersionInfo,
   TicketComment,
+  ProcessNextBody,
+  Task,
+  MeProfile,
+  SyncProjectCdcsBody,
+  SyncProjectCdcsResult,
+  AnswerReviewBody,
+  CdcReview,
+  PublicReviewDocument,
+  PublicReviewInfo,
+  RequestCdcReviewBody,
+  RequestCdcReviewResult,
+  ReviewDecision,
 } from '@samm/shared';
+import { NO_PROJECT_ID, processStepOf } from '@samm/shared';
 import { authHeaders } from './auth';
 
 export class ApiError extends Error {
@@ -112,6 +125,15 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+/** Ticket du process (cadrage, dev…) terminé : l'étape suivante est proposée. */
+export const TICKET_DONE = 'hub:ticket-termine';
+export interface TicketDoneDetail {
+  projectId: string;
+  ticket: Task;
+}
+/** Projet modifié hors de sa page (étape suivante du process) : les pages ouvertes se mettent à jour. */
+export const PROJECT_CHANGED = 'hub:projet-modifie';
+
 /** Évènement émis à chaque modification de la to-do (pastille du menu, listes ouvertes). */
 export const TODOS_CHANGED = 'hub:todos-changed';
 function todosChanged<T>(r: T): T {
@@ -119,10 +141,26 @@ function todosChanged<T>(r: T): T {
   return r;
 }
 
+/** Pages publiques (lien de validation d'un CDC) : sans connexion ni en-tête d'authentification. */
+async function publicRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`/api/public${path}`, { method, headers: body !== undefined ? { 'Content-Type': 'application/json' } : {}, body: body !== undefined ? JSON.stringify(body) : undefined });
+  const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? `Erreur ${res.status}`);
+  return data as T;
+}
+
+export const publicApi = {
+  review: (token: string) => publicRequest<PublicReviewInfo>('GET', `/validation/${token}`),
+  openReview: (token: string, email: string) => publicRequest<PublicReviewDocument>('POST', `/validation/${token}/ouvrir`, { email }),
+  answerReview: (token: string, b: AnswerReviewBody) => publicRequest<{ decision: ReviewDecision; comment: string; answeredAt: string }>('POST', `/validation/${token}/reponse`, b),
+};
+
 export const api = {
   me: () => request<Me>('GET', '/me'),
   /** Préférences personnelles (thème de couleur). */
   setPreferences: (b: MePreferences) => request<Me>('PUT', '/me/preferences', b),
+  /** Sa propre fiche (nom, poste, backup, périmètres). */
+  setMyProfile: (b: MeProfile) => request<Me>('PUT', '/me/profile', b),
 
   users: () => request<HubUser[]>('GET', '/users'),
   createUser: (b: UserInput) => request<{ user: HubUser; linkedTasks: number }>('POST', '/users', b),
@@ -225,8 +263,21 @@ export const api = {
   followProject: (id: string, follow: boolean) => request<{ followers: string[] }>('PUT', `/projects/${id}/suivi`, { follow }),
   createItem: <K extends ProjectItemKind>(id: string, kind: K, data: Record<string, unknown>) =>
     request<ProjectItem<K>>('POST', `/projects/${id}/items/${kind}`, data),
-  updateItem: <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) =>
-    request<ProjectItem<K>>('PATCH', `/projects/${id}/items/${kind}/${itemId}`, patch),
+  updateItem: async <K extends ProjectItemKind>(id: string, kind: K, itemId: string, patch: Record<string, unknown>) => {
+    const item = await request<ProjectItem<K>>('PATCH', `/projects/${id}/items/${kind}/${itemId}`, patch);
+    // Ticket du process terminé (dans son projet) : le hub propose l'étape suivante (`ProcessNextDialog`).
+    const projectId = typeof patch.projectId === 'string' && patch.projectId ? patch.projectId : id;
+    if (kind === 'tasks' && patch.status === 'termine' && projectId === id && id !== NO_PROJECT_ID && processStepOf((item as Task).type ?? '')) {
+      window.dispatchEvent(new CustomEvent<TicketDoneDetail>(TICKET_DONE, { detail: { projectId: id, ticket: item as Task } }));
+    }
+    return item;
+  },
+  /** Étape suivante du process, validée par l'utilisateur. */
+  processNext: async (id: string, itemId: string, b: ProcessNextBody) => {
+    const r = await request<{ project: ProjectDetail; started: { id: string; number: number; title: string; type: string } | null }>('POST', `/projects/${id}/tickets/${itemId}/suite`, b);
+    window.dispatchEvent(new CustomEvent<ProjectDetail>(PROJECT_CHANGED, { detail: r.project }));
+    return r;
+  },
   deleteItem: (id: string, kind: ProjectItemKind, itemId: string) => request<null>('DELETE', `/projects/${id}/items/${kind}/${itemId}`),
   addTicketNote: (id: string, ticketId: string, text: string) => request<TicketComment[]>('POST', `/projects/${id}/tickets/${ticketId}/notes`, { text }),
   updateTicketNote: (id: string, ticketId: string, noteId: string, text: string) => request<TicketComment[]>('PUT', `/projects/${id}/tickets/${ticketId}/notes/${noteId}`, { text }),
@@ -240,6 +291,10 @@ export const api = {
   applySuggestions: (id: string, noteId: string, b: ApplySuggestionsBody) => request<ProjectDetail>('POST', `/projects/${id}/notes/${noteId}/suggestions`, b),
   digestMeeting: (id: string, b: DigestMeetingBody) => request<JobInfo>('POST', `/projects/${id}/digest`, b),
   progressReport: (id: string) => request<JobInfo>('POST', `/projects/${id}/report`),
+  cdcReviews: (cdcId: string) => request<CdcReview[]>('GET', `/cdcs/${cdcId}/validations`),
+  requestCdcReview: (cdcId: string, b: RequestCdcReviewBody) => request<RequestCdcReviewResult>('POST', `/cdcs/${cdcId}/validations`, b),
+  deleteCdcReview: (cdcId: string, reviewId: string) => request<null>('DELETE', `/cdcs/${cdcId}/validations/${reviewId}`),
+  syncProjectCdcs: (id: string, b: SyncProjectCdcsBody) => request<SyncProjectCdcsResult>('POST', `/projects/${id}/cdcs/sync`, b),
   createProjectCdc: (id: string, b: CreateProjectCdcBody) => request<{ id: string; job: JobInfo | null }>('POST', `/projects/${id}/cdcs`, b),
   attachCdc: (cdcId: string, projectId: string | null) => request<CdcDetail>('PATCH', `/cdcs/${cdcId}/project`, { projectId }),
 

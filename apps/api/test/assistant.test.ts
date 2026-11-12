@@ -115,7 +115,7 @@ describe('assistant (chat global)', () => {
     const r = await env.call('POST', '/assistant', { question: 'Crée-moi un ticket sur la migration ERP pour le développement, c’est urgent' }, MEMBRE);
     expect(calls.at(-1)!.context).toContain('## Types de tickets\nCadrage, Dev, Recette, MEP, Correctif');
     expect(calls.at(-1)!.context).toContain('- Chloé Durand (chloe.durand@exemple.fr)');
-    expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'ticket', title: '[DEV] - Migration ERP', projectId: erp, priority: 'haute', assigneeId: '' })]);
+    expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'ticket', title: 'Migration ERP', ticketType: 'Dev', projectId: erp, priority: 'haute', assigneeId: '' })]);
     const todo = await env.call('POST', '/assistant', { question: 'Ajoute à ma to-do de relancer le prestataire' }, MEMBRE);
     expect(todo.json.actions).toEqual([expect.objectContaining({ kind: 'todo', projectId: '' })]);
     setProvider(new MockProvider(0));
@@ -170,11 +170,11 @@ describe('assistant (chat global)', () => {
         ],
         projects,
         { ticketTypes: ['Dev', 'MEP'], users },
-      ).map((x) => [x.title, x.assigneeId]),
+      ).map((x) => [x.ticketType, x.title, x.assigneeId]),
     ).toEqual([
-      ['[DEV] - Paie', 'paul@exemple.fr'],
-      ['[DEV] - Paie - Export', ''],
-      ['Corriger', ''],
+      ['Dev', 'Paie', 'paul@exemple.fr'],
+      ['Dev', 'Paie - Export', ''],
+      ['', 'Corriger', ''],
     ]);
   });
 

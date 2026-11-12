@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { JOB_TYPE_LABELS, type JobInfo, type ProjectDetail } from '@samm/shared';
-import { api } from '../api';
+import { api, PROJECT_CHANGED } from '../api';
 import { useJobPolling } from '../hooks';
 import { ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
 import { HealthBadge, PriorityTag, ProjectProvider, ProjectStatusBadge, ProjectSteps } from './common';
@@ -71,6 +71,16 @@ export function ProjectPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Étape suivante du process validée (fenêtre globale) : le projet affiché se met à jour.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const p = (e as CustomEvent<ProjectDetail>).detail;
+      if (p.id === id) setProject(p);
+    };
+    window.addEventListener(PROJECT_CHANGED, onChange);
+    return () => window.removeEventListener(PROJECT_CHANGED, onChange);
+  }, [id]);
 
   // Sur mobile, la barre d'onglets défile : on garde l'onglet actif visible.
   useEffect(() => {

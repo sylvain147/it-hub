@@ -42,6 +42,8 @@ export interface AssistantAction {
   kind: AssistantActionKind;
   /** Intitulé du ticket ou de la tâche, libellé du jalon. */
   title: string;
+  /** Type d'un ticket (parmi les types du paramétrage) ; vide : aucun. */
+  ticketType: string;
   /** Précisions tirées du texte (Markdown), vide si aucune. */
   details: string;
   /** Projet existant (vérifié par le serveur) ; vide : aucun projet (ticket hors projet, tâche personnelle). Obligatoire pour un jalon. */
@@ -59,7 +61,7 @@ export interface AssistantAction {
 
 export const assistantActionOutputSchema = z.object({
   kind: z.enum(ASSISTANT_ACTION_KINDS),
-  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, ce qui suit le préfixe « [TYPE] - »'),
+  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
   ticketType: z.string().describe('Ticket : type parmi les types de tickets du hub (ex. Dev), chaîne vide si aucun ne correspond ou pour une tâche ou un jalon'),
   details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases ; chaîne vide si rien'),
   projectId: z.string().describe('Identifiant du projet concerné (celui des liens /projets/<id>), chaîne vide si aucun'),

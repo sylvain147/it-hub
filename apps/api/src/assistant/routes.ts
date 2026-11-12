@@ -12,7 +12,6 @@ import {
   parisDay,
   themeAssistant,
   nameKey,
-  ticketTypeTitle,
   type HubUser,
   type AssistantAction,
   type AssistantAnswer,
@@ -44,7 +43,7 @@ const MAX_ACTIONS = 10;
 
 /**
  * Propositions de l'IA ramenées à ce que le hub accepte : projet existant (sinon aucun), date valide, intitulé non vide,
- * jalon seulement avec un projet, type de ticket du paramétrage (posé en préfixe du titre), responsable actif.
+ * jalon seulement avec un projet, type de ticket du paramétrage, responsable actif.
  * Le nom du projet est recopié par le code.
  */
 export function sanitizeActions(
@@ -57,13 +56,14 @@ export function sanitizeActions(
     .map((a) => {
       const project = byId.get(a.projectId.trim().replace(/^\/?projets\//, ''));
       const type = a.kind === 'ticket' ? refs.ticketTypes?.find((t) => nameKey(t) === nameKey(a.ticketType ?? '')) : undefined;
-      // Titre déjà préfixé par l'IA (« [DEV] - … ») : le préfixe n'est pas doublé.
+      // Le type est un champ du ticket : un préfixe « [DEV] - » ajouté par l'IA au titre est retiré.
       const bare = a.title.trim().replace(/^\[[^\]]*\]\s*-\s*/, type ? '' : '$&');
-      const title = type ? ticketTypeTitle(type, bare || project?.name || '') : bare;
+      const title = type ? bare || project?.name || type : bare;
       const assignee = a.kind !== 'jalon' ? refs.users?.find((u) => u.active && u.email === (a.assigneeId ?? '').trim().toLowerCase()) : undefined;
       return {
         kind: a.kind,
         title: title.trim().slice(0, 300),
+        ticketType: type ?? '',
         details: a.details.trim().slice(0, 4000),
         projectId: project?.id ?? '',
         projectName: project?.name ?? '',

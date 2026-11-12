@@ -19,6 +19,7 @@ new HubStack(app, 'HubIt', {
   modelFast: ctx('modelFast', 'anthropic.claude-haiku-5-5'),
   modelSmart: ctx('modelSmart', 'anthropic.claude-sonnet-5-5'),
   monthlyBudgetUsd: Number(ctx('monthlyBudgetUsd', '30')),
+  mailFrom: ctx('mailFrom', ''),
 });
 
 new GithubOidcStack(app, 'HubItGithubOidc', {

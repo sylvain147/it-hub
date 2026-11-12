@@ -14,7 +14,14 @@ import {
   updateProjectBody,
   ticketCommentBody,
   ticketProcessBody,
-  ticketProcessTitles,
+  ticketProcessTickets,
+  processNextBody,
+  processStepOf,
+  projectFieldsSchema,
+  PROCESS_NEXT,
+  TARGET_JALON_LABEL,
+  syncProjectCdcsBody,
+  type SyncProjectCdcsResult,
   type CdcDocument,
   type ProjectDetail,
   type CdcSummary,
@@ -95,6 +102,20 @@ async function stash(text: string): Promise<string> {
   return key;
 }
 
+/**
+ * Jalon « Fin du projet » à la date de fin visée : créé s'il n'existe pas, déplacé quand la date change (s'il n'est
+ * pas encore atteint). Date retirée : le jalon reste, on le supprime à la main si besoin.
+ */
+async function syncTargetJalon(id: string, targetDate: string, user: string) {
+  if (!targetDate) return;
+  const jalon = (await pr.listItems(id, 'jalons')).find((j) => j.label === TARGET_JALON_LABEL && !j.done);
+  if (jalon) {
+    if (jalon.date !== targetDate) await pr.updateItem(id, 'jalons', jalon.id, { date: targetDate }, user);
+  } else {
+    await pr.createItem(id, 'jalons', parseBody(PROJECT_ITEM_SCHEMAS.jalons, { label: TARGET_JALON_LABEL, date: targetDate }) as Record<string, unknown>, user);
+  }
+}
+
 /** Routes du module « Projets » (montées sous /api/projects). */
 export function projectRoutes() {
   const r = new Hono();
@@ -123,6 +144,7 @@ export function projectRoutes() {
   r.post('/', async (c) => {
     const b = await resolveProjectChefs(await body(c, createProjectBody), null);
     const id = await pr.createProject(b, userName(c));
+    await syncTargetJalon(id, b.targetDate, userName(c));
     return c.json(await projectDetail(id), 201);
   });
 
@@ -131,8 +153,10 @@ export function projectRoutes() {
   r.put('/:id', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, updateProjectBody);
-    const fields = await resolveProjectChefs(b.fields, await pr.requireProject(id));
+    const before = await pr.requireProject(id);
+    const fields = await resolveProjectChefs(b.fields, before);
     await pr.updateProject(id, b.rev, fields, userName(c));
+    if (fields.targetDate !== before.targetDate) await syncTargetJalon(id, fields.targetDate, userName(c));
     return c.json(await projectDetail(id));
   });
 
@@ -185,6 +209,8 @@ export function projectRoutes() {
     const b = parseBody(PROJECT_ITEM_SCHEMAS[kind].partial(), raw);
     // Les valeurs par défaut du schéma ne doivent pas écraser les champs absents de la requête.
     const patch = Object.fromEntries(Object.entries(b as Record<string, unknown>).filter(([k]) => k in raw));
+    // Ancien ticket dont le type était dans le titre : un nouveau titre ne doit pas lui faire perdre son type.
+    if (kind === 'tasks' && 'title' in patch && !('type' in patch)) patch.type = (before as Task).type;
     if (target !== id) {
       await pr.moveTicket(id, c.req.param('itemId'), target, userName(c));
       if (!Object.keys(patch).length) return c.json(await pr.getItem(target, kind, c.req.param('itemId')));
@@ -206,10 +232,34 @@ export function projectRoutes() {
     const { steps, complement, ...common } = b;
     // Responsable et sprint vérifiés une fois, avant toute création.
     const shared = await resolveTicket({ ...common, title: '-' }, null, user);
-    for (const title of ticketProcessTitles(project.name, steps, complement)) {
-      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { ...shared, title }) as Record<string, unknown>, user);
+    // Le premier ticket est à faire, les suivants en attente du précédent.
+    for (const t of ticketProcessTickets(project.name, steps, complement)) {
+      await pr.createItem(id, 'tasks', parseBody(PROJECT_ITEM_SCHEMAS.tasks, { ...shared, ...t }) as Record<string, unknown>, user);
     }
     return c.json(await projectDetail(id), 201);
+  });
+
+  /**
+   * Suite du process, validée par l'utilisateur quand un ticket du process est terminé : le projet passe au statut choisi
+   * et le ticket de l'étape suivante (le plus ancien non terminé) passe « À faire » s'il était en attente.
+   */
+  r.post('/:id/tickets/:itemId/suite', async (c) => {
+    const id = c.req.param('id');
+    const user = userName(c);
+    const { projectStatus } = await body(c, processNextBody);
+    const ticket = await pr.getItem(id, 'tasks', c.req.param('itemId'));
+    const step = processStepOf(ticket.type);
+    if (!step) throw new HttpError(400, 'Ce ticket ne fait pas partie d’un process (cadrage, dev, recette, correctif, MEP).');
+    const project = await pr.requireProject(id);
+    const next = PROCESS_NEXT[step].nextStep;
+    const target = next
+      ? (await pr.listItems(id, 'tasks')).filter((t) => !t.done && processStepOf(t.type) === next).sort((a, b) => a.number - b.number)[0]
+      : undefined;
+    if (target?.status === 'attente') await pr.updateItem(id, 'tasks', target.id, { status: 'a_faire' }, user);
+    if (projectStatus && projectStatus !== project.status) {
+      await pr.updateProject(id, project.rev, { ...projectFieldsSchema.parse(project), status: projectStatus }, user);
+    }
+    return c.json({ project: await projectDetail(id), started: target && target.status === 'attente' ? { id: target.id, number: target.number, title: target.title, type: target.type } : null });
   });
 
   // ---- Notes de suivi d'un ticket (hors champs du ticket) ----------------------------------
@@ -339,6 +389,33 @@ export function projectRoutes() {
 
   // ---- Cahiers des charges ---------------------------------------------------------------
 
+  /** Report de la fiche projet (description, sections) dans les CDC choisis : une nouvelle version par CDC. */
+  r.post('/:id/cdcs/sync', async (c) => {
+    const id = c.req.param('id');
+    const user = userName(c);
+    const b = await body(c, syncProjectCdcsBody);
+    const project = await projectDetail(id);
+    const res: SyncProjectCdcsResult = { updated: [], skipped: [] };
+    for (const cdcId of b.cdcIds) {
+      const cdc = project.cdcs.find((x) => x.id === cdcId);
+      if (!cdc) {
+        res.skipped.push({ id: cdcId, title: cdcId, reason: 'n’est pas rattaché à ce projet' });
+        continue;
+      }
+      const full = await repo.requireCdc(cdcId);
+      if (full.activeJobId) {
+        res.skipped.push({ id: cdcId, title: cdc.title, reason: 'une tâche IA est en cours' });
+        continue;
+      }
+      const { document } = await repo.getVersion(cdcId, full.currentVersion.seq);
+      const next = applyProjectToCdc(document, project, b);
+      const version = await repo.saveVersion(cdcId, full.currentVersion.seq, next, { user, origin: 'manuel', comment: 'Mis à jour depuis la fiche du projet' });
+      res.updated.push({ id: cdcId, title: cdc.title, version: version.label });
+    }
+    if (res.updated.length) await pr.logActivity(id, project.name, user, `a reporté la fiche du projet dans ${res.updated.length} cahier${res.updated.length > 1 ? 's' : ''} des charges`);
+    return c.json(res);
+  });
+
   r.post('/:id/cdcs', async (c) => {
     const id = c.req.param('id');
     const user = userName(c);
@@ -377,6 +454,38 @@ export function projectRoutes() {
   });
 
   return r;
+}
+
+/**
+ * Nouvelle version d'un CDC avec la fiche projet : Contexte = description (et la section « Contexte » du projet) si
+ * elle a changé ; chaque section choisie remplace la section de même titre (ou de son ancien titre), sinon s'ajoute
+ * avant les annexes. Les autres sections du CDC ne bougent pas ; aucune n'est supprimée.
+ */
+export function applyProjectToCdc(
+  doc: CdcDocument,
+  project: Pick<ProjectDetail, 'description' | 'sections'>,
+  change: { description: boolean; sectionIds: string[]; previousTitles: Record<string, string> },
+): CdcDocument {
+  let sections = [...doc.sections];
+  if (change.description) {
+    const md = [project.description.trim(), ...project.sections.filter((s) => plainTitle(s.title) === 'contexte').map((s) => s.content.trim())].filter(Boolean).join('\n\n');
+    sections = sections.map((s) => (s.kind === 'contexte' ? { ...s, content: markdownToDoc(md) } : s));
+  }
+  for (const sec of project.sections.filter((s) => change.sectionIds.includes(s.id))) {
+    const t = plainTitle(sec.title);
+    if (t === 'contexte') continue;
+    const titles = [t, plainTitle(change.previousTitles[sec.id] ?? '')].filter(Boolean);
+    const content = markdownToDoc(sec.content.trim());
+    const i = sections.findIndex((s) => (t === 'annexes' ? s.kind === 'annexes' : s.kind === 'standard' && titles.includes(plainTitle(s.title))));
+    if (i >= 0) sections[i] = { ...sections[i]!, title: t === 'annexes' ? sections[i]!.title : sec.title.trim(), content };
+    else {
+      const added = { id: sectionId(), kind: t === 'annexes' ? ('annexes' as const) : ('standard' as const), title: t === 'annexes' ? 'Annexes' : sec.title.trim(), content };
+      const at = sections.findIndex((s) => s.kind === 'annexes');
+      if (t === 'annexes' || at < 0) sections.push(added);
+      else sections.splice(at, 0, added);
+    }
+  }
+  return { ...doc, sections };
 }
 
 /** Titre comparé sans casse ni accents (« Contexte », « ANNEXES »…). */

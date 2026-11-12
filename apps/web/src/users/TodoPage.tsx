@@ -6,6 +6,7 @@ import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
 import { byPosition, defaultDueDate, QuickAdd, TaskChecklist, TaskModal, todoRow, useProjectRefs, type TaskRow } from '../tasks/tasks';
 import { useUsers } from './context';
+import { mondayOf, WeekBoard } from '../tasks/WeekBoard';
 
 /** To-do d'une personne (ou de l'équipe) : ses tâches à cocher, rattachées ou non à un projet. Les tickets sont à part (sprints). */
 export function TodoPage() {
@@ -26,11 +27,26 @@ export function TodoPage() {
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<TaskRow | 'new' | null>(null);
   const team = scope === 'all';
+  // Vue « Cette semaine » (`?vue=semaine`, `&semaine=<lundi>`) : une carte par jour.
+  const weekView = params.get('vue') === 'semaine';
+  const setParam = (patch: Record<string, string | null>) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === null) next.delete(k);
+          else next.set(k, v);
+        }
+        return next;
+      },
+      { replace: true },
+    );
 
   const rows = (data.data?.personal ?? []).map((t) => todoRow(t, name, projects));
   const open = rows.filter((t) => !t.done).sort(byPosition);
   const done = rows.filter((t) => t.done).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = defaultDueDate();
+  const week = params.get('semaine') ?? mondayOf(today);
   const showDoneList = showDone || done.some((t) => t.id === focusId);
   const late = open.filter((t) => t.dueDate && t.dueDate < today).length;
   const reload = async () => {
@@ -43,8 +59,8 @@ export function TodoPage() {
         <div>
           <h1>To-do</h1>
           <p className="muted small">
-            {team ? 'Toute l’équipe' : scope === me.email ? 'Ma to-do' : `To-do de ${name(scope)}`} : des choses à faire, à cocher, rattachées ou non à un projet. Elle est
-            indépendante des tickets, qui se planifient dans les <Link to="/sprints">sprints</Link>.
+            {team ? 'Toute l’équipe' : scope === me.email ? 'Ma to-do' : `To-do de ${name(scope)}`} : des choses à faire, à cocher, rattachées ou non à un projet. Elle est indépendante des tickets,
+            qui se planifient dans les <Link to="/sprints">sprints</Link>.
           </p>
         </div>
         <div className="actions">
@@ -52,46 +68,94 @@ export function TodoPage() {
             <select className="input input-auto" value={scope} onChange={(e) => setParams(e.target.value === me.email ? {} : { qui: e.target.value }, { replace: true })} aria-label="To-do de">
               <option value={me.email}>Ma to-do</option>
               <option value="all">Toute l’équipe</option>
-              {active.filter((u) => u.email !== me.email).map((u) => (
-                <option key={u.email} value={u.email}>{u.name}</option>
-              ))}
+              {active
+                .filter((u) => u.email !== me.email)
+                .map((u) => (
+                  <option key={u.email} value={u.email}>
+                    {u.name}
+                  </option>
+                ))}
             </select>
           )}
-          <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Nouvelle tâche</button>
+          <button className="btn btn-primary" onClick={() => setEditing('new')}>
+            + Nouvelle tâche
+          </button>
         </div>
       </div>
 
       <div className="kpis">
-        <div className="kpi"><span className="kpi-value">{open.length}</span><span className="kpi-label">à faire</span></div>
-        <div className={late ? 'kpi kpi-danger' : 'kpi'}><span className="kpi-value">{late}</span><span className="kpi-label">en retard</span></div>
+        <div className="kpi">
+          <span className="kpi-value">{open.length}</span>
+          <span className="kpi-label">à faire</span>
+        </div>
+        <div className={late ? 'kpi kpi-danger' : 'kpi'}>
+          <span className="kpi-value">{late}</span>
+          <span className="kpi-label">en retard</span>
+        </div>
       </div>
 
-      <section className="card">
-        {!team && (
-          <div className="toolbar-row">
-            <QuickAdd
-              placeholder={scope === me.email ? 'Ajouter à ma to-do, pour aujourd’hui… (Entrée)' : `Ajouter à la to-do de ${name(scope)}… (Entrée)`}
-              onAdd={async (title) => {
-                await api.createTodo({ title, assigneeId: scope, dueDate: defaultDueDate() });
-                await data.reload();
-              }}
+      <div className="tabs">
+        <button className={weekView ? 'tab' : 'tab active'} onClick={() => setParam({ vue: null, semaine: null })}>
+          📋 Liste
+        </button>
+        <button className={weekView ? 'tab active' : 'tab'} onClick={() => setParam({ vue: 'semaine' })}>
+          🗓️ Cette semaine
+        </button>
+      </div>
+
+      {weekView ? (
+        <section className="card">
+          <ErrorBox error={data.error} />
+          {data.loading && !data.data ? (
+            <Spinner />
+          ) : (
+            <WeekBoard
+              rows={rows}
+              today={today}
+              week={week}
+              onWeek={(monday) => setParam({ semaine: monday === mondayOf(today) ? null : monday })}
+              onEdit={setEditing}
+              onAdd={
+                team
+                  ? undefined
+                  : async (title, dueDate) => {
+                      await api.createTodo({ title, assigneeId: scope, dueDate });
+                      await data.reload();
+                    }
+              }
+              onChanged={reload}
+              showAssignee={team || scope !== me.email}
             />
-          </div>
-        )}
-        <ErrorBox error={data.error} />
-        {data.loading && !data.data && <Spinner />}
-        {data.data && !open.length && <EmptyState>Rien à faire. 🎉</EmptyState>}
-        {open.length > 1 && <p className="muted small">Glissez une tâche par sa poignée ⠿ pour la ranger où vous voulez.</p>}
-        {open.length > 0 && <TaskChecklist rows={open} onChanged={reload} onEdit={setEditing} showAssignee={team || scope !== me.email} reorderable focusId={focusId} />}
-        {done.length > 0 && (
-          <>
-            <button className="btn btn-link mt" onClick={() => setShowDone(!showDoneList)}>
-              {showDoneList ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
-            </button>
-            {showDoneList && <TaskChecklist rows={done} onChanged={reload} onEdit={setEditing} showAssignee={team} focusId={focusId} />}
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      ) : (
+        <section className="card">
+          {!team && (
+            <div className="toolbar-row">
+              <QuickAdd
+                placeholder={scope === me.email ? 'Ajouter à ma to-do, pour aujourd’hui… (Entrée)' : `Ajouter à la to-do de ${name(scope)}… (Entrée)`}
+                onAdd={async (title) => {
+                  await api.createTodo({ title, assigneeId: scope, dueDate: defaultDueDate() });
+                  await data.reload();
+                }}
+              />
+            </div>
+          )}
+          <ErrorBox error={data.error} />
+          {data.loading && !data.data && <Spinner />}
+          {data.data && !open.length && <EmptyState>Rien à faire. 🎉</EmptyState>}
+          {open.length > 1 && <p className="muted small">Glissez une tâche par sa poignée ⠿ pour la ranger où vous voulez.</p>}
+          {open.length > 0 && <TaskChecklist rows={open} onChanged={reload} onEdit={setEditing} showAssignee={team || scope !== me.email} reorderable focusId={focusId} />}
+          {done.length > 0 && (
+            <>
+              <button className="btn btn-link mt" onClick={() => setShowDone(!showDoneList)}>
+                {showDoneList ? 'Masquer' : 'Afficher'} les {done.length} tâche(s) faite(s)
+              </button>
+              {showDoneList && <TaskChecklist rows={done} onChanged={reload} onEdit={setEditing} showAssignee={team} focusId={focusId} />}
+            </>
+          )}
+        </section>
+      )}
 
       {editing && <TaskModal task={editing === 'new' ? null : editing} defaults={{ assigneeId: team ? me.email : scope }} projects={projects} onClose={() => setEditing(null)} onSaved={reload} />}
     </div>

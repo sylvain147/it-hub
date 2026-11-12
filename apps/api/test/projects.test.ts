@@ -393,12 +393,67 @@ describe('module Projets', () => {
     const res = await env.call('POST', `/projects/${id}/tickets/process`, { steps: ['MEP', 'Cadrage', 'Dev', 'Recette', 'Correctif'], complement: 'Lot 2', priority: 'haute' });
     expect(res.status).toBe(201);
     const created = res.json.items.tasks.slice(before).sort((a: any, b: any) => a.number - b.number);
-    expect(created.map((t: any) => t.title)).toEqual(['CADRAGE', 'DEV', 'RECETTE', 'CORRECTIF', 'MEP'].map((t) => `[${t}] - Migration Coliéco - Lot 2`));
-    expect(created.every((t: any) => t.priority === 'haute' && t.status === 'a_faire' && t.sprintId === null && t.assigneeId)).toBe(true);
+    expect(created.map((t: any) => [t.type, t.title, t.status])).toEqual([
+      ['Cadrage', 'Migration Coliéco - Lot 2', 'a_faire'],
+      ['Dev', 'Migration Coliéco - Lot 2', 'attente'],
+      ['Recette', 'Migration Coliéco - Lot 2', 'attente'],
+      ['Correctif', 'Migration Coliéco - Lot 2', 'attente'],
+      ['MEP', 'Migration Coliéco - Lot 2', 'attente'],
+    ]);
+    expect(created.every((t: any) => t.priority === 'haute' && t.sprintId === null && t.assigneeId)).toBe(true);
+
+    // Cadrage terminé : sur validation, le projet passe « Planifié » et le ticket Dev « À faire ».
+    const [cadrage, dev, recette] = created;
+    await env.call('PATCH', `/projects/${id}/items/tasks/${cadrage.id}`, { status: 'termine' });
+    const suite = await env.call('POST', `/projects/${id}/tickets/${cadrage.id}/suite`, { projectStatus: 'planifie' });
+    expect(suite.status).toBe(200);
+    expect(suite.json.project.status).toBe('planifie');
+    expect(suite.json.started).toMatchObject({ id: dev.id, type: 'Dev' });
+    const tasks = (id2: string) => suite.json.project.items.tasks.find((t: any) => t.id === id2);
+    expect(tasks(dev.id).status).toBe('a_faire');
+    expect(tasks(recette.id).status).toBe('attente');
+    // Une seconde fois : rien de plus à démarrer, le statut du projet peut rester tel quel.
+    expect((await env.call('POST', `/projects/${id}/tickets/${cadrage.id}/suite`, { projectStatus: null })).json.started).toBeNull();
+    // Un ticket sans type ne fait pas partie du process.
+    const plain = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Sans type' });
+    expect((await env.call('POST', `/projects/${id}/tickets/${plain.json.id}/suite`, {})).status).toBe(400);
+    // Le type d'un ticket se garde quand on change seulement son titre.
+    expect((await env.call('PATCH', `/projects/${id}/items/tasks/${dev.id}`, { title: 'Écran des tarifs' })).json).toMatchObject({ type: 'Dev', title: 'Écran des tarifs' });
+
     // Sans précision, une partie des étapes seulement.
     const two = await env.call('POST', `/projects/${id}/tickets/process`, { steps: ['Recette', 'Dev'] });
-    expect(two.json.items.tasks.slice(before + 5).map((t: any) => t.title).sort()).toEqual(['[DEV] - Migration Coliéco', '[RECETTE] - Migration Coliéco']);
+    expect(two.json.items.tasks.filter((t: any) => t.title === 'Migration Coliéco').map((t: any) => [t.type, t.status])).toEqual([
+      ['Dev', 'a_faire'],
+      ['Recette', 'attente'],
+    ]);
     expect((await env.call('POST', '/projects/inconnu/tickets/process', { steps: ['Dev'] })).status).toBe(404);
+  });
+
+  it('reporte la fiche du projet dans ses CDC, sur demande', async () => {
+    const p = await env.call('POST', '/projects', { name: 'Intranet', description: 'Ancien contexte', sections: [{ id: 'obj', title: 'Objectifs', content: 'Objectif 1' }] });
+    const pid = p.json.id;
+    const cdc = (await env.call('POST', `/projects/${pid}/cdcs`, { withAi: false })).json.id;
+    const fields = { ...pick(p.json), description: 'Nouveau contexte', sections: [{ id: 'obj', title: 'Buts', content: 'Objectif 2' }, { id: 'per', title: 'Périmètre', content: 'Tout le site' }] };
+    await env.call('PUT', `/projects/${pid}`, { rev: p.json.rev, fields });
+    // Rien ne change dans le CDC tant qu'on ne le demande pas.
+    expect(JSON.stringify((await env.call('GET', `/cdcs/${cdc}`)).json.document)).toContain('Ancien contexte');
+    const r = await env.call('POST', `/projects/${pid}/cdcs/sync`, { cdcIds: [cdc, 'inconnu'], description: true, sectionIds: ['obj', 'per'], previousTitles: { obj: 'Objectifs' } });
+    expect(r.status).toBe(200);
+    expect(r.json.updated).toEqual([expect.objectContaining({ id: cdc, version: '0.2' })]);
+    expect(r.json.skipped).toEqual([expect.objectContaining({ id: 'inconnu' })]);
+    const { json: after } = await env.call('GET', `/cdcs/${cdc}`);
+    expect(after.document.sections.map((x: any) => [x.kind, x.title])).toEqual([['contexte', 'Contexte'], ['standard', 'Buts'], ['standard', 'Périmètre']]);
+    expect(JSON.stringify(after.document.sections[0].content)).toContain('Nouveau contexte');
+    expect(JSON.stringify(after.document.sections[1].content)).toContain('Objectif 2');
+    await env.call('DELETE', `/projects/${pid}`);
+  });
+
+  it('crée et suit le jalon de fin du projet', async () => {
+    const p = await env.call('POST', '/projects', { name: 'Datawarehouse', targetDate: '2027-03-31' });
+    expect(p.json.items.jalons.map((j: any) => [j.label, j.date])).toEqual([['Fin du projet', '2027-03-31']]);
+    const moved = await env.call('PUT', `/projects/${p.json.id}`, { rev: p.json.rev, fields: { ...pick(p.json), targetDate: '2027-05-15' } });
+    expect(moved.json.items.jalons.map((j: any) => [j.label, j.date])).toEqual([['Fin du projet', '2027-05-15']]);
+    expect((await env.call('POST', '/projects', { name: 'Sans date' })).json.items.jalons).toEqual([]);
   });
 
   it('rattache et détache un CDC existant, et le conserve à la suppression du projet', async () => {

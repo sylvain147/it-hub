@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PRIORITIES, PRIORITY_LABELS, TICKET_PROCESS_STEPS, ticketProcessTitles, type Priority, type Sprint } from '@samm/shared';
+import { PRIORITIES, PRIORITY_LABELS, TICKET_PROCESS_STEPS, ticketProcessTickets, type Priority, type Sprint } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { ErrorBox, Modal, Spinner, toast } from '../components/ui';
@@ -23,7 +23,7 @@ export function TicketProcessDialog({ sprints, onClose }: { sprints: Sprint[]; o
   const [sprintId, setSprintId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const titles = ticketProcessTitles(project.name, steps, complement);
+  const titles = ticketProcessTickets(project.name, steps, complement);
   const toggle = (s: Step) => setSteps((xs) => (xs.includes(s) ? xs.filter((x) => x !== s) : [...xs, s]));
 
   async function create() {
@@ -53,7 +53,10 @@ export function TicketProcessDialog({ sprints, onClose }: { sprints: Sprint[]; o
       }
     >
       <ErrorBox error={error} />
-      <p className="muted small">Un ticket par étape, créés d’un coup et dans l’ordre. Décochez les étapes inutiles.</p>
+      <p className="muted small">
+        Un ticket par étape, créés d’un coup et dans l’ordre : le premier est à faire, les suivants en attente. Quand vous en terminez un, le hub propose de passer à
+        l’étape suivante. Décochez les étapes inutiles.
+      </p>
       <div className="process-steps">
         {TICKET_PROCESS_STEPS.map((s) => (
           <label key={s} className={steps.includes(s) ? 'process-step on' : 'process-step'}>
@@ -86,7 +89,11 @@ export function TicketProcessDialog({ sprints, onClose }: { sprints: Sprint[]; o
       </div>
       {titles.length > 0 && (
         <ol className="process-preview small">
-          {titles.map((t) => <li key={t}>{t}</li>)}
+          {titles.map((t, i) => (
+            <li key={t.type}>
+              <strong>{t.type}</strong> — {t.title} <span className="muted">({i === 0 ? 'à faire' : 'en attente'})</span>
+            </li>
+          ))}
         </ol>
       )}
     </Modal>

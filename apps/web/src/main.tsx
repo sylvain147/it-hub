@@ -29,6 +29,7 @@ import { TmaThemesPage } from './tma/TmaThemesPage';
 import { IdeasPage } from './ideas/IdeasPage';
 import { MeetingRedirect } from './meetings/recorder';
 import { applyStoredTheme } from './theme';
+import { PublicReviewPage } from './cdc/PublicReviewPage';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -77,9 +78,21 @@ const router = createBrowserRouter([
 
 applyStoredTheme();
 
+// Lien de validation d'un CDC reçu par e-mail : page publique, sans connexion au hub.
+const reviewToken = /^\/validation\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)?.[1];
+
 void loadConfig().then(() => {
+  const root = createRoot(document.getElementById('root')!);
+  if (reviewToken) {
+    root.render(
+      <StrictMode>
+        <PublicReviewPage token={reviewToken} />
+      </StrictMode>,
+    );
+    return;
+  }
   configureAuth();
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <AuthGate>
         <RouterProvider router={router} />

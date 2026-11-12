@@ -12,6 +12,8 @@ import { ThemeModal } from '../users/ThemeModal';
 import { AnneauFlottant, AnneauProvider, ringClass, useRingHolder } from '../anneau/Anneau';
 import { TodoBadge } from '../tasks/TodoBadge';
 import { Gandalf } from '../assistant/Gandalf';
+import { ProcessNextDialog } from '../projects/ProcessNextDialog';
+import { NazgulEffects } from './NazgulEffects';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
 import { hasUnreadPatchNote } from '../patchnotes/PatchNotePage';
 
@@ -52,6 +54,7 @@ export function Layout() {
               <MeetingRecorderProvider>
                 <Outlet />
                 <Gandalf />
+                <ProcessNextDialog />
                 <RecordingPill />
                 <AnneauFlottant />
               </MeetingRecorderProvider>
@@ -59,6 +62,7 @@ export function Layout() {
           </SettingsProvider>
         </main>
         <ToastHost />
+        <NazgulEffects />
       </div>
     </AnneauProvider>
   );

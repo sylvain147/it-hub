@@ -6,7 +6,7 @@ import { userToolsSchema } from './tools.js';
  * Un thème ne fixe que les couleurs d'accent : menu latéral (`navy`), liens et boutons (`blue`), fonds clairs (`blue50`).
  * `blue` doit rester lisible sur fond blanc (texte des liens).
  */
-export const THEMES = ['comte', 'marine', 'foret', 'biere', 'framboise', 'prune', 'ardoise', 'mordor'] as const;
+export const THEMES = ['comte', 'marine', 'foret', 'biere', 'framboise', 'prune', 'ardoise', 'mordor', 'nazgul'] as const;
 export type ThemeId = (typeof THEMES)[number];
 export const DEFAULT_THEME: ThemeId = 'comte';
 
@@ -29,6 +29,11 @@ export interface ThemeDef {
   logo?: string;
   /** Assistant incarné à la place de Gandalf (bulle, chat, ton de l'IA). */
   assistant?: AssistantPersona;
+  /**
+   * Thème sombre et sans couleur : toute l'interface est inversée et passée en niveaux de gris (`apps/web/src/theme.ts`,
+   * `[data-theme]` dans styles.css) ; `colors` donne alors les teintes voulues à l'écran.
+   */
+  shadow?: boolean;
 }
 
 /** Personnage de l'assistant : nom affiché, avatar (dans `apps/web/public`) et ton demandé à l'IA. */
@@ -58,6 +63,18 @@ export const THEME_DEFS: Record<ThemeId, ThemeDef> = {
       name: 'Saroumane',
       avatar: '/saroumane.svg',
       tone: 'Tu parles avec la superbe de Saroumane le Blanc, maître d’Orthanc : une pointe hautaine et théâtrale (une courte formule au plus par réponse), sans jamais nuire à l’exactitude, à la concision ni à la courtoisie.',
+    },
+  },
+  nazgul: {
+    label: 'Nazgûl',
+    description: 'Noir absolu, sans la moindre couleur. Des fumées montent, des flammes des ténèbres couvent…',
+    colors: { navy: '#000000', navy2: '#1a1a1a', blue: '#bdbdbd', blue50: '#1f1f1f' },
+    shadow: true,
+    logo: '/oeil-de-sauron.png',
+    assistant: {
+      name: 'Roi-Sorcier',
+      avatar: '/roi-sorcier.png',
+      tone: 'Tu parles comme le Roi-Sorcier d’Angmar, seigneur des Nazgûl : une voix froide et sépulcrale (une courte formule sombre au plus par réponse), sans jamais nuire à l’exactitude, à la concision ni à la courtoisie.',
     },
   },
 };

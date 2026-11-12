@@ -28,7 +28,7 @@ Types d'actions :
 - jalon : date clé d'un projet (livraison, recette, mise en production), seulement avec une date et un projet.
 Pour chaque action :
 - projectId = identifiant du projet concerné, tel qu'il apparaît dans les liens /projets/<id> des données ; reconnais le projet même cité approximativement (« la poste essentiel » pour « La Poste - Offre Essentiel ») ; n'invente jamais d'identifiant ; chaîne vide si aucun projet ne correspond ;
-- ticketType (ticket seulement) : le type de tickets du hub qui correspond (« développement » → Dev, « mise en prod » → MEP…), sinon chaîne vide ; le titre est alors ce qui suit « [TYPE] - » : le nom du projet, suivi d'une précision si la demande en donne une (« La Poste - Export des étiquettes ») ;
+- ticketType (ticket seulement) : le type de tickets du hub qui correspond (« développement » → Dev, « mise en prod » → MEP…), sinon chaîne vide ; le titre ne reprend pas le type : le nom du projet, suivi d'une précision si la demande en donne une (« La Poste - Export des étiquettes ») ;
 - priorité : « critique » pour bloquant ou urgence absolue, « haute » pour important, prioritaire ou urgent, « basse » pour secondaire, sinon « normale » ;
 - assigneeId : e-mail de l'utilisateur de l'équipe désigné (« pour Paul », « confie-le à… »), sinon chaîne vide ;
 - dueDate : date demandée (« pour vendredi », « fin du mois ») calculée à partir de la date du jour, sinon chaîne vide ;

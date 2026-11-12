@@ -26,6 +26,11 @@ export interface HubStackProps extends StackProps {
   modelFast: string;
   modelSmart: string;
   monthlyBudgetUsd: number;
+  /**
+   * Expéditeur des e-mails du hub (demandes de validation de CDC), identité vérifiée dans Amazon SES ; vide : pas
+   * d'envoi (le lien de validation est alors à transmettre à la main, depuis le hub).
+   */
+  mailFrom: string;
 }
 
 /**
@@ -108,6 +113,7 @@ export class HubStack extends Stack {
       MODEL_FAST: props.modelFast,
       MODEL_SMART: props.modelSmart,
       MONTHLY_BUDGET_USD: String(props.monthlyBudgetUsd),
+      MAIL_FROM: props.mailFrom,
       NODE_OPTIONS: '--enable-source-maps',
     };
     // pdfkit (moteur du PDF) charge ses polices standard par des imports dynamiques que l'empaqueteur ne suit pas :
@@ -187,15 +193,35 @@ export class HubStack extends Stack {
       );
     }
 
+    // Demandes de validation de CDC : e-mails envoyés par l'API, depuis l'expéditeur vérifié dans SES.
+    if (props.mailFrom) {
+      api.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'SendMailWithSes',
+          actions: ['ses:SendEmail'],
+          resources: ['*'],
+          conditions: { StringEquals: { 'ses:FromAddress': props.mailFrom } },
+        }),
+      );
+    }
+
     // ---- API HTTP (authentifiée par Cognito) -----------------------------------------
     const httpApi = new apigw.HttpApi(this, 'HttpApi', {
       apiName: 'hub-it-api',
       defaultAuthorizer: new HttpUserPoolAuthorizer('Cognito', userPool, { userPoolClients: [userPoolClient] }),
     });
+    const apiIntegration = new HttpLambdaIntegration('ApiIntegration', api);
     httpApi.addRoutes({
       path: '/api/{proxy+}',
       methods: [apigw.HttpMethod.ANY],
-      integration: new HttpLambdaIntegration('ApiIntegration', api),
+      integration: apiIntegration,
+    });
+    // Seule exception à la connexion : la page du lien de validation d'un CDC, reçu par e-mail (protégée par son jeton).
+    httpApi.addRoutes({
+      path: '/api/public/{proxy+}',
+      methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST],
+      integration: apiIntegration,
+      authorizer: new apigw.HttpNoneAuthorizer(),
     });
     const stage = httpApi.defaultStage!.node.defaultChild as apigw.CfnStage;
     stage.defaultRouteSettings = { throttlingBurstLimit: 50, throttlingRateLimit: 20 };

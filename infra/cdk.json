@@ -7,6 +7,7 @@
     "modelFast": "anthropic.claude-haiku-5-5",
     "modelSmart": "anthropic.claude-sonnet-5-5",
     "monthlyBudgetUsd": 30,
+    "mailFrom": "",
     "githubRepository": "sylvain147/it-hub",
     "githubBranch": "main",
     "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": true

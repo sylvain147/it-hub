@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
-import { api } from '../api';
+import { api, PROJECT_CHANGED } from '../api';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
 import { useLoad } from '../hooks';
@@ -11,7 +11,7 @@ import { useSettings } from '../settings/context';
 import { Swatch } from './charts';
 import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/mine';
 import { AllTickets } from './AllTickets';
-import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, type TicketRow } from './tickets';
+import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, TicketTypeBadge, type TicketRow } from './tickets';
 import { ringClass, useRingHolder } from '../anneau/Anneau';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
@@ -55,6 +55,12 @@ export function SprintsPage() {
   const reload = async () => {
     await data.reload();
   };
+  // Étape suivante du process validée depuis la fenêtre globale : le tableau se met à jour.
+  useEffect(() => {
+    const onChange = () => void data.reload();
+    window.addEventListener(PROJECT_CHANGED, onChange);
+    return () => window.removeEventListener(PROJECT_CHANGED, onChange);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = o?.sprints.find((s) => s.state === 'active');
   const future = o?.sprints.filter((s) => s.state === 'future') ?? [];
@@ -285,6 +291,7 @@ function ActiveSprint({
                     <button className="board-card-title" onClick={() => onOpen(t)}>{t.title}</button>
                     <div className="board-card-meta">
                       <span className="ticket-key">{ticketKey(t)}</span>
+                      <TicketTypeBadge type={t.type ?? ''} />
                       <PriorityTag priority={t.priority} hideNormal />
                       <span className="small muted board-card-project">{t.projectName}</span>
                       {t.deskId && <span className="small muted" title="Ticket Desk du prestataire">Desk #{t.deskId}</span>}

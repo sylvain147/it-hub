@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeTitle, withTicketType, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
+import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -35,11 +35,25 @@ export function TicketKey({ t }: { t: Pick<Task, 'number'> }) {
   return <span className="ticket-key">{ticketKey(t)}</span>;
 }
 
+/** Libellé d'un type de ticket tel qu'au paramétrage (« DEV » d'un ancien ticket → « Dev »). */
+export function useTicketTypeLabel() {
+  const { lists } = useSettings();
+  return (type: string) => lists.ticketTypes.find((t) => ticketTypeKey(t) === ticketTypeKey(type)) ?? type;
+}
+
+/** Type d'un ticket (Cadrage, Dev…) en étiquette ; rien s'il n'en a pas. */
+export function TicketTypeBadge({ type }: { type: string }) {
+  const label = useTicketTypeLabel();
+  if (!type.trim()) return null;
+  return <span className={`badge ticket-type ticket-type-${ticketTypeKey(type).replace(/[^a-z0-9]+/g, '-')}`}>{label(type)}</span>;
+}
+
 /** Ligne compacte : clé, intitulé, projet, responsable, échéance, statut. Un clic ouvre la fiche. */
 export function TicketLine({ t, onOpen, showProject, sprintName, extra }: { t: TicketRow; onOpen: (t: TicketRow) => void; showProject?: boolean; sprintName?: string; extra?: ReactNode }) {
   return (
     <li className={t.done ? 'ticket-line done' : 'ticket-line'}>
       <TicketKey t={t} />
+      <TicketTypeBadge type={t.type ?? ''} />
       <button className="ticket-title" onClick={() => onOpen(t)} title="Ouvrir le ticket">{t.title}</button>
       <span className="ticket-meta">
         {showProject && t.projectName && <TicketProject t={t} />}
@@ -209,7 +223,7 @@ export function sprintNameOf(t: Pick<Task, 'sprintId'>, sprints: Sprint[]) {
 
 /**
  * Création ou modification d'un ticket : intitulé, projet (à la création), statut, sprint, responsable, échéance
- * et description (Markdown). À la création, un type (paramétrage `ticketTypes`) propose le titre « [DEV] - Nom du projet ».
+ * et description (Markdown). Type facultatif (paramétrage `ticketTypes`) ; à la création, l'intitulé proposé est le nom du projet.
  */
 export function TicketModal({
   ticket,
@@ -231,11 +245,12 @@ export function TicketModal({
   const open = sprints ?? loaded;
   const projects = useLoad(() => api.listProjects(), []);
   const { lists } = useSettings();
-  const [type, setType] = useState(ticket ? '' : (defaults?.type ?? ''));
+  const typeLabel = useTicketTypeLabel();
+  const [type, setType] = useState(ticket ? typeLabel(ticket.type ?? '') : (defaults?.type ?? ''));
   // Tant que l'intitulé n'a pas été retouché, il suit le type et le projet choisis.
   const [titleTouched, setTitleTouched] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
-  // Curseur en fin d'intitulé, pour compléter directement « [DEV] - Nom du projet ».
+  // Curseur en fin d'intitulé, pour compléter directement le nom du projet proposé.
   const focusTitleEnd = () =>
     requestAnimationFrame(() => {
       const el = titleRef.current;
@@ -246,7 +261,7 @@ export function TicketModal({
     if (!ticket) focusTitleEnd();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [f, setF] = useState({
-    title: ticket?.title ?? (defaults?.type ? ticketTypeTitle(defaults.type, formProjectId(defaults.projectId ?? '') ? defaults.projectName : '') : ''),
+    title: ticket?.title ?? (defaults?.type && formProjectId(defaults.projectId ?? '') ? (defaults.projectName ?? '') : ''),
     details: ticket?.details ?? '',
     status: ticket?.status ?? defaults?.status ?? ('a_faire' as TicketStatus),
     priority: ticket?.priority ?? ('normale' as Priority),
@@ -268,7 +283,7 @@ export function TicketModal({
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
     const times = { estimatedHours: parseHours(f.estimatedHours), spentHours: parseHours(f.spentHours) };
-    const fields = { title: f.title, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
+    const fields = { title: f.title, type, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     const projectId = f.projectId || NO_PROJECT_ID;
     if (ticket) {
@@ -294,15 +309,15 @@ export function TicketModal({
   const projectName = !f.projectId ? '' : ((projects.data ?? []).find((p) => p.id === f.projectId)?.name ?? (f.projectId === defaults?.projectId ? (defaults?.projectName ?? '') : ''));
   const moved = !!ticket && (f.projectId || NO_PROJECT_ID) !== ticket.projectId;
   useEffect(() => {
-    if (!ticket && !titleTouched) set('title', type ? ticketTypeTitle(type, projectName) : '');
+    if (!ticket && !titleTouched) set('title', type ? projectName : '');
   }, [type, projectName]); // eslint-disable-line react-hooks/exhaustive-deps
   // Le type est facultatif : un second clic sur le type choisi le retire.
   function chooseType(choice: string) {
-    const t = choice === type ? '' : choice;
-    setType(t);
-    if (titleTouched) set('title', withTicketType(f.title, t));
-    focusTitleEnd();
+    setType(choice === type ? '' : choice);
+    if (!ticket) focusTitleEnd();
   }
+  // Type d'un ancien ticket absent du paramétrage : proposé quand même.
+  const typeChoices = type && !lists.ticketTypes.includes(type) ? [...lists.ticketTypes, type] : lists.ticketTypes;
   const sprintGone = f.sprintId !== null && !open.some((s) => s.id === f.sprintId);
 
   return (
@@ -324,11 +339,11 @@ export function TicketModal({
         )
       }
     >
-      {!ticket && lists.ticketTypes.length > 0 && (
+      {typeChoices.length > 0 && (
         <div className="field span-2">
-          <span>Type <span className="muted">(facultatif)</span></span>
+          <span>Type <span className="muted">(facultatif ; un second clic le retire)</span></span>
           <div className="seg seg-wrap" role="group" aria-label="Type de ticket">
-            {lists.ticketTypes.map((t) => (
+            {typeChoices.map((t) => (
               <button key={t} type="button" className={t === type ? 'on' : undefined} aria-pressed={t === type} onClick={() => chooseType(t)}>
                 {t}
               </button>
