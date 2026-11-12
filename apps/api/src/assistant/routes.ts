@@ -17,6 +17,7 @@ import {
   type AssistantAnswer,
   type AssistantMessage,
   type ProjectSummary,
+  type TicketView,
 } from '@samm/shared';
 import { userName } from '../auth.js';
 import { assertBudget, callStructured } from '../ai/llm.js';
@@ -49,11 +50,35 @@ const MAX_ACTIONS = 10;
 export function sanitizeActions(
   raw: AssistantOutput['actions'],
   projects: ProjectSummary[],
-  refs: { ticketTypes?: string[]; users?: HubUser[] } = {},
+  refs: { ticketTypes?: string[]; users?: HubUser[]; tickets?: TicketView[] } = {},
 ): AssistantAction[] {
   const byId = new Map(projects.map((p) => [p.id, p]));
   return raw
-    .map((a) => {
+    .map((a): AssistantAction | null => {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate.trim()) ? a.dueDate.trim() : '';
+      if (a.kind === 'ticket_update') {
+        // Ticket existant et ouvert, désigné par sa clé ; seuls les changements réels sont gardés.
+        const number = Number(/(\d+)/.exec(a.ticket ?? '')?.[1] ?? 0);
+        const t = refs.tickets?.find((x) => x.number === number && !x.done);
+        if (!t) return null;
+        const status = a.status && a.status !== t.status ? a.status : null;
+        const dueDate = date && date !== t.dueDate ? date : null;
+        const priority = a.priority && a.priority !== t.priority ? a.priority : null;
+        if (!status && !dueDate && !priority) return null;
+        return {
+          kind: 'ticket_update',
+          title: t.title,
+          ticketType: t.type ?? '',
+          details: '',
+          projectId: t.projectId,
+          projectName: t.projectName,
+          dueDate: dueDate ?? '',
+          priority: priority ?? t.priority,
+          assigneeId: '',
+          reason: a.reason.trim().slice(0, 300),
+          update: { ticketId: t.id, number: t.number, status, dueDate, priority, before: { status: t.status, dueDate: t.dueDate, priority: t.priority } },
+        };
+      }
       const project = byId.get(a.projectId.trim().replace(/^\/?projets\//, ''));
       const type = a.kind === 'ticket' ? refs.ticketTypes?.find((t) => nameKey(t) === nameKey(a.ticketType ?? '')) : undefined;
       // Le type est un champ du ticket : un préfixe « [DEV] - » ajouté par l'IA au titre est retiré.
@@ -67,13 +92,14 @@ export function sanitizeActions(
         details: a.details.trim().slice(0, 4000),
         projectId: project?.id ?? '',
         projectName: project?.name ?? '',
-        dueDate: /^\d{4}-\d{2}-\d{2}$/.test(a.dueDate.trim()) ? a.dueDate.trim() : '',
-        priority: a.priority,
+        dueDate: date,
+        priority: a.priority || 'normale',
         assigneeId: assignee?.email ?? '',
         reason: a.reason.trim().slice(0, 300),
+        update: null,
       };
     })
-    .filter((a) => a.title && (a.kind !== 'jalon' || a.projectId))
+    .filter((a): a is AssistantAction => !!a && !!a.title && (a.kind !== 'jalon' || !!a.projectId))
     .slice(0, MAX_ACTIONS);
 }
 
@@ -145,7 +171,7 @@ export function assistantRoutes() {
       answer: out.answer.trim(),
       followUps: out.followUps.map((q) => q.trim()).filter(Boolean).slice(0, 3),
       projects: focus.map((p) => ({ id: p.id, name: p.name })),
-      actions: sanitizeActions(out.actions, data.projects, { ticketTypes: data.lists.ticketTypes, users: data.users }),
+      actions: sanitizeActions(out.actions, data.projects, { ticketTypes: data.lists.ticketTypes, users: data.users, tickets: data.tickets }),
     };
     return c.json(res);
   });

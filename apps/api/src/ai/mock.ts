@@ -97,6 +97,8 @@ export class MockProvider implements LlmProvider {
             .slice(0, 5)
             .map((l, i) => ({
               kind: /^(relancer|envoyer)/i.test(l) ? 'todo' : 'ticket',
+              ticket: '',
+              status: '',
               title: l.replace(/^(il faut|à faire|action|todo)\s*:?\s*/i, '').replace(/\.$/, '').slice(0, 120) || l,
               ticketType: '',
               details: '',
@@ -107,7 +109,7 @@ export class MockProvider implements LlmProvider {
               reason: 'Phrase d’action du texte (simulation)',
             }));
     return {
-      answer: `*Réponse simulée (aucun appel IA) à : « ${question.slice(0, 200)} »*\n\n${blocks.join('\n\n') || 'Rien à signaler dans les données du hub.'}${actions.length ? `\n\nJe vous propose ${actions.length} action(s) à créer.` : ''}`,
+      answer: `${actions.length ? `Après analyse (simulation), je vais ${actions.map((x) => (x.kind === 'ticket_update' ? `mettre à jour ${x.ticket}` : `créer « ${x.title || x.projectId} »`)).join(', ')}.\n\n` : ''}*Réponse simulée (aucun appel IA) à : « ${question.slice(0, 200)} »*\n\n${blocks.join('\n\n') || 'Rien à signaler dans les données du hub.'}`,
       followUps: ['Quels projets sont en retard ?', 'Où en est le sprint en cours ?'],
       actions,
     };
@@ -258,11 +260,25 @@ export class MockProvider implements LlmProvider {
     const speaker = (l: string) => /^([^:]{1,30}):/.exec(l)?.[1] ?? '';
     const actions = lines.filter((l) => /\b(doit|faut|va|envoyer|faire)\b/i.test(l)).slice(0, 3);
     const dates = lines.filter((l) => /\b(prod|recette|livraison|testing)\b/i.test(l)).slice(0, 1);
+    // Ticket cité (« T-12 ») avec un mot d'état : mise à jour proposée.
+    const ticketUpdates = lines.flatMap((l) => {
+      const key = /\bT-(\d+)\b/.exec(l)?.[0];
+      const status = /termin|fini|livr[ée] en prod/i.test(l) ? 'termine' : /recette/i.test(l) ? 'recette' : /attente|bloqu/i.test(l) ? 'attente' : /commenc|en cours|démarr/i.test(l) ? 'en_cours' : '';
+      return key && status ? [{ ticket: key, status: status as Digest['ticketUpdates'][number]['status'], dueDate: '', priority: '' as const, reason: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 200) }] : [];
+    });
+    const tasks = actions.map((l) => ({ title: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 120), assignee: speaker(l), dueDate: '', priority: 'normale' as const }));
+    const plan = [
+      tasks.length && `créer ${tasks.length > 1 ? 'les tickets' : 'le ticket'} ${tasks.map((t) => `« ${t.title} »`).join(', ')}`,
+      ticketUpdates.length && `mettre à jour ${ticketUpdates.map((u) => u.ticket).join(', ')}`,
+      dates.length && 'ajouter un jalon',
+    ].filter(Boolean);
     return {
+      plan: plan.length ? `Après analyse (simulation), je vais ${plan.join(', ')}.` : 'Après analyse (simulation), rien à créer ni à mettre à jour.',
+      ticketUpdates,
       title: 'Réunion (simulation)',
       summary: `*Compte rendu simulé (aucun appel IA).*\n\n## Points abordés\n${lines.slice(0, 6).map((l) => `- ${l.replace(/^[^:]{1,30}:\s*/, '')}`).join('\n')}`,
       decisions: lines.filter((l) => /\b(on part sur|décid|valid)/i.test(l)).map((l) => l.replace(/^[^:]{1,30}:\s*/, '')),
-      tasks: actions.map((l) => ({ title: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 120), assignee: speaker(l), dueDate: '', priority: 'normale' as const })),
+      tasks,
       jalons: dates.map((l) => ({ label: l.replace(/^[^:]{1,30}:\s*/, '').slice(0, 80), date: '' })),
       risks: lines.some((l) => /retard|risque/i.test(l)) ? [{ title: 'Risque de retard évoqué en réunion', probability: 'moyen' as const, impact: 'moyen' as const, mitigation: '' }] : [],
     };
@@ -341,6 +357,10 @@ function guessRecordTypes(lines: string[]): SpecPatch['upsertRecordTypes'] {
  */
 function commandAction(question: string, projectId: string, context: string): AssistantOutput['actions'][number] | null {
   const q = question.toLowerCase();
+  // « Passe T-12 en recette » : mise à jour d'un ticket existant.
+  const key = /\bt-(\d+)\b/.exec(q)?.[0];
+  const status = /termin|fini/.test(q) ? 'termine' : /recette/.test(q) ? 'recette' : /attente|bloqu/.test(q) ? 'attente' : /en cours|commenc/.test(q) ? 'en_cours' : '';
+  if (key && status) return { kind: 'ticket_update', ticket: key.toUpperCase(), status, title: '', ticketType: '', details: '', projectId: '', dueDate: '', priority: '', assigneeId: '', reason: 'Demande de mise à jour (simulation)' };
   if (!/^\s*(cr[ée]e|ajoute|mets|met|planifie|rappelle|note|programme)/.test(q)) return null;
   const kind = /\bjalon\b/.test(q) ? 'jalon' : /\bticket\b/.test(q) ? 'ticket' : /to-?do|t[âa]che|rappelle/.test(q) ? 'todo' : null;
   if (!kind) return null;
@@ -350,5 +370,5 @@ function commandAction(question: string, projectId: string, context: string): As
   const projectName = projectId ? (new RegExp(`\\[([^\\]]+)\\]\\(/projets/${projectId}\\)`).exec(context)?.[1] ?? '') : '';
   const priority = /critique|bloquant/.test(q) ? 'critique' : /important|urgent|prioritaire/.test(q) ? 'haute' : 'normale';
   const title = ticketType ? projectName : question.replace(/^\s*\S+(\s+moi)?\s+(un|une|le|la)?\s*(ticket|t[âa]che|jalon|to-?do)?\s*/i, '').slice(0, 120) || question;
-  return { kind, title: title || question, ticketType, details: '', projectId, dueDate: '', priority, assigneeId: '', reason: 'Demande de création (simulation)' };
+  return { kind, ticket: '', status: '', title: title || question, ticketType, details: '', projectId, dueDate: '', priority, assigneeId: '', reason: 'Demande de création (simulation)' };
 }

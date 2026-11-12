@@ -1,14 +1,33 @@
 /** Exécution des tâches IA du module « Projets » (appelée par le runner commun). */
-import { todayIso, type JobType, type NoteSuggestions } from '@samm/shared';
+import { todayIso, type JobType, type NoteSuggestions, type Task, type TicketUpdateSuggestion } from '@samm/shared';
 import { HttpError, newId } from '../lib/util.js';
 import { blobs } from '../storage/blobs.js';
 import * as pr from './repo.js';
-import { digestMeeting, progressReport } from './ai.js';
+import { digestMeeting, progressReport, type Digest } from './ai.js';
 
 type Step = (s: string) => Promise<void>;
 type Ctx = { user: string; cdcId: string };
 
 const isDate = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '');
+
+/**
+ * Mises à jour de tickets proposées par l'IA, ramenées à ce que le hub accepte : ticket ouvert existant (par sa clé),
+ * valeurs valides et réellement différentes ; sinon la proposition est écartée.
+ */
+export function ticketUpdatesOf(raw: Digest['ticketUpdates'], tasks: Task[]): TicketUpdateSuggestion[] {
+  const seen = new Set<string>();
+  return raw.flatMap((u) => {
+    const number = Number(/(\d+)/.exec(u.ticket)?.[1] ?? 0);
+    const t = tasks.find((x) => x.number === number && !x.done);
+    if (!t || seen.has(t.id)) return [];
+    const status = u.status && u.status !== t.status ? u.status : null;
+    const dueDate = isDate(u.dueDate) && u.dueDate !== t.dueDate ? u.dueDate : null;
+    const priority = u.priority && u.priority !== t.priority ? u.priority : null;
+    if (!status && !dueDate && !priority) return [];
+    seen.add(t.id);
+    return [{ ticketId: t.id, number: t.number, title: t.title, status, dueDate, priority, before: { status: t.status, dueDate: t.dueDate, priority: t.priority }, reason: u.reason.trim().slice(0, 300), state: 'proposee' as const }];
+  });
+}
 
 export async function runProjectJob(type: JobType, projectId: string, payload: Record<string, unknown>, ctx: Ctx, step: Step): Promise<string> {
   const detail = await pr.getProjectDetail(projectId, []);
@@ -25,6 +44,8 @@ export async function runProjectJob(type: JobType, projectId: string, payload: R
     const decisions = out.decisions.filter((x) => x.trim());
     const content = [out.summary.trim(), decisions.length ? `## Décisions\n${decisions.map((x) => `- ${x}`).join('\n')}` : ''].filter(Boolean).join('\n\n');
     const suggestions: NoteSuggestions = {
+      plan: out.plan.trim().slice(0, 2000),
+      ticketUpdates: ticketUpdatesOf(out.ticketUpdates, detail.items.tasks),
       tasks: out.tasks.filter((t) => t.title.trim()).map((t) => ({ ...t, dueDate: isDate(t.dueDate), state: 'proposee' })),
       jalons: out.jalons.filter((j) => j.label.trim()).map((j) => ({ ...j, date: isDate(j.date), state: 'proposee' })),
       risks: out.risks.filter((r) => r.title.trim()).map((r) => ({ ...r, state: 'proposee' })),
@@ -38,7 +59,7 @@ export async function runProjectJob(type: JobType, projectId: string, payload: R
       ctx.user,
       { itemId: noteId, extra: { suggestions, hasSource: true, origin: 'ia' } },
     );
-    const n = suggestions.tasks.length + suggestions.jalons.length + suggestions.risks.length;
+    const n = suggestions.tasks.length + (suggestions.ticketUpdates?.length ?? 0) + suggestions.jalons.length + suggestions.risks.length;
     return n ? `Terminé (${n} proposition${n > 1 ? 's' : ''} à valider dans le journal)` : 'Terminé';
   }
 

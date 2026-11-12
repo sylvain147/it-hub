@@ -39,16 +39,20 @@ function ticketBlock(t: StoredTicket): string {
   return `### #${t.id} — ${t.subject.trim() || '(sans sujet)'}\n${facts.join(' · ')}\n${desc.length > DESCRIPTION_CHARS ? desc.slice(0, DESCRIPTION_CHARS) + '…' : desc}`;
 }
 
+/**
+ * Classement par thème : l'IA classe les tickets par lots, puis le résultat est enregistré comme PROPOSITION
+ * (`setThemeProposal`) avec son plan en clair ; rien n'est écrit sur les tickets avant la validation de l'utilisateur.
+ */
 async function classify(all: boolean, ctx: Ctx, step: Step): Promise<string> {
   const tickets = await tma.listTickets();
   const todo = tickets.filter((t) => all || !t.theme).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   if (!todo.length) throw new HttpError(400, 'Tous les tickets sont déjà classés.');
   // Les thèmes déjà utilisés sont proposés au modèle pour rester cohérent d'un import à l'autre.
   const themes = new Set(all ? [] : tickets.map((t) => t.theme).filter(Boolean));
-  let done = 0;
+  const result = new Map<string, string>();
   for (let i = 0; i < todo.length; i += THEME_BATCH) {
     const batch = todo.slice(i, i + THEME_BATCH);
-    await step(`Classement des tickets (${i + batch.length} / ${todo.length})`);
+    await step(`Analyse des tickets (${i + batch.length} / ${todo.length})`);
     const out = await callStructured({
       tier: 'fast',
       operation: 'tma_themes',
@@ -60,18 +64,41 @@ async function classify(all: boolean, ctx: Ctx, step: Step): Promise<string> {
       ctx,
     });
     const ids = new Set(batch.map((t) => t.id));
-    const result = new Map<string, string>();
     for (const it of out.items) {
       const id = it.id.replace(/^#/, '').trim();
       const theme = it.theme.replace(/\s+/g, ' ').trim().slice(0, THEME_MAX_CHARS);
-      if (ids.has(id) && theme && theme !== NO_THEME) result.set(id, theme);
+      if (ids.has(id) && theme && theme !== NO_THEME) {
+        result.set(id, theme);
+        themes.add(theme);
+      }
     }
-    for (const t of result.values()) themes.add(t);
-    await tma.setThemes(result);
-    done += result.size;
   }
-  const missing = todo.length - done;
-  return `${done} ticket(s) classé(s) en ${themes.size} thème(s)${missing ? ` ; ${missing} sans réponse (relancez le classement)` : ''}`;
+  const byId = new Map(todo.map((t) => [t.id, t]));
+  const items = [...result].map(([id, theme]) => {
+    const t = byId.get(id)!;
+    return { id, subject: t.subject, category: t.category, theme, previous: t.theme };
+  });
+  await step('Préparation de la proposition');
+  await tma.setThemeProposal({ createdAt: nowIso(), createdBy: ctx.user, plan: themePlan(items, todo.length), items });
+  return `Proposition prête : ${items.length} ticket(s) à classer — à valider sur la page Suivi TMA`;
+}
+
+/** Ce que l'IA propose, en clair : « Après analyse de 37 tickets, je propose de les ranger en 6 thèmes : … ». */
+export function themePlan(items: { theme: string; previous: string }[], analysed: number): string {
+  const counts = new Map<string, number>();
+  for (const it of items) counts.set(it.theme, (counts.get(it.theme) ?? 0) + 1);
+  const top = [...counts].sort((a, b) => b[1] - a[1]);
+  const list = top.slice(0, 8).map(([t, n]) => `« ${t} » (${n})`).join(', ');
+  const changed = items.filter((it) => it.previous && it.previous !== it.theme).length;
+  const missing = analysed - items.length;
+  return [
+    `Après analyse de ${analysed} ticket${analysed > 1 ? 's' : ''}, je propose de ${items.length > 1 ? `les ranger en ${top.length} thème${top.length > 1 ? 's' : ''}` : 'le ranger'} : ${list}${top.length > 8 ? `, et ${top.length - 8} autre(s)` : ''}.`,
+    changed ? `${changed} ticket${changed > 1 ? 's' : ''} changerai${changed > 1 ? 'ent' : 't'} de thème.` : '',
+    missing > 0 ? `Je n’ai pas su classer ${missing} ticket${missing > 1 ? 's' : ''}.` : '',
+    'Rien n’est enregistré tant que vous ne validez pas.',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 const h = (n: number) => `${(Math.round(n * 2) / 2).toLocaleString('fr-FR')} h`;

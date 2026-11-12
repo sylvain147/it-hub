@@ -302,6 +302,29 @@ describe('module Projets', () => {
     expect(again.json.items.tasks.length).toBe(before + 1);
   });
 
+  it('propose de mettre à jour les tickets existants, et ne les change qu’une fois validé', async () => {
+    const t1 = (await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Écran des tarifs', status: 'en_cours' })).json;
+    const t2 = (await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Export comptable' })).json;
+    const text = `Julien: le ticket T-${t1.number} est livré en recette depuis hier\nMarie: T-${t2.number} est bloqué en attente du fichier client\nJulien: T-9999 est terminé`;
+    const job = await env.waitJob((await env.call('POST', `/projects/${id}/digest`, { title: 'Point du jeudi', text })).json.id);
+    expect(job.error).toBe('');
+    const { json: p } = await env.call('GET', `/projects/${id}`);
+    const note = p.items.notes.find((n: any) => n.title === 'Point du jeudi');
+    expect(note.suggestions.plan).toMatch(/^Après analyse/);
+    expect(note.suggestions.plan).toContain(`T-${t1.number}`);
+    // Ticket inconnu (T-9999) écarté ; « avant » gardé pour l'affichage.
+    expect(note.suggestions.ticketUpdates.map((u: any) => [u.number, u.status, u.before.status])).toEqual([
+      [t1.number, 'recette', 'en_cours'],
+      [t2.number, 'attente', 'a_faire'],
+    ]);
+    // Rien ne change avant validation.
+    expect(p.items.tasks.find((t: any) => t.id === t1.id).status).toBe('en_cours');
+    const applied = await env.call('POST', `/projects/${id}/notes/${note.id}/suggestions`, { ticketUpdates: [0] });
+    expect(applied.json.items.tasks.find((t: any) => t.id === t1.id)).toMatchObject({ status: 'recette', statusChanges: [expect.objectContaining({ from: 'en_cours', to: 'recette' })] });
+    expect(applied.json.items.tasks.find((t: any) => t.id === t2.id).status).toBe('a_faire');
+    expect(applied.json.items.notes.find((n: any) => n.id === note.id).suggestions.ticketUpdates.map((u: any) => u.state)).toEqual(['acceptee', 'refusee']);
+  });
+
   it('rédige un rapport d’avancement', async () => {
     const start = await env.call('POST', `/projects/${id}/report`);
     const job = await env.waitJob(start.json.id);

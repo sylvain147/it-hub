@@ -26,6 +26,13 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - **Actions avec Gandalf** (son portrait sur chaque note) : Gandalf reçoit la note et propose les tickets, tâches et jalons à créer.
 - **Taille des post-it** : la poignée en bas à droite d'une note l'agrandit (jusqu'à trois colonnes de large, hauteur libre) pour la lire sans l'ouvrir ; double-clic : la note entière, ou de nouveau la taille normale (flèches du clavier sur la poignée). La taille est retenue pour chaque note.
 
+### ✨ L'IA propose, vous validez
+
+Quand l'IA doit créer ou modifier quelque chose, elle commence par dire ce qu'elle va faire, puis attend votre accord, élément par élément :
+- **Compte rendu de réunion** (journal du projet, transcription) : « Après analyse, je vais créer les tickets « … » et « … », passer T-12 en recette, décaler l'échéance de T-8 au 20 novembre et ajouter le risque « … ». » Chaque proposition se coche : nouveaux tickets, **mises à jour de tickets existants** (statut, échéance, priorité, avec l'avant → après et la raison), jalons, risques.
+- **Gandalf** : « Après analyse, je vais… », puis une carte par proposition (créer un ticket, une tâche, un jalon, **mettre à jour un ticket** : « Passe T-12 en recette »).
+- **Suivi TMA** : le classement des tickets Desk par thème devient une proposition (« Après analyse de 37 tickets, je propose de les ranger en 6 thèmes : … »), regroupée par thème, que l'on applique en tout ou en partie, ou que l'on ignore.
+
 ### 🧙 Gandalf, l'assistant
 
 - **Un chat avec l'IA sur tout le hub**, ouvert par la **bulle de Gandalf en bas à droite** de chaque page (la conversation continue d'une page à l'autre ; Échap ou × la referme) : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.

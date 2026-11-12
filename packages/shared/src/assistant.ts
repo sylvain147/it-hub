@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PRIORITIES, type Priority } from './project.js';
+import { PRIORITIES, TICKET_STATUSES, type Priority, type TicketStatus } from './project.js';
 
 /**
  * Assistant : un chat global où l'on interroge l'IA sur les projets, les échéances, les tickets et sa to-do.
@@ -31,7 +31,7 @@ export const assistantAskBody = z.object({
 export type AssistantAskBody = z.input<typeof assistantAskBody>;
 
 /** Ce que Gandalf peut proposer de créer (toujours validé par l'utilisateur, créé par les routes habituelles). */
-export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon'] as const;
+export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon', 'ticket_update'] as const;
 export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
 
 /**
@@ -57,16 +57,30 @@ export interface AssistantAction {
   assigneeId: string;
   /** Motif court : ce qui, dans le texte, justifie la proposition. */
   reason: string;
+  /**
+   * Mise à jour d'un ticket existant (`ticket_update`) : seuls les champs qui changent (null : inchangé), et les
+   * valeurs d'avant pour l'affichage. Null pour une création.
+   */
+  update: {
+    ticketId: string;
+    number: number;
+    status: TicketStatus | null;
+    dueDate: string | null;
+    priority: Priority | null;
+    before: { status: TicketStatus; dueDate: string; priority: Priority };
+  } | null;
 }
 
 export const assistantActionOutputSchema = z.object({
   kind: z.enum(ASSISTANT_ACTION_KINDS),
+  ticket: z.string().describe('ticket_update : clé du ticket existant à mettre à jour (« T-12 ») ; chaîne vide sinon'),
+  status: z.enum([...TICKET_STATUSES, '']).describe('ticket_update : nouveau statut (a_faire, en_cours, attente, recette, termine), chaîne vide si inchangé ; chaîne vide sinon'),
   title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
   ticketType: z.string().describe('Ticket : type parmi les types de tickets du hub (ex. Dev), chaîne vide si aucun ne correspond ou pour une tâche ou un jalon'),
   details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases ; chaîne vide si rien'),
   projectId: z.string().describe('Identifiant du projet concerné (celui des liens /projets/<id>), chaîne vide si aucun'),
   dueDate: z.string().describe('AAAA-MM-JJ si une date est donnée ou se déduit du texte, sinon chaîne vide'),
-  priority: z.enum(PRIORITIES),
+  priority: z.enum([...PRIORITIES, '']).describe('Priorité ; pour ticket_update, chaîne vide si inchangée'),
   assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable, chaîne vide si personne n’est désigné'),
   reason: z.string().describe('Motif court : ce qui, dans le texte, justifie la proposition'),
 });

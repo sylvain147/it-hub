@@ -78,8 +78,27 @@ export interface TmaOverview {
     lastImportAt: string | null;
     lastImportBy: string | null;
     activeJobId: string | null;
+    /** Classement proposé par l'IA, en attente de validation : nombre de tickets concernés (0 : aucun). */
+    pendingThemes: number;
   };
 }
+
+/**
+ * Classement par thème proposé par l'IA, à valider : rien n'est enregistré sur les tickets avant « Appliquer ».
+ * `plan` dit en clair ce que l'IA propose (« Après analyse de 37 tickets, je propose 6 thèmes… »).
+ */
+export interface ThemeProposal {
+  createdAt: string;
+  createdBy: string;
+  plan: string;
+  items: { id: string; subject: string; category: string; theme: string; previous: string }[];
+}
+
+export const applyThemesBody = z.object({
+  /** Tickets dont le thème proposé est retenu (les autres sont ignorés). */
+  ids: z.array(z.string().regex(/^\d{1,9}$/)).max(20_000),
+});
+export type ApplyThemesBody = z.input<typeof applyThemesBody>;
 
 export interface TmaMonthDetail {
   info: TmaMonthInfo;

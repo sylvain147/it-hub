@@ -12,6 +12,8 @@ import {
   HEALTH_LABELS,
   NOTE_KIND_LABELS,
   PRIORITIES,
+  TICKET_STATUSES,
+  ticketKey,
   RISK_LEVELS,
   isJalonLate,
   isTaskOverdue,
@@ -37,6 +39,9 @@ type Ctx = { user: string; cdcId: string };
 // ---------------------------------------------------------------------------
 
 export const digestSchema = z.object({
+  plan: z
+    .string()
+    .describe('Ce que tu proposes de faire dans le projet, à la première personne, 1 à 3 phrases : « Après analyse, je vais créer les tickets … et …, passer T-12 en recette, décaler l’échéance de T-8 au 20 novembre et ajouter le risque … » ; « Après analyse, rien à créer ni à mettre à jour. » si les listes sont vides'),
   title: z.string().describe('Titre court de la réunion, ex. « Point hebdo avec Coqliqo »'),
   summary: z.string().describe('Compte rendu structuré en Markdown (sous-titres « ## », puces)'),
   decisions: z.array(z.string()).describe('Décisions prises, une phrase chacune'),
@@ -48,6 +53,17 @@ export const digestSchema = z.object({
       priority: z.enum(PRIORITIES),
     }),
   ),
+  ticketUpdates: z
+    .array(
+      z.object({
+        ticket: z.string().describe('Clé du ticket existant, ex. « T-12 » (uniquement un ticket listé dans les tickets ouverts)'),
+        status: z.enum([...TICKET_STATUSES, '']).describe('Nouveau statut, chaîne vide si inchangé'),
+        dueDate: z.string().describe('Nouvelle échéance AAAA-MM-JJ, chaîne vide si inchangée'),
+        priority: z.enum([...PRIORITIES, '']).describe('Nouvelle priorité, chaîne vide si inchangée'),
+        reason: z.string().describe('Ce qui, dans le texte, justifie la mise à jour, une phrase'),
+      }),
+    )
+    .describe('Mises à jour des tickets existants décidées ou constatées pendant la réunion'),
   jalons: z.array(z.object({ label: z.string(), date: z.string().describe('AAAA-MM-JJ, chaîne vide si inconnue') })),
   risks: z.array(
     z.object({
@@ -89,7 +105,7 @@ function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings
   return [
     ...ficheLines(p, lists),
     `Intervenants : ${items.contacts.map((c) => `${c.name}${c.role ? ` (${c.role}${c.organisation ? `, ${c.organisation}` : ''})` : ''}`).join(' ; ') || '(aucun)'}`,
-    `Tâches déjà ouvertes : ${open.map((t) => t.title).join(' ; ') || '(aucune)'}`,
+    `Tickets ouverts (clé [statut, priorité, échéance, responsable] intitulé) :\n${open.map((t) => `- ${ticketKey(t)} [${statusLabel(lists, 'ticket', t.status)} (${t.status}), ${t.priority}, ${d(t.dueDate)}, ${t.assignee || '?'}] ${t.type ? `${t.type} — ` : ''}${t.title}`).join('\n') || '(aucun)'}`,
     `Jalons existants : ${items.jalons.map((j) => `${j.label} (${j.startDate ? `${d(j.startDate)} → ` : ''}${d(j.date)})`).join(' ; ') || '(aucun)'}`,
     `Risques déjà identifiés : ${items.risks.filter((r) => r.status !== 'clos').map((r) => r.title).join(' ; ') || '(aucun)'}`,
   ].join('\n');

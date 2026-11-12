@@ -4,11 +4,12 @@
  *  pk                   sk              contenu
  *  TMA#DESK             META            dernier import Desk, job de classement actif
  *  TMA#DESK             TKT#<n° 9 ch.>  ticket Desk (champs utiles, textes masqués, thème)
+ *  TMA#DESK             PROPOSAL        classement par thème proposé par l'IA, en attente de validation
  *  TMA#MONTH#<AAAA-MM>  META            relevé TMA du mois, synthèse IA (+ GSI1 pour la liste)
  *  bucket : tma/months/<AAAA-MM>.json   lignes du relevé
  */
 import { BatchWriteCommand, DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { DeskImportResult, DeskTicket, StoredTicket, TmaEntry, TmaMonthInfo, TmaOverview, TmaSynthesis } from '@samm/shared';
+import type { DeskImportResult, DeskTicket, StoredTicket, ThemeProposal, TmaEntry, TmaMonthInfo, TmaOverview, TmaSynthesis } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
 import { GSI1 } from '../db/schema.js';
@@ -23,6 +24,7 @@ export const DESK_TARGET = 'desk';
 
 export const tmaKeys = {
   desk: () => ({ pk: DESK_PK, sk: 'META' }),
+  proposal: () => ({ pk: DESK_PK, sk: 'PROPOSAL' }),
   ticket: (id: string) => ({ pk: DESK_PK, sk: `TKT#${id.padStart(9, '0')}` }),
   month: (month: string) => ({ pk: `TMA#MONTH#${month}`, sk: 'META' }),
 };
@@ -122,6 +124,28 @@ export async function setThemes(themes: Map<string, string>): Promise<void> {
   }
 }
 
+/** Classement proposé par l'IA, en attente de validation (null : aucun). Peut dépasser 400 Ko : le détail est dans le bucket. */
+export async function getThemeProposal(): Promise<ThemeProposal | null> {
+  const res = await ddb().send(new GetCommand({ TableName: T(), Key: tmaKeys.proposal() }));
+  if (!res.Item) return null;
+  return getJson<ThemeProposal>(blobs(), String(res.Item.blobKey));
+}
+
+export async function setThemeProposal(p: ThemeProposal | null): Promise<void> {
+  if (!p) {
+    await ddb().send(new DeleteCommand({ TableName: T(), Key: tmaKeys.proposal() }));
+    return;
+  }
+  const blobKey = 'tma/theme-proposal.json';
+  await blobs().put(blobKey, JSON.stringify(p), 'application/json');
+  await ddb().send(new PutCommand({ TableName: T(), Item: { ...tmaKeys.proposal(), blobKey, count: p.items.length, createdAt: p.createdAt } }));
+}
+
+async function proposalCount(): Promise<number> {
+  const res = await ddb().send(new GetCommand({ TableName: T(), Key: tmaKeys.proposal() }));
+  return Number(res.Item?.count ?? 0);
+}
+
 // ---------------------------------------------------------------------------
 // Relevés mensuels
 // ---------------------------------------------------------------------------
@@ -155,7 +179,7 @@ export async function listMonths(): Promise<TmaMonthInfo[]> {
 }
 
 export async function getOverview(): Promise<TmaOverview> {
-  const [months, meta, tickets] = await Promise.all([listMonths(), getDeskMeta(), listTickets()]);
+  const [months, meta, tickets, pendingThemes] = await Promise.all([listMonths(), getDeskMeta(), listTickets(), proposalCount()]);
   const dates = tickets.map((t) => t.createdAt).sort();
   return {
     months,
@@ -167,6 +191,7 @@ export async function getOverview(): Promise<TmaOverview> {
       lastImportAt: meta?.lastImportAt ?? null,
       lastImportBy: meta?.lastImportBy ?? null,
       activeJobId: activeJob(meta),
+      pendingThemes,
     },
   };
 }

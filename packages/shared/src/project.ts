@@ -471,8 +471,29 @@ export const fileInputSchema = z.object({
 /** Propositions de l'assistant issues d'un compte rendu, à valider une à une. */
 export const SUGGESTION_STATES = ['proposee', 'acceptee', 'refusee'] as const;
 export type SuggestionState = (typeof SUGGESTION_STATES)[number];
+/**
+ * Mise à jour proposée d'un ticket existant du projet (statut, échéance, priorité) : seuls les champs à changer sont
+ * renseignés (null : inchangé) ; `before` garde les valeurs au moment de l'analyse, pour l'affichage.
+ */
+export interface TicketUpdateSuggestion {
+  ticketId: string;
+  number: number;
+  title: string;
+  status: TicketStatus | null;
+  dueDate: string | null;
+  priority: Priority | null;
+  before: { status: TicketStatus; dueDate: string; priority: Priority };
+  /** Ce qui, dans le texte, justifie la mise à jour. */
+  reason: string;
+  state: SuggestionState;
+}
+
 export interface NoteSuggestions {
+  /** Ce que l'assistant propose de faire, en clair (« Après analyse, je vais créer… »), vide pour les anciennes notes. */
+  plan?: string;
   tasks: { title: string; assignee: string; dueDate: string; priority: Priority; state: SuggestionState }[];
+  /** Mises à jour de tickets existants (absent des anciennes notes). */
+  ticketUpdates?: TicketUpdateSuggestion[];
   jalons: { label: string; date: string; state: SuggestionState }[];
   risks: { title: string; probability: RiskLevel; impact: RiskLevel; mitigation: string; state: SuggestionState }[];
 }
@@ -745,6 +766,7 @@ export const applySuggestionsBody = z.object({
   tasks: z.array(z.number().int().min(0)).default([]),
   jalons: z.array(z.number().int().min(0)).default([]),
   risks: z.array(z.number().int().min(0)).default([]),
+  ticketUpdates: z.array(z.number().int().min(0)).default([]),
 });
 export type ApplySuggestionsBody = z.input<typeof applySuggestionsBody>;
 
