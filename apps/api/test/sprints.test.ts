@@ -177,7 +177,9 @@ describe('module Sprints (tickets, planification, tableau, documents)', () => {
     const res = await env.call('GET', '/sprints/1/documents/compte_rendu/prompt');
     expect(res.status).toBe(200);
     const e = res.json;
-    expect(e.body).toMatchObject({ model: config.modelSmart, max_tokens: 4000, output_config: { effort: 'medium', format: { type: 'json_schema' } } });
+    // InvokeModel (bedrock-runtime) : le modèle est dans l'adresse, pas dans le corps.
+    expect(e.url).toContain(`/model/${config.modelSmart}/invoke`);
+    expect(e.body).toMatchObject({ max_tokens: 4000, output_config: { effort: 'medium', format: { type: 'json_schema' } } });
     expect(e.body.system[0]).toEqual({ type: 'text', text: SPRINT_REVIEW_SYSTEM, cache_control: { type: 'ephemeral' } });
     expect(e.body.messages[0].content).toContain('<chiffres_du_sprint>\n# Sprint 1 (clos)');
     expect(e.body.messages[0].content).toContain('T-2 « API commandes » [Portail fournisseurs] — Bruno Petit · En attente');

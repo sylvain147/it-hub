@@ -16,8 +16,9 @@ Dans `infra/cdk.json` (section `context`) :
 |---|---|---|
 | `region` | `eu-west-3` (Paris) | Région de l'application |
 | `llmProvider` | `bedrock` | `mock` : IA simulée (aucun appel Bedrock, coût nul, textes marqués « simulation ») ; `bedrock` : vrais appels. Passer à `bedrock` puis redéployer une fois l'accès aux modèles activé |
-| `bedrockRegion` | `eu-west-1` | Région d'appel de Bedrock (point d'accès `bedrock-mantle`). **Pas `eu-west-3` (Paris)** : le point d'accès `bedrock-mantle.eu-west-3.api.aws` n'existe pas (« Connection error »). L'Irlande garde les données dans l'UE ; l'application, elle, reste à Paris |
-| `modelFast` / `modelSmart` | `anthropic.claude-haiku-5-5` / `anthropic.claude-sonnet-5-5` | Modèles utilisés |
+| `bedrockRegion` | `eu-west-3` | Région d'appel de Bedrock |
+| `bedrockApi` | `runtime` | Point d'accès Bedrock : `runtime` (InvokeModel, celui du terrain de jeu de la console ; modèles appelés par leur profil d'inférence `eu.anthropic.…`) ou `mantle` (API Messages native ; **absent de Paris**). Noms exacts des profils : `aws bedrock list-inference-profiles --region eu-west-3` |
+| `modelFast` / `modelSmart` | `eu.anthropic.claude-haiku-5-5` / `eu.anthropic.claude-sonnet-5-5` | Modèles utilisés : profils d'inférence européens (données traitées dans l'UE, environ +10 % par rapport au routage `global.`) |
 | `monthlyBudgetUsd` | `30` | Plafond mensuel des fonctions IA (en $) |
 | `mailFrom` | *(vide)* | Expéditeur des demandes de validation de CDC (ex. `hobbit@entreprise.fr`). Vide : aucun e-mail n'est envoyé, le lien est à transmettre à la main depuis le hub |
 

@@ -16,6 +16,7 @@ new HubStack(app, 'HubIt', {
   repoRoot,
   llmProvider: ctx('llmProvider', 'bedrock') === 'mock' ? 'mock' : 'bedrock',
   bedrockRegion: ctx('bedrockRegion', env.region),
+  bedrockApi: ctx('bedrockApi', 'runtime') === 'mantle' ? 'mantle' : 'runtime',
   modelFast: ctx('modelFast', 'anthropic.claude-haiku-5-5'),
   modelSmart: ctx('modelSmart', 'anthropic.claude-sonnet-5-5'),
   monthlyBudgetUsd: Number(ctx('monthlyBudgetUsd', '30')),
