@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { JobInfo, Question } from '@samm/shared';
 import { api } from '../api';
 import { EmptyState, PriorityBadge, shortUser, toast } from '../components/ui';
+import { withAiRecap } from '../assistant/AiRecap';
 
 interface Props {
   cdcId: string;
@@ -34,7 +35,10 @@ export function QuestionsPanel({ cdcId, questions, setQuestions, baseSeq, aiDisa
 
   async function integrate() {
     try {
-      onJob(await api.integrateAnswers(cdcId, baseSeq));
+      const started = await withAiRecap(() => api.integrateAnswers(cdcId, baseSeq));
+      // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+      if (!started) return;
+      onJob(started);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

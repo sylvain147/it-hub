@@ -9,6 +9,7 @@ import {
   tmaHoursByContact,
   deskKey,
   MONTH_RE,
+  monthLabel,
   previousMonth,
   ticketKey,
   type DeskTicketInfo,
@@ -22,6 +23,8 @@ import { userName } from '../auth.js';
 import { HttpError } from '../lib/util.js';
 import { body } from '../lib/http.js';
 import { startJob } from '../jobs/runner.js';
+import { aiCall, buildPlan, n, preview, wantsPreview } from '../ai/plan.js';
+import { reportToMarkdown, THEME_BATCH, ticketBlock } from './jobs.js';
 import * as tma from './repo.js';
 import * as pr from '../projects/repo.js';
 import * as st from '../settings/repo.js';
@@ -79,6 +82,30 @@ export function tmaRoutes() {
     const tickets = await tma.listTickets();
     if (!tickets.length) throw new HttpError(400, 'Importez d’abord un export de tickets Desk.');
     if (!b.all && tickets.every((t) => t.theme)) throw new HttpError(400, 'Tous les tickets sont déjà classés.');
+    if (wantsPreview(c)) {
+      const todo = tickets.filter((t) => b.all || !t.theme);
+      const batches = Math.ceil(todo.length / THEME_BATCH);
+      const chars = todo.reduce((s, t) => s + ticketBlock(t).length, 0);
+      const known = new Set(tickets.map((t) => t.theme).filter(Boolean)).size;
+      return preview(
+        c,
+        await buildPlan('tma_classify', 'Classement des tickets Desk par thème', {
+          steps: [
+            `Lire ${n(todo.length)} ticket${todo.length > 1 ? 's' : ''} Desk ${b.all ? '(tous, y compris ceux déjà classés)' : 'pas encore classés'}, par lots de ${THEME_BATCH} (${batches} lot${batches > 1 ? 's' : ''}).`,
+            `Donner à chacun un thème court (ex. « Facturation », « Accès utilisateurs »)${!b.all && known ? `, en réutilisant si possible les ${known} thèmes déjà employés` : ''}.`,
+          ],
+          sent: [
+            'Pour chaque ticket : numéro, sujet, catégorie, cause, produit, entité et le début de la description (1 200 caractères au plus).',
+            'Les données personnelles ont été masquées à l’import ; aucun temps passé, aucun relevé du prestataire n’est envoyé.',
+          ],
+          changes: [
+            `Le thème de ${b.all ? 'tous les' : 'ces'} tickets est enregistré${b.all ? ' (il remplace l’ancien)' : ''} ; les rapports par thème se mettent à jour.`,
+            'Rien d’autre ne change : les tickets eux-mêmes, les relevés et les chiffres ne sont pas modifiés.',
+          ],
+          calls: [aiCall(`Classer un lot de ${Math.min(THEME_BATCH, todo.length)} tickets`, 'fast', chars / Math.max(1, batches), 60 * Math.min(THEME_BATCH, todo.length), batches)],
+        }),
+      );
+    }
     return c.json(await startJob('tma_classify', tma.DESK_TARGET, userName(c), { all: b.all }), 202);
   });
 
@@ -145,7 +172,20 @@ export function tmaRoutes() {
 
   r.post('/months/:month/synthesis', async (c) => {
     const month = monthParam(c);
-    await tma.getMonth(month);
+    const { entries } = await tma.getMonth(month);
+    if (wantsPreview(c)) {
+      const [tickets, prevEntries] = await Promise.all([tma.listTickets(), tma.getMonthEntries(previousMonth(month))]);
+      const md = reportToMarkdown(buildMonthReport(month, entries, tickets, prevEntries ? { month: previousMonth(month), entries: prevEntries } : null));
+      return preview(
+        c,
+        await buildPlan('tma_synthesis', `Synthèse TMA de ${monthLabel(month)}`, {
+          steps: ['Les chiffres du mois sont calculés par le hub (temps par intervenant, par ticket, par thème, comparaison avec le mois précédent).', 'L’IA rédige à partir de ces chiffres une synthèse courte : faits marquants, points d’attention, tendances.'],
+          sent: [`Uniquement les chiffres agrégés du mois (${n(md.length)} caractères) : totaux, classements, sujets des tickets les plus consommateurs.`, 'Jamais les lignes brutes du relevé ni les descriptions des tickets.'],
+          changes: ['La synthèse est enregistrée sur la page du mois (elle remplace la précédente, s’il y en avait une).', 'Les chiffres et les relevés ne changent pas.'],
+          calls: [aiCall('Rédiger la synthèse du mois', 'smart', md.length, 1500)],
+        }),
+      );
+    }
     return c.json(await startJob('tma_synthesis', month, userName(c), {}), 202);
   });
 

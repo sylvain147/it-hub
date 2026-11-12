@@ -84,7 +84,7 @@ function ficheLines(p: ProjectSummary, lists: ListSettings): string[] {
 }
 
 /** Résumé court du projet donné avec un compte rendu à analyser (pour éviter les doublons). */
-function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings): string {
+export function digestBrief(p: ProjectSummary, items: ProjectItems, lists: ListSettings): string {
   const open = items.tasks.filter((t) => !t.done);
   return [
     ...ficheLines(p, lists),

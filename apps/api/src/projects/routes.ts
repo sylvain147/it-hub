@@ -42,7 +42,8 @@ import { blobs } from '../storage/blobs.js';
 import { startJob } from '../jobs/runner.js';
 import { sectionId } from '../ai/pipeline.js';
 import * as pr from './repo.js';
-import { projectContextMarkdown } from './ai.js';
+import { digestBrief, projectContextMarkdown, reportInput } from './ai.js';
+import { aiCall, buildPlan, n, preview, wantsPreview } from '../ai/plan.js';
 import { linkLegacyChefs, resolveProjectChefs, resolveTaskAssignee } from '../users/routes.js';
 import * as users from '../users/repo.js';
 import { listNotes, putNote } from '../notes/routes.js';
@@ -377,13 +378,44 @@ export function projectRoutes() {
   r.post('/:id/digest', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, digestMeetingBody);
-    await pr.requireProject(id);
+    const project = await pr.requireProject(id);
+    if (wantsPreview(c)) {
+      const detail = await pr.getProjectDetail(id, []);
+      const brief = digestBrief(project, detail.items, await getLists());
+      return preview(
+        c,
+        await buildPlan('project_digest', 'Analyse du compte rendu de réunion', {
+          steps: [
+            'L’IA lit le texte et en rédige le compte rendu : résumé, décisions prises.',
+            'Elle repère les tickets, jalons et risques qui en découlent et vous les propose.',
+          ],
+          sent: [`Le texte collé (${n(b.text.length)} caractères).`, `Un résumé de la fiche du projet ${project.name} (${n(brief.length)} caractères) : statut, jalons, tickets ouverts, risques, pour éviter les doublons.`],
+          changes: [
+            'Un compte rendu est ajouté au journal du projet, avec le texte d’origine joint.',
+            'Les tickets, jalons et risques proposés n’y sont ajoutés que si vous les cochez puis validez : rien n’est créé automatiquement.',
+          ],
+          calls: [aiCall('Analyser le compte rendu', 'fast', b.text.length + brief.length, 3000)],
+        }),
+      );
+    }
     return c.json(await startJob('project_digest', id, userName(c), { textKey: await stash(b.text), title: b.title, date: b.date }), 202);
   });
 
   r.post('/:id/report', async (c) => {
     const id = c.req.param('id');
     await pr.requireProject(id);
+    if (wantsPreview(c)) {
+      const input = reportInput(await pr.getProjectDetail(id, []), await getLists());
+      return preview(
+        c,
+        await buildPlan('project_report', 'Rapport d’avancement', {
+          steps: ['L’IA rédige un rapport d’avancement du projet : où il en est, ce qui avance, ce qui coince, les prochaines échéances.', 'Elle propose une météo (au vert, vigilance, en difficulté).'],
+          sent: [`Les données du projet mises en forme par le hub (${n(input.length)} caractères) : fiche, tickets, jalons, prestations, risques, dernières notes du journal.`],
+          changes: ['Le rapport est ajouté au journal du projet.', 'La météo proposée ne s’applique que si vous cliquez sur « Appliquer ».'],
+          calls: [aiCall('Rédiger le rapport', 'smart', input.length, 2500)],
+        }),
+      );
+    }
     return c.json(await startJob('project_report', id, userName(c), {}), 202);
   });
 
@@ -424,6 +456,26 @@ export function projectRoutes() {
     const presta = b.prestationId ? project.items.prestations.find((x) => x.id === b.prestationId) : undefined;
     if (b.prestationId && !presta) throw new HttpError(404, 'Prestation introuvable');
     const pending = project.items.jalons.filter((j) => !j.done);
+    if (b.withAi && wantsPreview(c)) {
+      const context = projectContextMarkdown(project, { prestationId: b.prestationId, noteIds: b.noteIds }, await getLists());
+      const transcript = b.transcript.trim();
+      return preview(
+        c,
+        await buildPlan('create_from_transcript', 'Rédaction du cahier des charges', {
+          steps: [
+            'Le hub crée le cahier des charges, pré-rempli avec la fiche du projet.',
+            ...(transcript ? ['L’IA trie la transcription : elle en retire les digressions et garde les besoins, décisions et contraintes.'] : []),
+            'L’IA rédige les sections du cahier des charges et liste les questions restées ouvertes.',
+          ],
+          sent: [
+            `La fiche du projet${presta ? ', la prestation choisie' : ''}${b.noteIds.length ? ` et ${b.noteIds.length} note${b.noteIds.length > 1 ? 's' : ''} du journal` : ''} (${n(context.length)} caractères).`,
+            ...(transcript ? [`La transcription (${n(transcript.length)} caractères).`] : []),
+          ],
+          changes: ['Un nouveau cahier des charges (version 0.x, brouillon) apparaît dans l’onglet « Cahiers des charges », à relire et compléter.', 'Le projet lui-même n’est pas modifié.'],
+          calls: [...(transcript ? [aiCall('Trier la transcription', 'fast' as const, transcript.length, 3000)] : []), aiCall('Rédiger le cahier des charges', 'smart', context.length + (transcript ? 9000 : 0), 7000)],
+        }),
+      );
+    }
     const document: CdcDocument = {
       meta: cdcMetaSchema.parse({
         title: b.title || (presta ? `${project.name} — ${presta.objet}` : project.name),

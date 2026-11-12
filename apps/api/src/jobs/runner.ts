@@ -18,6 +18,7 @@ import { sprintKeys } from '../sprints/repo.js';
 import { runSprintJob } from '../sprints/jobs.js';
 import { blobs } from '../storage/blobs.js';
 import { assertBudget } from '../ai/llm.js';
+import { assertNotPreview } from '../ai/plan.js';
 import * as ai from '../ai/pipeline.js';
 
 /** Élément verrouillé pendant le job. */
@@ -31,6 +32,7 @@ function targetKey(type: JobType, targetId: string) {
 }
 
 export async function startJob(type: JobType, targetId: string, user: string, payload: Record<string, unknown>): Promise<JobInfo> {
+  assertNotPreview();
   await assertBudget();
   const job = await repo.createJob({ type, targetId, user, payload });
   try {

@@ -7,6 +7,7 @@ import { EmptyState, ErrorBox, Modal, Spinner, formatDateTime, shortUser, toast 
 import { SpecEditor } from './SpecEditor';
 import { AnomaliesView, StructuredView, Summary, useParsed } from './ParsedView';
 import { formatSize, readLocalFile, session, type LocalFile } from './local';
+import { withAiRecap } from '../assistant/AiRecap';
 
 type Side = 'test' | 'ajuster' | 'versions' | 'contexte';
 
@@ -141,7 +142,10 @@ export function FileTypePage() {
                 className="btn btn-primary btn-sm"
                 onClick={async () => {
                   try {
-                    onJob(await api.retryFileType(id));
+                    const started = await withAiRecap(() => api.retryFileType(id));
+                    // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+                    if (!started) return;
+                    onJob(started);
                   } catch (e) {
                     toast((e as Error).message, 'error');
                   }
@@ -265,7 +269,10 @@ function AdjustPanel({ detail, testFile, parsedUnknown, disabledReason, onJob }:
         title={disabledReason ?? ''}
         onClick={async () => {
           try {
-            onJob(await api.adjustFileType(detail.id, { baseSeq: detail.currentVersion!.seq, instruction: instruction.trim(), extraLines: extra }));
+            const started = await withAiRecap(() => api.adjustFileType(detail.id, { baseSeq: detail.currentVersion!.seq, instruction: instruction.trim(), extraLines: extra }));
+            // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+            if (!started) return;
+            onJob(started);
             setInstruction('');
           } catch (e) {
             toast((e as Error).message, 'error');

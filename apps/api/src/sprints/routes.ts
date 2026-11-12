@@ -26,6 +26,7 @@ import { config } from '../config.js';
 import { body } from '../lib/http.js';
 import { HttpError, newId, nowIso } from '../lib/util.js';
 import { startJob } from '../jobs/runner.js';
+import { aiCall, buildPlan, n, preview, wantsPreview } from '../ai/plan.js';
 import { blobKeys } from '../db/schema.js';
 import { blobs } from '../storage/blobs.js';
 import { renderMarkdownDocx } from '../export/docx.js';
@@ -226,6 +227,22 @@ export function sprintRoutes() {
     const it = await repo.requireSprintItem(id);
     if (!sprintDocKinds(it.state).includes(kind)) {
       throw new HttpError(400, kind === 'compte_rendu' ? 'Ce sprint n’a pas encore démarré : préparez-le plutôt.' : 'Ce sprint est clos : rédigez plutôt son compte rendu.');
+    }
+    if (wantsPreview(c)) {
+      const call = await sprintDocCall(kind, id, { user: userName(c), cdcId: '' });
+      const review = kind === 'compte_rendu';
+      return preview(
+        c,
+        await buildPlan(JOB_OF_DOC[kind], review ? 'Compte rendu du sprint' : 'Préparation du sprint', {
+          steps: [
+            'Les chiffres du sprint sont calculés par le hub (tickets prévus, terminés, reportés, en attente, temps passé, charge par personne).',
+            review ? 'L’IA rédige le compte rendu : ce qui a été livré, ce qui a glissé et pourquoi, points d’attention pour la suite.' : 'L’IA rédige la préparation : objectif proposé, charge par personne, risques et points à arbitrer.',
+          ],
+          sent: [`Uniquement les chiffres et la liste des tickets (numéro, titre, statut, responsable, temps) : ${n(call.input.length)} caractères.`, 'Jamais les descriptions des tickets ni leurs notes de suivi.'],
+          changes: [`Le document est enregistré dans l’onglet Documents du sprint (il remplace le précédent ${review ? 'compte rendu' : 'document de préparation'}, s’il y en avait un).`, 'Les tickets et le sprint ne changent pas.'],
+          calls: [aiCall(review ? 'Rédiger le compte rendu' : 'Rédiger la préparation', 'smart', call.input.length, 1500)],
+        }),
+      );
     }
     return c.json(await startJob(JOB_OF_DOC[kind], String(id), userName(c), {}), 202);
   });

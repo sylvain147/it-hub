@@ -6,6 +6,7 @@ import { useJobPolling, useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from '../settings/context';
 import { fmtH, fmtN } from './common';
+import { withAiRecap } from '../assistant/AiRecap';
 
 /** Tickets envoyés par requête lors d'un import Desk. */
 const DESK_CHUNK = 500;
@@ -74,7 +75,8 @@ export function TmaHome() {
 
   async function classify() {
     try {
-      setJobId((await api.classifyTickets(false)).id);
+      const started = await withAiRecap(() => api.classifyTickets(false));
+      if (started) setJobId(started.id);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

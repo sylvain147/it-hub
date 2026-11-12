@@ -8,6 +8,7 @@ import {
   createAssetBody,
   createCdcBody,
   emptyDoc,
+  docToMarkdown,
   exportBody,
   HUB_ASSET_SCOPE,
   integrateAnswersBody,
@@ -46,6 +47,7 @@ import { blobs } from './storage/blobs.js';
 import { startJob } from './jobs/runner.js';
 import { sectionId } from './ai/pipeline.js';
 import { exportFileName, loadImages } from './export/common.js';
+import { aiCall, buildPlan, docChars, n, preview, previewMiddleware, tokensOf, wantsPreview } from './ai/plan.js';
 import { renderDocx } from './export/docx.js';
 import { renderPdf } from './export/pdf.js';
 
@@ -80,6 +82,8 @@ export function createApp() {
 
   const api = new Hono();
   api.use('*', authMiddleware);
+  // Récapitulatif d'un traitement IA (`AI_PREVIEW_HEADER`) : jamais de lancement réel (garde-fou de `startJob`).
+  api.use('*', previewMiddleware);
 
   api.get('/me', async (c) => c.json(await meHandler(userName(c))));
   api.route('/me', meRoutes());
@@ -91,6 +95,18 @@ export function createApp() {
   api.post('/cdcs', async (c) => {
     const b = await body(c, createCdcBody);
     const user = userName(c);
+    if (b.transcript?.trim() && wantsPreview(c)) {
+      const t = b.transcript.trim();
+      return preview(
+        c,
+        await buildPlan('create_from_transcript', 'Rédaction du cahier des charges', {
+          steps: ['Le hub crée le cahier des charges.', 'L’IA trie la transcription : elle en garde les besoins, décisions et contraintes.', 'L’IA rédige les sections du cahier des charges et liste les questions restées ouvertes.'],
+          sent: [`La transcription (${n(t.length)} caractères).`],
+          changes: ['Un nouveau cahier des charges (brouillon) est créé, à relire et compléter. La transcription y reste jointe.'],
+          calls: [aiCall('Trier la transcription', 'fast', t.length, 3000), aiCall('Rédiger le cahier des charges', 'smart', 9000, 7000)],
+        }),
+      );
+    }
     const doc = skeleton(b.meta);
     const { id } = await repo.createCdc(doc, user);
     let job = null;
@@ -183,6 +199,19 @@ export function createApp() {
     const b = await body(c, integrateAnswersBody);
     const answered = (await repo.listQuestions(id)).filter((q) => q.status === 'repondue' && q.answer.trim());
     if (!answered.length) throw new HttpError(400, 'Répondez à au moins une question avant de lancer l’intégration.');
+    if (wantsPreview(c)) {
+      const { document } = await repo.getCdcDetail(id);
+      const chars = answered.reduce((s, q) => s + q.text.length + q.answer.length, 0);
+      return preview(
+        c,
+        await buildPlan('integrate_answers', 'Intégration des réponses', {
+          steps: [`L’IA reporte vos ${answered.length} réponse${answered.length > 1 ? 's' : ''} dans les sections concernées du cahier des charges.`, 'Elle marque les questions traitées comme résolues et peut en poser de nouvelles.'],
+          sent: [`Les questions et vos réponses (${n(chars)} caractères).`, `Le plan du document et seulement les sections concernées (au plus ${n(docChars(document))} caractères).`],
+          changes: ['Une nouvelle version du cahier des charges est créée (l’ancienne reste consultable dans « Versions »).', 'L’IA ne peut ni supprimer une section, ni toucher une section qu’on ne lui a pas montrée.'],
+          calls: [aiCall('Intégrer les réponses', 'smart', chars + docChars(document), 5000)],
+        }),
+      );
+    }
     return c.json(await startJob('integrate_answers', id, userName(c), { baseSeq: b.baseSeq }), 202);
   });
 
@@ -199,6 +228,18 @@ export function createApp() {
   api.post('/cdcs/:id/sources', async (c) => {
     const id = c.req.param('id');
     const b = await body(c, addSourceBody);
+    if (wantsPreview(c)) {
+      const { document } = await repo.getCdcDetail(id);
+      return preview(
+        c,
+        await buildPlan('add_transcript', 'Intégration d’une nouvelle transcription', {
+          steps: ['L’IA trie la nouvelle transcription : besoins, décisions, changements par rapport au cahier des charges.', 'Elle met à jour les sections concernées et les questions ouvertes.'],
+          sent: [`La transcription (${n(b.text.length)} caractères).`, `Le plan du document et les sections concernées (au plus ${n(docChars(document))} caractères).`],
+          changes: ['Une nouvelle version du cahier des charges est créée ; la transcription est ajoutée aux « Transcriptions ».', 'Aucune section n’est supprimée.'],
+          calls: [aiCall('Trier la transcription', 'fast', b.text.length, 3000), aiCall('Mettre à jour le cahier des charges', 'smart', 9000 + docChars(document), 5000)],
+        }),
+      );
+    }
     return c.json(await startJob('add_transcript', id, userName(c), { baseSeq: b.baseSeq, title: b.title, textKey: await stashText(b.text) }), 202);
   });
 
@@ -208,7 +249,20 @@ export function createApp() {
     const id = c.req.param('id');
     const b = await body(c, reworkSectionBody);
     const detail = await repo.getCdcDetail(id);
-    if (!detail.document.sections.some((s) => s.id === c.req.param('sectionId'))) throw new HttpError(404, 'Section introuvable');
+    const section = detail.document.sections.find((s) => s.id === c.req.param('sectionId'));
+    if (!section) throw new HttpError(404, 'Section introuvable');
+    if (wantsPreview(c)) {
+      const chars = docToMarkdown(section.content).length;
+      return preview(
+        c,
+        await buildPlan('rework_section', `Retravail de la section « ${section.title} »`, {
+          steps: [`L’IA réécrit la section « ${section.title} » selon votre consigne : « ${b.instruction.slice(0, 200)}${b.instruction.length > 200 ? '…' : ''} ».`],
+          sent: [`Cette section (${n(chars)} caractères), le plan du document et votre consigne.`, 'Les autres sections ne sont pas envoyées.'],
+          changes: ['Une nouvelle version du cahier des charges est créée, où seule cette section change.'],
+          calls: [aiCall('Réécrire la section', 'smart', chars + b.instruction.length + 1000, Math.max(1000, tokensOf(chars) + 500))],
+        }),
+      );
+    }
     return c.json(
       await startJob('rework_section', id, userName(c), { baseSeq: b.baseSeq, sectionId: c.req.param('sectionId'), instruction: b.instruction }),
       202,
@@ -224,6 +278,19 @@ export function createApp() {
 
   api.post('/cdcs/:id/translations', async (c) => {
     const b = await body(c, translateBody);
+    if (wantsPreview(c)) {
+      const { document } = await repo.getCdcDetail(c.req.param('id'));
+      const chars = docChars(document);
+      return preview(
+        c,
+        await buildPlan('translate', 'Traduction du cahier des charges', {
+          steps: [`L’IA traduit le cahier des charges, bloc par bloc (${b.lang}).`, 'Les blocs déjà traduits lors d’une précédente traduction sont repris sans nouvel appel.'],
+          sent: [`Le texte du document (${n(chars)} caractères au plus ; moins si une partie est déjà traduite).`],
+          changes: ['La traduction est enregistrée dans l’onglet « Traductions », à exporter en Word ou PDF.', 'Le cahier des charges en français ne change pas.'],
+          calls: [aiCall('Traduire le document', 'fast', chars, tokensOf(chars) + 500)],
+        }),
+      );
+    }
     return c.json(await startJob('translate', c.req.param('id'), userName(c), { lang: b.lang }), 202);
   });
 

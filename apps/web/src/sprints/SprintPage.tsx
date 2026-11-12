@@ -24,6 +24,7 @@ import { MarkdownField, MarkdownView } from '../projects/common';
 import { PeopleChart, ProgressChart, ScopeChart, TimeChart, useTicketLabel } from './charts';
 import { SprintStateBadge, sprintDates } from './SprintsPage';
 import { DeskBadge, TicketStatusChip } from './tickets';
+import { withAiRecap } from '../assistant/AiRecap';
 
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -385,9 +386,10 @@ function SprintDocCard({
   const [exporting, setExporting] = useState(false);
 
   async function write() {
-    if (doc && !confirm(`Rédiger à nouveau ? Le document actuel (et vos modifications) sera remplacé.`)) return;
+    // Le récapitulatif rappelle que le document actuel (et vos modifications) sera remplacé.
     try {
-      onJob((await api.writeSprintDoc(sid, kind)).id);
+      const started = await withAiRecap(() => api.writeSprintDoc(sid, kind));
+      if (started) onJob(started.id);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

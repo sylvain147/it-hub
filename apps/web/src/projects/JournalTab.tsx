@@ -18,6 +18,7 @@ import { fieldsOf } from './OverviewTab';
 import { hasPending } from './ProjectPage';
 import { meetingPath } from '../meetings/recorder';
 import { GandalfActionsButton } from '../assistant/Gandalf';
+import { withAiRecap } from '../assistant/AiRecap';
 
 export function JournalTab() {
   const { project, jobBusy, onJob } = useProject();
@@ -38,7 +39,10 @@ export function JournalTab() {
 
   async function report() {
     try {
-      onJob(await api.progressReport(project.id));
+      const started = await withAiRecap(() => api.progressReport(project.id));
+      // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+      if (!started) return;
+      onJob(started);
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -307,7 +311,10 @@ function DigestDialog({ onClose }: { onClose: () => void }) {
   async function send() {
     setSending(true);
     try {
-      onJob(await api.digestMeeting(project.id, { title, date, text }));
+      const started = await withAiRecap(() => api.digestMeeting(project.id, { title, date, text }));
+      // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+      if (!started) return setSending(false);
+      onJob(started);
       onClose();
     } catch (e) {
       toast((e as Error).message, 'error');

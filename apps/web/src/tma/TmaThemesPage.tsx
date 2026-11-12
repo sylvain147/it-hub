@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useJobPolling, useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner, formatDate, toast } from '../components/ui';
 import { fmtH } from './common';
+import { withAiRecap } from '../assistant/AiRecap';
 
 const shortMonth = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
 
@@ -21,9 +22,10 @@ export function TmaThemesPage() {
   });
 
   async function reclassify() {
-    if (!confirm('Reclasser tous les tickets ? Les thèmes actuels seront recalculés (quelques centimes d’IA pour quelques centaines de tickets).')) return;
+    // Le récapitulatif annonce le nombre de tickets, le coût et le remplacement des thèmes actuels.
     try {
-      setJobId((await api.classifyTickets(true)).id);
+      const started = await withAiRecap(() => api.classifyTickets(true));
+      if (started) setJobId(started.id);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

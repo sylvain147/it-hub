@@ -18,7 +18,7 @@ type Ctx = { user: string; cdcId: string };
 type Step = (s: string) => Promise<void>;
 
 /** Tickets par appel au modèle. */
-const THEME_BATCH = 40;
+export const THEME_BATCH = 40;
 /** Longueur de description envoyée au modèle (le début suffit à qualifier le problème). */
 const DESCRIPTION_CHARS = 1200;
 const THEME_MAX_CHARS = 80;
@@ -28,7 +28,7 @@ export async function runTmaJob(type: JobType, targetId: string, payload: Record
   return synthesize(targetId, ctx, step);
 }
 
-function ticketBlock(t: StoredTicket): string {
+export function ticketBlock(t: StoredTicket): string {
   const facts = [
     t.category && `Catégorie : ${t.category}`,
     t.cause && `Cause : ${t.cause}`,

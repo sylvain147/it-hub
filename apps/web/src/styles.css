@@ -1321,3 +1321,7 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .pr-section h2 { margin-top: 20px; font-size: 17px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
 .pr-thanks { border-left: 4px solid var(--ok); }
 .pr-thanks-refuse { border-left-color: var(--danger); }
+
+/* Récapitulatif avant un traitement IA */
+.recap-list { margin: 0 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.recap-cost { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #f9f5ff; border: 1px solid #d9d0f5; }

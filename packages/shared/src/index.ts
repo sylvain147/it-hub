@@ -29,3 +29,4 @@ export * from './assistant.js';
 export * from './notifications.js';
 export * from './tools.js';
 export * from './cdcReview.js';
+export * from './aiPlan.js';

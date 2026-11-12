@@ -22,6 +22,7 @@ import { SourcesPanel } from './SourcesPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { TranslationsPanel } from './TranslationsPanel';
 import { ReviewsPanel } from './ReviewsPanel';
+import { withAiRecap } from '../assistant/AiRecap';
 
 type Tab = 'questions' | 'sources' | 'versions' | 'translations' | 'validations';
 
@@ -246,7 +247,10 @@ export function CdcEditorPage() {
           onClose={() => setRework(null)}
           onSubmit={async (instruction) => {
             try {
-              onJob(await api.reworkSection(id, rework.id, detail.currentVersion.seq, instruction));
+              const started = await withAiRecap(() => api.reworkSection(id, rework.id, detail.currentVersion.seq, instruction));
+              // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+              if (!started) return;
+              onJob(started);
               setRework(null);
             } catch (e) {
               toast((e as Error).message, 'error');

@@ -8,6 +8,7 @@ import { RichEditor } from '../editor/RichEditor';
 import { Bar, BreakdownTable, delta, fmtH, fmtN } from './common';
 import { ticketPath } from '../sprints/tickets';
 import { useSettings } from '../settings/context';
+import { withAiRecap } from '../assistant/AiRecap';
 
 const TOP_TICKETS = 20;
 
@@ -41,9 +42,10 @@ export function TmaMonthPage() {
   });
 
   async function synthesize() {
-    if (detail?.synthesis && !confirm('Rédiger une nouvelle synthèse ? La synthèse actuelle sera remplacée.')) return;
+    // Le récapitulatif rappelle que la synthèse actuelle sera remplacée.
     try {
-      setJobId((await api.writeTmaSynthesis(month)).id);
+      const started = await withAiRecap(() => api.writeTmaSynthesis(month));
+      if (started) setJobId(started.id);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

@@ -6,6 +6,7 @@ import { api } from '../api';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, StatusBadge, formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, days, useProject } from './common';
+import { withAiRecap } from '../assistant/AiRecap';
 
 export function CdcTab() {
   const { project, reload } = useProject();
@@ -106,7 +107,10 @@ function GenerateDialog({ prestationId, onClose }: { prestationId: string | null
     setBusy(true);
     setError(null);
     try {
-      const res = await api.createProjectCdc(project.id, { title, prestationId: presta || null, noteIds: [...noteIds], transcript: withAi ? transcript : '', withAi });
+      const body = { title, prestationId: presta || null, noteIds: [...noteIds], transcript: withAi ? transcript : '', withAi };
+      // Avec l'IA : récapitulatif d'abord ; sans IA, création directe.
+      const res = withAi ? await withAiRecap(() => api.createProjectCdc(project.id, body)) : await api.createProjectCdc(project.id, body);
+      if (!res) return setBusy(false);
       navigate(`/cdc/${res.id}`);
     } catch (e) {
       setError(e);

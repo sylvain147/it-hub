@@ -2,6 +2,7 @@ import { LANGUAGE_LABELS, TRANSLATION_LANGUAGES, type JobInfo, type TranslationL
 import { api, download } from '../api';
 import { useLoad } from '../hooks';
 import { Spinner, formatDateTime, toast } from '../components/ui';
+import { withAiRecap } from '../assistant/AiRecap';
 
 interface Props {
   cdcId: string;
@@ -16,7 +17,10 @@ export function TranslationsPanel({ cdcId, currentLabel, refreshKey, aiDisabledR
 
   async function translate(lang: TranslationLanguage) {
     try {
-      onJob(await api.translate(cdcId, lang));
+      const started = await withAiRecap(() => api.translate(cdcId, lang));
+      // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+      if (!started) return;
+      onJob(started);
     } catch (e) {
       toast((e as Error).message, 'error');
     }

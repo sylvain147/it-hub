@@ -3,6 +3,7 @@ import { MAX_TRANSCRIPT_CHARS, type JobInfo } from '@samm/shared';
 import { api } from '../api';
 import { useLoad } from '../hooks';
 import { EmptyState, Modal, Spinner, formatDateTime, shortUser, toast } from '../components/ui';
+import { withAiRecap } from '../assistant/AiRecap';
 
 interface Props {
   cdcId: string;
@@ -21,7 +22,10 @@ export function SourcesPanel({ cdcId, baseSeq, refreshKey, aiDisabledReason, onJ
 
   async function submit() {
     try {
-      onJob(await api.addSource(cdcId, { baseSeq, title: title.trim(), text }));
+      const started = await withAiRecap(() => api.addSource(cdcId, { baseSeq, title: title.trim(), text }));
+      // Annulé au récapitulatif : rien n'est lancé, la saisie est gardée.
+      if (!started) return;
+      onJob(started);
       setTitle('');
       setText('');
     } catch (e) {

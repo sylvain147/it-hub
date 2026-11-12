@@ -92,7 +92,7 @@ import type {
   RequestCdcReviewResult,
   ReviewDecision,
 } from '@samm/shared';
-import { NO_PROJECT_ID, processStepOf } from '@samm/shared';
+import { AI_PREVIEW_HEADER, NO_PROJECT_ID, processStepOf, type AiPlan, type AiPreviewResponse } from '@samm/shared';
 import { authHeaders } from './auth';
 
 export class ApiError extends Error {
@@ -105,10 +105,16 @@ export class ApiError extends Error {
   }
 }
 
+/** La prochaine requête ne demande que le récapitulatif du traitement IA (`aiPreview`). */
+let previewNext = false;
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // Lu avant toute attente : seule la requête lancée par `aiPreview` porte l'en-tête.
+  const preview = previewNext;
+  previewNext = false;
   const res = await fetch(`/api${path}`, {
     method,
-    headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(await authHeaders()) },
+    headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(preview ? { [AI_PREVIEW_HEADER]: '1' } : {}), ...(await authHeaders()) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -139,6 +145,21 @@ export const TODOS_CHANGED = 'hub:todos-changed';
 function todosChanged<T>(r: T): T {
   window.dispatchEvent(new Event(TODOS_CHANGED));
   return r;
+}
+
+/**
+ * Récapitulatif d'un traitement IA, sans le lancer : rejoue l'appel de lancement avec l'en-tête `AI_PREVIEW_HEADER`
+ * (la route répond `{ apercu }` et ne change rien). Voir `withAiRecap` (assistant/AiRecap.tsx).
+ */
+export async function aiPreview(run: () => Promise<unknown>): Promise<AiPlan> {
+  previewNext = true;
+  try {
+    const r = (await run()) as Partial<AiPreviewResponse> | null;
+    if (!r?.apercu) throw new Error('Récapitulatif indisponible pour ce traitement.');
+    return r.apercu;
+  } finally {
+    previewNext = false;
+  }
 }
 
 /** Pages publiques (lien de validation d'un CDC) : sans connexion ni en-tête d'authentification. */

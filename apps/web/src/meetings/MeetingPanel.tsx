@@ -7,6 +7,7 @@ import { ProjectSelect, useProjectRefs } from '../tasks/tasks';
 import { formatElapsed, useMeetingRecorder } from './recorder';
 import { openGandalf } from '../assistant/Gandalf';
 import { useAssistant } from '../theme';
+import { withAiRecap } from '../assistant/AiRecap';
 
 /** Taille maximale d'une note personnelle. */
 const MAX_NOTE_CHARS = 50_000;
@@ -49,7 +50,8 @@ export function MeetingPanel({ projectId, onClose, onNoteSaved }: { projectId?: 
     r.stop();
     setBusy('ia');
     try {
-      await api.digestMeeting(draft.projectId, { title: draft.title, date: draft.date, text: draft.text });
+      const started = await withAiRecap(() => api.digestMeeting(draft.projectId, { title: draft.title, date: draft.date, text: draft.text }));
+      if (!started) return setBusy(null);
       toast('Analyse lancée : le compte rendu arrive dans le journal du projet.', 'info');
       const id = draft.projectId;
       r.clear();

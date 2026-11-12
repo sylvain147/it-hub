@@ -13,6 +13,7 @@ import { AnneauFlottant, AnneauProvider, ringClass, useRingHolder } from '../ann
 import { TodoBadge } from '../tasks/TodoBadge';
 import { Gandalf } from '../assistant/Gandalf';
 import { ProcessNextDialog } from '../projects/ProcessNextDialog';
+import { AiRecapDialog } from '../assistant/AiRecap';
 import { NazgulEffects } from './NazgulEffects';
 import { MeetingRecorderProvider, RecordingPill } from '../meetings/recorder';
 import { hasUnreadPatchNote } from '../patchnotes/PatchNotePage';
@@ -55,6 +56,7 @@ export function Layout() {
                 <Outlet />
                 <Gandalf />
                 <ProcessNextDialog />
+                <AiRecapDialog />
                 <RecordingPill />
                 <AnneauFlottant />
               </MeetingRecorderProvider>

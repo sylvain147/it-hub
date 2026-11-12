@@ -4,6 +4,7 @@ import { buildExcerpt, MAX_DOCUMENTS_CHARS } from '@samm/shared';
 import { api } from '../api';
 import { ErrorBox, Spinner, toast } from '../components/ui';
 import { decodeGuess, documentToText, formatSize, readLocalFile, session, type LocalFile } from './local';
+import { withAiRecap } from '../assistant/AiRecap';
 
 export function FileTypeNew() {
   const navigate = useNavigate();
@@ -49,7 +50,9 @@ export function FileTypeNew() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.createFileType({ name: name.trim(), description, notes, sampleFileName: sample?.name ?? '', excerpt: excerpt.text, anonymized: anonymize, documents: docs });
+      const res = await withAiRecap(() => api.createFileType({ name: name.trim(), description, notes, sampleFileName: sample?.name ?? '', excerpt: excerpt.text, anonymized: anonymize, documents: docs }));
+      // Annulé au récapitulatif : rien n'est créé.
+      if (!res) return setBusy(false);
       // L'exemple complet reste dans le navigateur pour tester la fiche dès qu'elle est prête.
       if (sample) session.samples.set(res.id, sample);
       session.samples.delete('nouveau');

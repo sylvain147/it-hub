@@ -26,6 +26,10 @@ Le menu latéral regroupe les modules en trois sections repliables : **Projets**
 - **Actions avec Gandalf** (son portrait sur chaque note) : Gandalf reçoit la note et propose les tickets, tâches et jalons à créer.
 - **Taille des post-it** : la poignée en bas à droite d'une note l'agrandit (jusqu'à trois colonnes de large, hauteur libre) pour la lire sans l'ouvrir ; double-clic : la note entière, ou de nouveau la taille normale (flèches du clavier sur la poignée). La taille est retenue pour chaque note.
 
+### ✨ Traitements IA : récapitulatif avant de lancer
+
+- Avant chaque traitement IA (classement des tickets Desk et synthèse TMA, rédaction ou mise à jour d'un cahier des charges, traduction, analyse d'un compte rendu, rapport d'avancement, documents de sprint, fiches de lecture), le hub affiche **ce que l'IA va faire** : les étapes, **ce qui lui est envoyé** (et ce qui ne l'est pas), **ce qui changera** dans le hub, le **coût estimé** et le budget du mois. Rien n'est lancé tant qu'on ne clique pas sur « Lancer ». Ce récapitulatif est calculé par le hub, sans appel à l'IA : il est gratuit.
+
 ### 🧙 Gandalf, l'assistant
 
 - **Un chat avec l'IA sur tout le hub**, ouvert par la **bulle de Gandalf en bas à droite** de chaque page (la conversation continue d'une page à l'autre ; Échap ou × la referme) : « que dois-je faire en priorité ? », « quelles échéances dans les 15 jours ? », « où en est la migration ERP ? ». Questions d'exemple au départ, relances proposées après chaque réponse ; les projets cités sont des liens.
