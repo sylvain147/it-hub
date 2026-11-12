@@ -15,7 +15,7 @@ Dans `infra/cdk.json` (section `context`) :
 | Clé | Défaut | Rôle |
 |---|---|---|
 | `region` | `eu-west-3` (Paris) | Région de l'application |
-| `llmProvider` | `mock` | `mock` : IA simulée (aucun appel Bedrock, coût nul, textes marqués « simulation ») ; `bedrock` : vrais appels. Passer à `bedrock` puis redéployer une fois l'accès aux modèles activé |
+| `llmProvider` | `bedrock` | `mock` : IA simulée (aucun appel Bedrock, coût nul, textes marqués « simulation ») ; `bedrock` : vrais appels. Passer à `bedrock` puis redéployer une fois l'accès aux modèles activé |
 | `bedrockRegion` | `eu-west-3` | Région d'appel de Bedrock |
 | `modelFast` / `modelSmart` | `anthropic.claude-haiku-5-5` / `anthropic.claude-sonnet-5-5` | Modèles utilisés |
 | `monthlyBudgetUsd` | `30` | Plafond mensuel des fonctions IA (en $) |

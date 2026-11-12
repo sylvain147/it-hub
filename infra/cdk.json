@@ -2,7 +2,7 @@
   "app": "npx tsx bin/app.ts",
   "context": {
     "region": "eu-west-3",
-    "llmProvider": "mock",
+    "llmProvider": "bedrock",
     "bedrockRegion": "eu-west-3",
     "modelFast": "anthropic.claude-haiku-5-5",
     "modelSmart": "anthropic.claude-sonnet-5-5",
