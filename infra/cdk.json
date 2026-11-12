@@ -3,7 +3,7 @@
   "context": {
     "region": "eu-west-3",
     "llmProvider": "bedrock",
-    "bedrockRegion": "eu-west-3",
+    "bedrockRegion": "eu-west-1",
     "modelFast": "anthropic.claude-haiku-5-5",
     "modelSmart": "anthropic.claude-sonnet-5-5",
     "monthlyBudgetUsd": 30,
