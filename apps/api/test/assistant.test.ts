@@ -215,3 +215,13 @@ describe('erreurs de Bedrock', () => {
     await expect(q.structured(call, 'anthropic.claude-haiku-5-5')).rejects.toMatchObject({ status: 502, message: expect.stringContaining('impossible') });
   });
 });
+
+describe('tarifs des profils d’inférence Bedrock', () => {
+  it('prend le tarif du modèle, majoré de 10 % pour un profil régional', async () => {
+    const { pricingOf } = await import('../src/ai/llm.js');
+    const base = pricingOf('anthropic.claude-haiku-5-5')!;
+    expect(pricingOf('global.anthropic.claude-haiku-5-5')).toEqual(base);
+    expect(pricingOf('eu.anthropic.claude-haiku-5-5')!.input).toBeCloseTo(base.input * 1.1);
+    expect(pricingOf('eu.anthropic.inconnu')).toBeUndefined();
+  });
+});

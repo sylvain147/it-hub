@@ -1,20 +1,38 @@
-import { AnthropicBedrockMantle, type BedrockMantleClientOptions } from '@anthropic-ai/bedrock-sdk';
+import AnthropicBedrock, { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
 import { APIError } from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import { HttpError } from '../lib/util.js';
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 
+/** Options communes aux deux clients Bedrock du SDK. */
+interface BedrockOptions {
+  awsRegion?: string;
+  timeout?: number;
+  maxRetries?: number;
+  skipAuth?: boolean;
+  fetch?: typeof fetch;
+  /** Point d'accès (par défaut celui de la configuration). */
+  api?: 'runtime' | 'mantle';
+}
+
+/** Client Bedrock selon le point d'accès choisi (`config.bedrockApi`) : même interface Messages pour les deux. */
+function bedrockClient({ api = config.bedrockApi, ...options }: BedrockOptions): AnthropicBedrockMantle {
+  const opts = { awsRegion: config.bedrockRegion, ...options };
+  // Les deux clients exposent `messages.parse` et `messages.stream` avec les mêmes paramètres.
+  return (api === 'mantle' ? new AnthropicBedrockMantle(opts) : new AnthropicBedrock({ ...opts, apiKey: null })) as unknown as AnthropicBedrockMantle;
+}
+
 /**
- * Claude via Amazon Bedrock (API Messages, endpoint `bedrock-mantle`).
- * Les identifiants AWS viennent du rôle IAM de la Lambda.
+ * Claude via Amazon Bedrock : InvokeModel (`bedrock-runtime`, profils d'inférence `eu.anthropic.…`) par défaut, ou
+ * API Messages native (`bedrock-mantle`). Les identifiants AWS viennent du rôle IAM de la Lambda.
  */
 export class BedrockProvider implements LlmProvider {
   private client: AnthropicBedrockMantle;
 
-  constructor(options: Partial<BedrockMantleClientOptions> = {}) {
+  constructor(options: BedrockOptions = {}) {
     // 2 tentatives de 4 min au plus : reste sous la durée maximale de la Lambda worker (10 min).
-    this.client = new AnthropicBedrockMantle({ awsRegion: config.bedrockRegion, timeout: 4 * 60 * 1000, maxRetries: 1, ...options });
+    this.client = bedrockClient({ timeout: 4 * 60 * 1000, maxRetries: 1, ...options });
   }
 
   async structured<T>(call: StructuredCall<T>, model: string): Promise<{ output: T; usage: LlmUsage }> {
@@ -58,7 +76,7 @@ export class BedrockProvider implements LlmProvider {
  * Bedrock (droits, accès au modèle, quota…), ou cause technique (identifiants AWS, réseau). Détail complet dans les logs.
  */
 export function bedrockError(e: unknown, model: string): HttpError {
-  console.error(`Appel Bedrock (${model}, ${config.bedrockRegion}) en échec`, e);
+  console.error(`Appel Bedrock (${model}, ${config.bedrockRegion}, ${config.bedrockApi}) en échec`, e);
   if (e instanceof APIError && e.status) {
     const status = e.status;
     const hint =
@@ -108,7 +126,7 @@ export async function captureBedrockRequest<T>(call: StructuredCall<T>, model: s
   const capture = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     throw new Captured({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown> });
   };
-  const client = new AnthropicBedrockMantle({ awsRegion: config.bedrockRegion, skipAuth: true, fetch: capture as typeof fetch, maxRetries: 0 });
+  const client = bedrockClient({ skipAuth: true, fetch: capture as typeof fetch, maxRetries: 0 });
   try {
     const params = bedrockParams(call, model);
     if (call.maxTokens > 16000) await client.messages.stream(params).finalMessage();

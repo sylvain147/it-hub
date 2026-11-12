@@ -50,8 +50,21 @@ export function modelFor(tier: Tier): string {
   return tier === 'fast' ? config.modelFast : config.modelSmart;
 }
 
+/**
+ * Tarif d'un modèle. Un profil d'inférence (`eu.anthropic.…`, `us.…`) prend le tarif du modèle majoré de 10 %
+ * (routage régional Bedrock) ; `global.` le tarif du modèle.
+ */
+export function pricingOf(model: string) {
+  if (config.pricing[model]) return config.pricing[model];
+  const m = /^(global|eu|us|jp|apac|au)\.(.+)$/.exec(model);
+  const base = m ? config.pricing[m[2]!] : undefined;
+  if (!base || !m) return undefined;
+  const k = m[1] === 'global' ? 1 : 1.1;
+  return { input: base.input * k, output: base.output * k, cacheRead: base.cacheRead * k, cacheWrite: base.cacheWrite * k };
+}
+
 export function costUsd(model: string, u: LlmUsage): number {
-  const p = config.pricing[model];
+  const p = pricingOf(model);
   if (!p) return 0;
   return (u.inputTokens * p.input + u.outputTokens * p.output + u.cacheReadTokens * p.cacheRead + u.cacheWriteTokens * p.cacheWrite) / 1_000_000;
 }

@@ -44,6 +44,11 @@ export const config = {
   workerFunctionName: env.WORKER_FUNCTION_NAME ?? '',
   llmProvider: (env.LLM_PROVIDER ?? 'mock') as 'mock' | 'bedrock',
   bedrockRegion: env.BEDROCK_REGION ?? env.AWS_REGION ?? 'eu-west-3',
+  /**
+   * Point d'accès Bedrock : `runtime` (InvokeModel, `bedrock-runtime`, profils d'inférence `eu.anthropic.…` — celui du
+   * terrain de jeu de la console) ou `mantle` (API Messages native, `bedrock-mantle`, absent de certaines régions dont Paris).
+   */
+  bedrockApi: (env.BEDROCK_API ?? 'runtime') as 'runtime' | 'mantle',
   /** Modèle rapide et économique : tri des transcriptions, traductions. */
   modelFast: env.MODEL_FAST ?? 'anthropic.claude-haiku-5-5',
   /** Modèle de rédaction : génération et mise à jour du CDC. */

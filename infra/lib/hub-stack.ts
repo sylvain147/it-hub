@@ -23,6 +23,8 @@ export interface HubStackProps extends StackProps {
   /** `bedrock` : vrais appels ; `mock` : IA simulée (aucun appel, coût nul), tant que Bedrock n'est pas activé. */
   llmProvider: 'bedrock' | 'mock';
   bedrockRegion: string;
+  /** Point d'accès Bedrock : `runtime` (InvokeModel, profils d'inférence `eu.anthropic.…`) ou `mantle` (API Messages native). */
+  bedrockApi: 'runtime' | 'mantle';
   modelFast: string;
   modelSmart: string;
   monthlyBudgetUsd: number;
@@ -110,6 +112,7 @@ export class HubStack extends Stack {
       BUCKET_NAME: dataBucket.bucketName,
       LLM_PROVIDER: props.llmProvider,
       BEDROCK_REGION: props.bedrockRegion,
+      BEDROCK_API: props.bedrockApi,
       MODEL_FAST: props.modelFast,
       MODEL_SMART: props.modelSmart,
       MONTHLY_BUDGET_USD: String(props.monthlyBudgetUsd),
