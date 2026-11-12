@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { MAX_TOOL_LINKS, PERIMETER_LABELS, ROLE_LABELS, THEME_DEFS, toolLinkSchema, toolsOrDefault, type ToolLink, type UserTools } from '@samm/shared';
+import { MAX_TOOL_LINKS, PERIMETERS, PERIMETER_LABELS, ROLE_LABELS, THEME_DEFS, toolLinkSchema, toolsOrDefault, type ToolLink, type UserTools } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { ErrorBox, Spinner, formatDateTime, toast } from '../components/ui';
 import { TOOL_MODULES } from '../modules';
 import { ringClass, useRingHolder } from '../anneau/Anneau';
-import { useUsers } from './context';
+import { UserSelect, useUsers } from './context';
+import type { Perimeter } from '@samm/shared';
 import { ThemeModal } from './ThemeModal';
 
 const move = <T,>(xs: T[], i: number, d: -1 | 1): T[] => {
@@ -24,6 +25,7 @@ export function MePage() {
   const { name } = useUsers();
   const ring = ringClass(useRingHolder(), me.email);
   const [theme, setTheme] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [params] = useSearchParams();
 
   useEffect(() => {
@@ -33,35 +35,160 @@ export function MePage() {
   return (
     <div className="page">
       <div className="me-head">
-        <span className={`avatar avatar-lg${ring}`}>{me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+        <span className={`avatar avatar-lg${ring}`}>
+          {me.name
+            .split(/\s+/)
+            .map((w) => w[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()}
+        </span>
         <div>
           <h1>{me.name}</h1>
           <p className="muted">{[me.jobTitle, me.email].filter(Boolean).join(' · ')}</p>
         </div>
       </div>
 
-      <section className="card">
-        <div className="card-head">
-          <h2>Ma fiche</h2>
-          {me.permissions.manageUsers && <Link to="/utilisateurs" className="small">Gérer les utilisateurs →</Link>}
-        </div>
-        <dl className="facts">
-          <div><dt>Rôle</dt><dd>{ROLE_LABELS[me.role]}</dd></div>
-          <div><dt>Poste</dt><dd>{me.jobTitle || '—'}</dd></div>
-          <div><dt>Backup</dt><dd>{me.backupId ? name(me.backupId) : '—'}</dd></div>
-          <div>
-            <dt>Périmètres</dt>
-            <dd>{me.perimeters.length ? me.perimeters.map((p) => <span key={p} className="badge badge-perimeter">{PERIMETER_LABELS[p]}</span>) : '—'}</dd>
+      {editing ? (
+        <ProfileForm onDone={() => setEditing(false)} />
+      ) : (
+        <section className="card">
+          <div className="card-head">
+            <h2>Ma fiche</h2>
+            <span className="row-actions">
+              {me.permissions.manageUsers && (
+                <Link to="/utilisateurs" className="small">
+                  Gérer les utilisateurs →
+                </Link>
+              )}
+              <button className="btn btn-sm" onClick={() => setEditing(true)}>
+                ✏️ Modifier
+              </button>
+            </span>
           </div>
-          <div><dt>Thème</dt><dd>{THEME_DEFS[me.theme].label} <button className="btn-link small" onClick={() => setTheme(true)}>Changer</button></dd></div>
-          <div><dt>Dans le hub depuis</dt><dd>{formatDateTime(me.createdAt)}</dd></div>
-        </dl>
-        <p className="muted small">Le rôle, le poste, le backup et les périmètres sont tenus par les administrateurs.</p>
-      </section>
+          <dl className="facts">
+            <div>
+              <dt>Rôle</dt>
+              <dd>{ROLE_LABELS[me.role]}</dd>
+            </div>
+            <div>
+              <dt>Poste</dt>
+              <dd>{me.jobTitle || '—'}</dd>
+            </div>
+            <div>
+              <dt>Backup</dt>
+              <dd>{me.backupId ? name(me.backupId) : '—'}</dd>
+            </div>
+            <div>
+              <dt>Périmètres</dt>
+              <dd>
+                {me.perimeters.length
+                  ? me.perimeters.map((p) => (
+                      <span key={p} className="badge badge-perimeter">
+                        {PERIMETER_LABELS[p]}
+                      </span>
+                    ))
+                  : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>Thème</dt>
+              <dd>
+                {THEME_DEFS[me.theme].label}{' '}
+                <button className="btn-link small" onClick={() => setTheme(true)}>
+                  Changer
+                </button>
+              </dd>
+            </div>
+            <div>
+              <dt>Dans le hub depuis</dt>
+              <dd>{formatDateTime(me.createdAt)}</dd>
+            </div>
+          </dl>
+          <p className="muted small">Le rôle et l’accès au hub sont gérés par les administrateurs.</p>
+        </section>
+      )}
 
       <ToolsEditor />
       {theme && <ThemeModal onClose={() => setTheme(false)} />}
     </div>
+  );
+}
+
+/** Mes informations : nom, poste, backup, périmètres (comme dans la liste des utilisateurs, sans le rôle). */
+function ProfileForm({ onDone }: { onDone: () => void }) {
+  const { me, reloadMe } = useAuth();
+  const { active } = useUsers();
+  const [f, setF] = useState({
+    name: me.name,
+    jobTitle: me.jobTitle,
+    backupId: me.backupId,
+    perimeters: me.perimeters as Perimeter[],
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const toggle = (p: Perimeter) =>
+    setF((x) => ({
+      ...x,
+      perimeters: x.perimeters.includes(p) ? x.perimeters.filter((y) => y !== p) : PERIMETERS.filter((y) => y === p || x.perimeters.includes(y)),
+    }));
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setMyProfile(f);
+      await reloadMe();
+      toast('Votre fiche est enregistrée.');
+      onDone();
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Modifier ma fiche</h2>
+      </div>
+      <ErrorBox error={error} />
+      <div className="form-grid">
+        <label className="field span-2">
+          <span>Nom affiché *</span>
+          <input className="input" value={f.name} autoFocus onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Prénom Nom" />
+        </label>
+        <label className="field">
+          <span>Poste</span>
+          <input className="input" value={f.jobTitle} onChange={(e) => setF({ ...f, jobTitle: e.target.value })} placeholder="ex. Chef de projet ERP" />
+        </label>
+        <label className="field">
+          <span>
+            Backup <span className="muted">(qui me remplace en mon absence)</span>
+          </span>
+          <UserSelect value={f.backupId} onChange={(v) => setF({ ...f, backupId: v })} allowEmpty emptyLabel="Aucun" only={active.filter((u) => u.email !== me.email).map((u) => u.email)} />
+        </label>
+        <div className="field span-2">
+          <span>Périmètres</span>
+          <div className="perimeter-choices">
+            {PERIMETERS.map((p) => (
+              <label key={p} className={f.perimeters.includes(p) ? 'choice-chip on' : 'choice-chip'}>
+                <input type="checkbox" checked={f.perimeters.includes(p)} onChange={() => toggle(p)} /> {PERIMETER_LABELS[p]}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="actions mt">
+        <span className="tb-flex" />
+        <button className="btn" onClick={onDone}>
+          Annuler
+        </button>
+        <button className="btn btn-primary" disabled={busy || !f.name.trim()} onClick={() => void save()}>
+          {busy && <Spinner small />} Enregistrer
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -82,8 +209,16 @@ function ToolsEditor() {
   const check = toolLinkSchema.safeParse(adding);
   const addError = adding.url.trim() && !check.success ? check.error.issues[0]?.message : '';
 
-  const toggle = (id: string) => setTools((t) => ({ ...t, modules: t.modules.includes(id) ? t.modules.filter((x) => x !== id) : [...t.modules, id] }));
-  const setLink = (i: number, patch: Partial<ToolLink>) => setTools((t) => ({ ...t, links: t.links.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
+  const toggle = (id: string) =>
+    setTools((t) => ({
+      ...t,
+      modules: t.modules.includes(id) ? t.modules.filter((x) => x !== id) : [...t.modules, id],
+    }));
+  const setLink = (i: number, patch: Partial<ToolLink>) =>
+    setTools((t) => ({
+      ...t,
+      links: t.links.map((l, j) => (j === i ? { ...l, ...patch } : l)),
+    }));
 
   function addLink() {
     if (!check.success) return;
@@ -110,7 +245,9 @@ function ToolsEditor() {
       <div className="card-head">
         <h2>🧰 Mes outils</h2>
       </div>
-      <p className="muted small">La section « Outils » de votre menu, rien que pour vous : cochez les outils du hub que vous utilisez et ajoutez vos propres liens (SharePoint, outil du prestataire, ERP…).</p>
+      <p className="muted small">
+        La section « Outils » de votre menu, rien que pour vous : cochez les outils du hub que vous utilisez et ajoutez vos propres liens (SharePoint, outil du prestataire, ERP…).
+      </p>
       <ErrorBox error={error} />
 
       <h3>Outils du hub</h3>
@@ -125,8 +262,32 @@ function ToolsEditor() {
               <span className="muted small tool-desc">{m.description}</span>
               {i >= 0 && (
                 <span className="order">
-                  <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => setTools((t) => ({ ...t, modules: move(t.modules, i, -1) }))}>↑</button>
-                  <button className="btn-icon" title="Descendre" disabled={i === tools.modules.length - 1} onClick={() => setTools((t) => ({ ...t, modules: move(t.modules, i, 1) }))}>↓</button>
+                  <button
+                    className="btn-icon"
+                    title="Monter"
+                    disabled={i === 0}
+                    onClick={() =>
+                      setTools((t) => ({
+                        ...t,
+                        modules: move(t.modules, i, -1),
+                      }))
+                    }
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="btn-icon"
+                    title="Descendre"
+                    disabled={i === tools.modules.length - 1}
+                    onClick={() =>
+                      setTools((t) => ({
+                        ...t,
+                        modules: move(t.modules, i, 1),
+                      }))
+                    }
+                  >
+                    ↓
+                  </button>
                 </span>
               )}
             </li>
@@ -143,9 +304,24 @@ function ToolsEditor() {
             <input className="input input-sm" value={l.label} maxLength={60} onChange={(e) => setLink(i, { label: e.target.value })} aria-label="Nom" />
             <input className="input input-sm" value={l.url} onChange={(e) => setLink(i, { url: e.target.value })} aria-label="Adresse" />
             <span className="order">
-              <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => setTools((t) => ({ ...t, links: move(t.links, i, -1) }))}>↑</button>
-              <button className="btn-icon" title="Descendre" disabled={i === tools.links.length - 1} onClick={() => setTools((t) => ({ ...t, links: move(t.links, i, 1) }))}>↓</button>
-              <button className="btn-icon danger" title="Retirer" onClick={() => setTools((t) => ({ ...t, links: t.links.filter((_, j) => j !== i) }))}>✕</button>
+              <button className="btn-icon" title="Monter" disabled={i === 0} onClick={() => setTools((t) => ({ ...t, links: move(t.links, i, -1) }))}>
+                ↑
+              </button>
+              <button className="btn-icon" title="Descendre" disabled={i === tools.links.length - 1} onClick={() => setTools((t) => ({ ...t, links: move(t.links, i, 1) }))}>
+                ↓
+              </button>
+              <button
+                className="btn-icon danger"
+                title="Retirer"
+                onClick={() =>
+                  setTools((t) => ({
+                    ...t,
+                    links: t.links.filter((_, j) => j !== i),
+                  }))
+                }
+              >
+                ✕
+              </button>
             </span>
           </li>
         ))}
@@ -161,14 +337,20 @@ function ToolsEditor() {
             onKeyDown={(e) => e.key === 'Enter' && addLink()}
             placeholder="Adresse, ex. https://…"
           />
-          <button className="btn btn-sm" disabled={!check.success} onClick={addLink}>Ajouter</button>
+          <button className="btn btn-sm" disabled={!check.success} onClick={addLink}>
+            Ajouter
+          </button>
         </div>
       )}
       {addError && <p className="small due-late">{addError}</p>}
 
       <div className="actions mt">
         <span className="tb-flex" />
-        {dirty && <button className="btn" onClick={() => setTools(JSON.parse(saved) as UserTools)}>Annuler</button>}
+        {dirty && (
+          <button className="btn" onClick={() => setTools(JSON.parse(saved) as UserTools)}>
+            Annuler
+          </button>
+        )}
         <button className="btn btn-primary" disabled={!dirty || saving || tools.links.some((l) => !toolLinkSchema.safeParse(l).success)} onClick={() => void save()}>
           {saving && <Spinner small />} Enregistrer mes outils
         </button>

@@ -59,6 +59,15 @@ describe('utilisateurs, rôles, to-do et tickets', () => {
     expect((await env.call('GET', '/me', undefined, MEMBRE)).json.theme).toBe('prune');
   });
 
+  it('laisse chacun modifier sa fiche, sauf son rôle', async () => {
+    const r = await env.call('PUT', '/me/profile', { name: 'Chloé Durand-Martin', jobTitle: 'Cheffe de projet Web', backupId: ADMIN, perimeters: ['web'], role: 'admin' }, MEMBRE);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ name: 'Chloé Durand-Martin', jobTitle: 'Cheffe de projet Web', backupId: ADMIN, perimeters: ['web'], role: 'membre' });
+    expect((await env.call('PUT', '/me/profile', { name: 'Chloé', backupId: MEMBRE }, MEMBRE)).status).toBe(400);
+    expect((await env.call('PUT', '/me/profile', { name: ' ' }, MEMBRE)).status).toBe(400);
+    await env.call('PUT', '/me/profile', { name: 'Chloé Durand' }, MEMBRE);
+  });
+
   it('laisse chacun composer ses outils, sans toucher à son thème', async () => {
     expect((await env.call('GET', '/me', undefined, MEMBRE)).json.tools).toBeNull();
     const tools = { modules: ['tma', 'fichiers', 'tma'], links: [{ label: 'SharePoint', url: 'https://exemple.sharepoint.com/projets' }] };

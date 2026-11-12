@@ -72,6 +72,13 @@ export const userInputSchema = z.object({
 });
 export type UserInput = z.input<typeof userInputSchema>;
 
+/** Ce que chacun modifie sur sa propre fiche (« Ma fiche ») : tout sauf le rôle et l'accès. */
+export const meProfileSchema = z.object({
+  name: z.string().trim().min(1, 'Le nom est obligatoire').max(120),
+  ...profile,
+});
+export type MeProfile = z.input<typeof meProfileSchema>;
+
 export const userUpdateSchema = z.object({
   name: z.string().trim().min(1, 'Le nom est obligatoire').max(120),
   role: z.enum(ROLES),

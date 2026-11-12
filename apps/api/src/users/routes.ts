@@ -3,6 +3,7 @@ import {
   can,
   DEFAULT_THEME,
   mePreferencesSchema,
+  meProfileSchema,
   nameKey,
   todoInputSchema,
   todoOrderBody,
@@ -199,6 +200,18 @@ export function meRoutes() {
     const email = userName(c);
     const { theme, tools } = await body(c, mePreferencesSchema);
     await users.setUserPreferences(email, { theme, tools });
+    return c.json(await meHandler(email));
+  });
+
+  /** Sa propre fiche : nom, poste, backup, périmètres (le rôle et l'accès restent aux administrateurs). */
+  r.put('/profile', async (c) => {
+    const email = userName(c);
+    const b = await body(c, meProfileSchema);
+    const before = await users.getUser(email);
+    if (b.backupId !== before.backupId) await assertBackup(b.backupId, email);
+    if (b.name !== before.name) await updateUserName(email, b.name);
+    const u = await users.putUser({ ...before, ...b, updatedAt: nowIso(), updatedBy: email });
+    if (b.name !== before.name) await syncUserTasks(u, email);
     return c.json(await meHandler(email));
   });
   return r;
