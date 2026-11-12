@@ -84,6 +84,7 @@ import type {
   MeProfile,
   SyncProjectCdcsBody,
   SyncProjectCdcsResult,
+  ThemeProposal,
   AnswerReviewBody,
   CdcReview,
   PublicReviewDocument,
@@ -245,6 +246,9 @@ export const api = {
   deletePrestataireContact: (id: string, cid: string) => request<Prestataire>('DELETE', `/settings/prestataires/${id}/contacts/${cid}`),
 
   tmaOverview: () => request<TmaOverview>('GET', '/tma'),
+  themeProposal: () => request<ThemeProposal | null>('GET', '/tma/desk/proposition'),
+  applyThemeProposal: (ids: string[]) => request<TmaOverview>('POST', '/tma/desk/proposition/apply', { ids }),
+  discardThemeProposal: () => request<null>('DELETE', '/tma/desk/proposition'),
   deskTicket: (id: string) => request<DeskTicketInfo>('GET', `/tma/desk/tickets/${encodeURIComponent(id)}`),
   importDesk: (fileName: string, tickets: DeskTicket[]) => request<DeskImportResult>('POST', '/tma/desk/import', { fileName, tickets }),
   classifyTickets: (all: boolean) => request<JobInfo>('POST', '/tma/desk/classify', { all }),

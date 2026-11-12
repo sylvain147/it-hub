@@ -21,7 +21,7 @@ describe('module Suivi TMA', () => {
     const { json } = await env.call('GET', '/tma');
     expect(json).toEqual({
       months: [],
-      desk: { ticketCount: 0, classifiedCount: 0, firstCreatedAt: null, lastCreatedAt: null, lastImportAt: null, lastImportBy: null, activeJobId: null },
+      desk: { ticketCount: 0, classifiedCount: 0, firstCreatedAt: null, lastCreatedAt: null, lastImportAt: null, lastImportBy: null, activeJobId: null, pendingThemes: 0 },
     });
     expect((await env.call('POST', '/tma/desk/classify', {})).status).toBe(400);
   });
@@ -35,19 +35,35 @@ describe('module Suivi TMA', () => {
     expect(json.desk).toMatchObject({ ticketCount: 4, classifiedCount: 0, firstCreatedAt: '2026-08-25T09:38', lastImportBy: 'alice@test' });
   });
 
-  it('classe les tickets par thème et conserve les thèmes à la réimportation', async () => {
+  it('propose un classement par thème, appliqué seulement une fois validé, et conservé à la réimportation', async () => {
     const start = await env.call('POST', '/tma/desk/classify', {});
     expect(start.status).toBe(202);
     const job = await env.waitJob(start.json.id);
     expect(job.error).toBe('');
-    expect(job.step).toMatch(/4 ticket\(s\) classé\(s\)/);
+    expect(job.step).toMatch(/Proposition prête : 4 ticket\(s\)/);
+    // L'IA propose, rien n'est encore enregistré sur les tickets.
+    expect((await env.call('GET', '/tma')).json.desk).toMatchObject({ classifiedCount: 0, pendingThemes: 4 });
+    const { json: proposal } = await env.call('GET', '/tma/desk/proposition');
+    expect(proposal.plan).toMatch(/^Après analyse de 4 tickets, je propose de les ranger en \d+ thèmes? : « /);
+    expect(proposal.items).toHaveLength(4);
+    expect(proposal.items[0]).toMatchObject({ id: expect.any(String), theme: expect.any(String), previous: '' });
+    // Validation partielle : un ticket écarté reste sans thème.
+    const keep = proposal.items.slice(0, 3).map((it: any) => it.id);
+    const applied = await env.call('POST', '/tma/desk/proposition/apply', { ids: keep });
+    expect(applied.json.desk).toMatchObject({ classifiedCount: 3, pendingThemes: 0 });
+    expect((await env.call('POST', '/tma/desk/proposition/apply', { ids: keep })).status).toBe(404);
+    // Le dernier ticket est reproposé, puis la proposition est abandonnée.
+    await env.waitJob((await env.call('POST', '/tma/desk/classify', {})).json.id);
+    expect((await env.call('GET', '/tma/desk/proposition')).json.items).toHaveLength(1);
+    expect((await env.call('DELETE', '/tma/desk/proposition')).status).toBe(204);
+    expect((await env.call('GET', '/tma')).json.desk).toMatchObject({ classifiedCount: 3, pendingThemes: 0 });
+    // Reclassement complet sur demande, validé en entier.
+    await env.waitJob((await env.call('POST', '/tma/desk/classify', { all: true })).json.id);
+    const all = (await env.call('GET', '/tma/desk/proposition')).json;
+    await env.call('POST', '/tma/desk/proposition/apply', { ids: all.items.map((it: any) => it.id) });
     expect((await env.call('POST', '/tma/desk/classify', {})).status).toBe(400); // tout est classé
     await env.call('POST', '/tma/desk/import', { tickets });
-    const { json } = await env.call('GET', '/tma');
-    expect(json.desk.classifiedCount).toBe(4);
-    // Reclassement complet sur demande.
-    const again = await env.waitJob((await env.call('POST', '/tma/desk/classify', { all: true })).json.id);
-    expect(again.status).toBe('termine');
+    expect((await env.call('GET', '/tma')).json.desk.classifiedCount).toBe(4);
   });
 
   it('importe les relevés mensuels et calcule le rapport', async () => {

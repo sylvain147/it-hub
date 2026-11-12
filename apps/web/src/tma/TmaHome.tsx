@@ -6,6 +6,7 @@ import { useJobPolling, useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from '../settings/context';
 import { fmtH, fmtN } from './common';
+import { ThemeProposalCard } from './ThemeProposalCard';
 
 /** Tickets envoyés par requête lors d'un import Desk. */
 const DESK_CHUNK = 500;
@@ -15,6 +16,8 @@ type Pending = { kind: 'desk'; fileName: string; data: DeskImport } | { kind: 't
 export function TmaHome() {
   const navigate = useNavigate();
   const { data, error, loading, reload } = useLoad(() => api.tmaOverview(), []);
+  // Classement proposé par l'IA, en attente de validation.
+  const proposal = useLoad(() => (data?.desk.pendingThemes ? api.themeProposal() : Promise.resolve(null)), [data?.desk.pendingThemes]);
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -163,13 +166,15 @@ export function TmaHome() {
                   )}
                 </p>
                 <p className="muted small">
-                  Pour repérer les problèmes récurrents, l’assistant attribue un thème à chaque ticket (sujet et description masquée). Chaque ticket n’est classé
-                  qu’une fois : seuls les nouveaux tickets sont envoyés.
+                  Pour repérer les problèmes récurrents, l’assistant propose un thème pour chaque ticket (sujet et description masquée) ; vous validez avant que rien ne
+                  soit enregistré. Chaque ticket n’est classé qu’une fois : seuls les nouveaux tickets sont envoyés.
                 </p>
                 {job && activeJob ? (
                   <div className="alert alert-info">
                     <Spinner small /> {job.step}
                   </div>
+                ) : proposal.data ? (
+                  <ThemeProposalCard proposal={proposal.data} onDone={async () => { await reload(); }} />
                 ) : toClassify > 0 ? (
                   <button className="btn btn-ai" onClick={() => void classify()}>
                     ✨ Classer {fmtN(toClassify)} ticket(s) par thème

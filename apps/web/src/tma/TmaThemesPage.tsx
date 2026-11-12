@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { monthLabel } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling, useLoad } from '../hooks';
@@ -13,15 +13,19 @@ export function TmaThemesPage() {
   const { data, error, loading, reload } = useLoad(() => api.tmaThemes(), []);
   const [open, setOpen] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  // Le reclassement aboutit à une proposition, à valider sur la page du suivi TMA.
   const job = useJobPolling(jobId, async (j) => {
     setJobId(null);
-    if (j.status === 'termine') toast(`${j.step}.`);
-    else toast(j.error, 'error');
+    if (j.status === 'termine') {
+      toast(`${j.step}.`);
+      navigate('/tma');
+    } else toast(j.error, 'error');
     await reload();
   });
 
   async function reclassify() {
-    if (!confirm('Reclasser tous les tickets ? Les thèmes actuels seront recalculés (quelques centimes d’IA pour quelques centaines de tickets).')) return;
+    if (!confirm('Reclasser tous les tickets ? L’assistant proposera un nouveau thème pour chacun (quelques centimes d’IA pour quelques centaines de tickets) ; vous validerez avant que rien ne change.')) return;
     try {
       setJobId((await api.classifyTickets(true)).id);
     } catch (e) {

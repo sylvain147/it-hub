@@ -364,7 +364,15 @@ export function projectRoutes() {
       await pr.createItem(id, 'risks', { title: x.title, probability: x.probability, impact: x.impact, mitigation: x.mitigation }, user, { silent: true });
       created.push('risque');
     });
-    await pr.setItemFields(id, 'notes', note.id, { suggestions: { tasks, jalons, risks } });
+    const ticketUpdates = await decide(s.ticketUpdates ?? [], b.ticketUpdates, async (u) => {
+      // Ticket supprimé ou déjà terminé depuis l'analyse : la proposition est sans objet.
+      const t = await pr.getItem(id, 'tasks', u.ticketId).catch(() => null);
+      if (!t) return;
+      const patch = { ...(u.status ? { status: u.status } : {}), ...(u.dueDate ? { dueDate: u.dueDate } : {}), ...(u.priority ? { priority: u.priority } : {}) };
+      await pr.updateItem(id, 'tasks', u.ticketId, patch, user);
+      created.push('mise à jour');
+    });
+    await pr.setItemFields(id, 'notes', note.id, { suggestions: { ...s, tasks, jalons, risks, ticketUpdates } });
     if (created.length) {
       await pr.logActivity(id, project.name, user, `a validé ${created.length} proposition${created.length > 1 ? 's' : ''} de l’assistant (« ${note.title} »)`);
     }

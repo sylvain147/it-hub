@@ -116,6 +116,17 @@ describe('assistant (chat global)', () => {
     expect(calls.at(-1)!.context).toContain('## Types de tickets\nCadrage, Dev, Recette, MEP, Correctif');
     expect(calls.at(-1)!.context).toContain('- Chloé Durand (chloe.durand@exemple.fr)');
     expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'ticket', title: 'Migration ERP', ticketType: 'Dev', projectId: erp, priority: 'haute', assigneeId: '' })]);
+    expect(r.json.answer).toMatch(/^Après analyse/);
+    // Mise à jour d'un ticket existant : avant → après, rien n'est modifié tant que l'utilisateur ne clique pas.
+    const t = (await env.call('POST', `/projects/${erp}/items/tasks`, { title: 'Brancher la paie', status: 'en_cours' }, MEMBRE)).json;
+    const up = await env.call('POST', '/assistant', { question: `Passe T-${t.number} en recette` }, MEMBRE);
+    expect(up.json.actions).toEqual([
+      expect.objectContaining({ kind: 'ticket_update', title: 'Brancher la paie', projectId: erp, update: expect.objectContaining({ ticketId: t.id, status: 'recette', before: expect.objectContaining({ status: 'en_cours' }) }) }),
+    ]);
+    expect((await env.call('GET', `/projects/${erp}`, undefined, MEMBRE)).json.items.tasks.find((x: any) => x.id === t.id).status).toBe('en_cours');
+    // Ticket inconnu, ou sans changement réel : pas de proposition.
+    expect((await env.call('POST', '/assistant', { question: 'Passe T-9999 en recette' }, MEMBRE)).json.actions).toEqual([]);
+    expect((await env.call('POST', '/assistant', { question: `Passe T-${t.number} en cours` }, MEMBRE)).json.actions).toEqual([]);
     const todo = await env.call('POST', '/assistant', { question: 'Ajoute à ma to-do de relancer le prestataire' }, MEMBRE);
     expect(todo.json.actions).toEqual([expect.objectContaining({ kind: 'todo', projectId: '' })]);
     setProvider(new MockProvider(0));

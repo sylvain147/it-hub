@@ -195,7 +195,7 @@ export function ProjectPage() {
 }
 
 export function hasPending(s: NonNullable<ProjectDetail['items']['notes'][number]['suggestions']>) {
-  return [...s.tasks, ...s.jalons, ...s.risks].some((x) => x.state === 'proposee');
+  return [...s.tasks, ...(s.ticketUpdates ?? []), ...s.jalons, ...s.risks].some((x) => x.state === 'proposee');
 }
 
 /** Projet bloqué : il reste à son étape, marquée en rouge sur la frise, avec la raison. */

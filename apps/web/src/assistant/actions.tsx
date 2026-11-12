@@ -3,7 +3,8 @@ import { Link } from 'react-router';
 import { NO_PROJECT_ID, PRIORITY_LABELS, ticketKey, type AssistantAction, type Task } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { Spinner } from '../components/ui';
+import { Spinner, formatDate } from '../components/ui';
+import { useSettings } from '../settings/context';
 import { ProjectSelect, defaultDueDate, type ProjectRef } from '../tasks/tasks';
 import { useAssistant } from '../theme';
 import { UserSelect } from '../users/context';
@@ -17,7 +18,7 @@ import { UserSelect } from '../users/context';
 export type ActionState = { state: 'proposee' } | { state: 'ignoree' } | { state: 'creee'; label: string; path: string };
 export type ChatAction = AssistantAction & { status?: ActionState };
 
-const TITLE: Record<AssistantAction['kind'], string> = { ticket: 'Ticket', todo: 'To-do', jalon: 'Jalon' };
+const TITLE: Record<AssistantAction['kind'], string> = { ticket: 'Ticket', todo: 'To-do', jalon: 'Jalon', ticket_update: 'Mise à jour' };
 
 /** « Dois-je créer un ticket dans le projet X ? » */
 function question(kind: AssistantAction['kind'], project: ProjectRef | undefined) {
@@ -28,6 +29,69 @@ function question(kind: AssistantAction['kind'], project: ProjectRef | undefined
 }
 
 export function ActionCard({ action, projects, onChange }: { action: ChatAction; projects: ProjectRef[]; onChange: (a: ChatAction) => void }) {
+  if (action.update) return <UpdateCard action={action} onChange={onChange} />;
+  return <CreateCard action={action} projects={projects} onChange={onChange} />;
+}
+
+/** « Dois-je mettre à jour T-12 ? » : les changements (avant → après), appliqués au clic, par la route habituelle. */
+function UpdateCard({ action, onChange }: { action: ChatAction; onChange: (a: ChatAction) => void }) {
+  const { label } = useSettings();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const u = action.update!;
+  const status = action.status ?? { state: 'proposee' };
+  const set = (patch: Partial<ChatAction>) => onChange({ ...action, ...patch });
+  const path = action.projectId === NO_PROJECT_ID ? '/sprints?onglet=liste' : `/projets/${action.projectId}?onglet=tickets`;
+
+  async function apply() {
+    setBusy(true);
+    setError('');
+    try {
+      await api.updateItem(action.projectId, 'tasks', u.ticketId, { ...(u.status ? { status: u.status } : {}), ...(u.dueDate ? { dueDate: u.dueDate } : {}), ...(u.priority ? { priority: u.priority } : {}) });
+      set({ status: { state: 'creee', label: `${ticketKey(u)} mis à jour`, path } });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (status.state === 'creee') {
+    return (
+      <div className="gandalf-action done">
+        <span>✓ {status.label} : <Link to={status.path}>{action.title}</Link></span>
+      </div>
+    );
+  }
+  if (status.state === 'ignoree') {
+    return (
+      <div className="gandalf-action ignored">
+        <span className="muted small">Ignoré : mise à jour de {ticketKey(u)}</span>
+        <button className="btn-link small" onClick={() => set({ status: { state: 'proposee' } })}>Reprendre</button>
+      </div>
+    );
+  }
+  return (
+    <div className="gandalf-action">
+      <p className="gandalf-action-q">
+        Dois-je mettre à jour <strong>{ticketKey(u)}</strong> « {action.title} »{action.projectName && <> ({action.projectName})</>} ?
+      </p>
+      <ul className="gandalf-changes small">
+        {u.status && <li>Statut : {label('ticket', u.before.status)} → <strong>{label('ticket', u.status)}</strong></li>}
+        {u.dueDate && <li>Échéance : {u.before.dueDate ? formatDate(u.before.dueDate) : 'aucune'} → <strong>{formatDate(u.dueDate)}</strong></li>}
+        {u.priority && <li>Priorité : {PRIORITY_LABELS[u.before.priority].toLowerCase()} → <strong>{PRIORITY_LABELS[u.priority].toLowerCase()}</strong></li>}
+      </ul>
+      {action.reason && <p className="small muted gandalf-action-why">{action.reason}</p>}
+      {error && <p className="small due-late">{error}</p>}
+      <div className="gandalf-action-buttons">
+        <button className="btn btn-sm" disabled={busy} onClick={() => set({ status: { state: 'ignoree' } })}>Ignorer</button>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply()}>{busy && <Spinner small />} Mettre à jour</button>
+      </div>
+    </div>
+  );
+}
+
+function CreateCard({ action, projects, onChange }: { action: ChatAction; projects: ProjectRef[]; onChange: (a: ChatAction) => void }) {
   const { me } = useAuth();
   const assistant = useAssistant();
   const [busy, setBusy] = useState(false);

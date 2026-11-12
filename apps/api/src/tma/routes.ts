@@ -4,6 +4,7 @@ import {
   buildThemeStats,
   classifyBody,
   importDeskBody,
+  applyThemesBody,
   importTmaBody,
   matchTmaPeople,
   tmaHoursByContact,
@@ -80,6 +81,26 @@ export function tmaRoutes() {
     if (!tickets.length) throw new HttpError(400, 'Importez d’abord un export de tickets Desk.');
     if (!b.all && tickets.every((t) => t.theme)) throw new HttpError(400, 'Tous les tickets sont déjà classés.');
     return c.json(await startJob('tma_classify', tma.DESK_TARGET, userName(c), { all: b.all }), 202);
+  });
+
+  /** Classement proposé par l'IA, en attente de validation. */
+  r.get('/desk/proposition', async (c) => c.json(await tma.getThemeProposal()));
+
+  /** Applique les thèmes retenus (les autres sont ignorés) et clôt la proposition. */
+  r.post('/desk/proposition/apply', async (c) => {
+    const b = await body(c, applyThemesBody);
+    const p = await tma.getThemeProposal();
+    if (!p) throw new HttpError(404, 'Aucune proposition de classement en attente.');
+    const keep = new Set(b.ids);
+    const known = new Set((await tma.listTickets()).map((t) => t.id));
+    await tma.setThemes(new Map(p.items.filter((it) => keep.has(it.id) && known.has(it.id)).map((it) => [it.id, it.theme])));
+    await tma.setThemeProposal(null);
+    return c.json(await tma.getOverview());
+  });
+
+  r.delete('/desk/proposition', async (c) => {
+    await tma.setThemeProposal(null);
+    return c.body(null, 204);
   });
 
   /** Ticket Desk vu du hub : fiche importée, temps passé d'après les relevés, tickets du hub qui le citent. */

@@ -8,9 +8,12 @@ On te donne un résumé du projet et la transcription brute (ou les notes en vra
 
 Ta tâche : produire le compte rendu de la réunion et repérer ce qui doit alimenter le suivi du projet.
 
+0. **plan** — avant tout, dis à l'utilisateur, à la première personne et en 1 à 3 phrases, ce que tu proposes de faire dans le projet, en nommant les éléments : « Après analyse, je vais créer les tickets « … » et « … », passer T-12 en recette, décaler l'échéance de T-8 au 20 novembre et ajouter le risque « … ». » Rien ne sera fait sans sa validation.
+
 1. **summary** — compte rendu fidèle et concis en Markdown, avec les rubriques utiles parmi : « ## Points abordés », « ## Avancement », « ## Problèmes et blocages », « ## Points ouverts ». Puces courtes, aucun bavardage. Ne mets pas les décisions ni les actions dans le compte rendu : elles ont leurs propres listes.
 2. **decisions** — les décisions effectivement prises (pas les pistes évoquées).
-3. **tasks** — les actions à mener décidées pendant la réunion, formulées avec un verbe à l'infinitif (« Envoyer le devis… »), avec le responsable nommé et l'échéance si elles sont dites. Priorité « haute » ou « critique » seulement si l'urgence est exprimée. N'ajoute pas une action déjà présente dans les tâches ouvertes du projet.
+3. **tasks** — les nouveaux tickets : actions à mener décidées pendant la réunion, formulées avec un verbe à l'infinitif (« Envoyer le devis… »), avec le responsable nommé et l'échéance si elles sont dites. Priorité « haute » ou « critique » seulement si l'urgence est exprimée. N'ajoute pas un ticket qui existe déjà dans les tickets ouverts : propose plutôt sa mise à jour.
+3 bis. **ticketUpdates** — les tickets ouverts existants (clé « T-12 » de la liste fournie) dont le texte change l'état : travail terminé, livré en recette, en attente d'un tiers, repris (statut, avec les codes a_faire, en_cours, attente, recette, termine), échéance décalée, urgence nouvelle (priorité). Ne renseigne que ce qui change, avec la raison.
 4. **jalons** — les nouvelles dates clés du planning (livraison, recette, mise en production…) ou les dates de jalons existants qui changent (reprends alors le libellé existant).
 5. **risks** — les risques nouveaux exprimés ou sous-entendus clairement (retard, dépendance, budget, compétence…), absents des risques déjà identifiés.
 

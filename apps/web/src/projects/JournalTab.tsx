@@ -8,6 +8,8 @@ import {
   NOTE_KIND_ICONS,
   NOTE_KIND_LABELS,
   RISK_LEVEL_LABELS,
+  PRIORITY_LABELS,
+  ticketKey,
   type Note,
   type NoteKind,
 } from '@samm/shared';
@@ -18,6 +20,7 @@ import { fieldsOf } from './OverviewTab';
 import { hasPending } from './ProjectPage';
 import { meetingPath } from '../meetings/recorder';
 import { GandalfActionsButton } from '../assistant/Gandalf';
+import { useSettings } from '../settings/context';
 
 export function JournalTab() {
   const { project, jobBusy, onJob } = useProject();
@@ -171,10 +174,13 @@ function Suggestions({ note }: { note: Note }) {
     tasks: new Set(s.tasks.map((_, i) => i)),
     jalons: new Set(s.jalons.map((_, i) => i)),
     risks: new Set(s.risks.map((_, i) => i)),
+    ticketUpdates: new Set((s.ticketUpdates ?? []).map((_, i) => i)),
   }));
   const [busy, setBusy] = useState(false);
+  const ticketLabel = useSettings().label;
+  const updates = s.ticketUpdates ?? [];
   const pending = hasPending(s);
-  const total = s.tasks.length + s.jalons.length + s.risks.length;
+  const total = s.tasks.length + updates.length + s.jalons.length + s.risks.length;
   if (!total) return null;
 
   const toggle = (k: keyof typeof checked, i: number) =>
@@ -189,7 +195,7 @@ function Suggestions({ note }: { note: Note }) {
     setBusy(true);
     try {
       const pick = (k: keyof typeof checked) => (all ? [...checked[k]] : []);
-      setProject(await api.applySuggestions(project.id, note.id, { tasks: pick('tasks'), jalons: pick('jalons'), risks: pick('risks') }));
+      setProject(await api.applySuggestions(project.id, note.id, { tasks: pick('tasks'), jalons: pick('jalons'), risks: pick('risks'), ticketUpdates: pick('ticketUpdates') }));
       toast(all ? 'Propositions ajoutées au projet.' : 'Propositions ignorées.');
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -210,16 +216,35 @@ function Suggestions({ note }: { note: Note }) {
 
   return (
     <div className={`suggestions${pending ? ' suggestions-pending' : ''}`}>
-      <div className="strong">✨ {pending ? 'Propositions de l’assistant — cochez ce qu’il faut ajouter au projet' : 'Propositions de l’assistant (traitées)'}</div>
+      <div className="strong">✨ {pending ? 'Propositions de l’assistant — cochez ce qu’il faut faire, puis validez' : 'Propositions de l’assistant (traitées)'}</div>
+      {s.plan && <p className="sugg-plan">🧙 {s.plan}</p>}
       {s.tasks.length > 0 && (
         <>
-          <div className="muted small">Tickets</div>
+          <div className="muted small">Tickets à créer</div>
           <ul className="list-plain">
             {s.tasks.map((t, i) => (
               <Row key={i} k="tasks" i={i} state={t.state}>
                 {t.title}
                 {t.assignee && <span className="badge">{t.assignee}</span>}
                 {t.dueDate && <span className="muted small"> · {formatDate(t.dueDate)}</span>}
+              </Row>
+            ))}
+          </ul>
+        </>
+      )}
+      {updates.length > 0 && (
+        <>
+          <div className="muted small">Tickets à mettre à jour</div>
+          <ul className="list-plain">
+            {updates.map((u, i) => (
+              <Row key={i} k="ticketUpdates" i={i} state={u.state}>
+                <strong>{ticketKey(u)}</strong> {u.title}
+                <span className="sugg-changes">
+                  {u.status && <span>statut {ticketLabel('ticket', u.before.status)} → <strong>{ticketLabel('ticket', u.status)}</strong></span>}
+                  {u.dueDate && <span>échéance {u.before.dueDate ? formatDate(u.before.dueDate) : 'aucune'} → <strong>{formatDate(u.dueDate)}</strong></span>}
+                  {u.priority && <span>priorité {PRIORITY_LABELS[u.before.priority].toLowerCase()} → <strong>{PRIORITY_LABELS[u.priority].toLowerCase()}</strong></span>}
+                </span>
+                {u.reason && <span className="muted small"> — {u.reason}</span>}
               </Row>
             ))}
           </ul>
@@ -252,7 +277,7 @@ function Suggestions({ note }: { note: Note }) {
       {pending && (
         <div className="row-actions">
           <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply(true)}>
-            {busy && <Spinner small />} Ajouter la sélection au projet
+            {busy && <Spinner small />} Valider la sélection
           </button>
           <button className="btn btn-sm" disabled={busy} onClick={() => void apply(false)}>Tout ignorer</button>
         </div>
