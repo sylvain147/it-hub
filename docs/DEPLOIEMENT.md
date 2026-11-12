@@ -16,7 +16,7 @@ Dans `infra/cdk.json` (section `context`) :
 |---|---|---|
 | `region` | `eu-west-3` (Paris) | Région de l'application |
 | `llmProvider` | `bedrock` | `mock` : IA simulée (aucun appel Bedrock, coût nul, textes marqués « simulation ») ; `bedrock` : vrais appels. Passer à `bedrock` puis redéployer une fois l'accès aux modèles activé |
-| `bedrockRegion` | `eu-west-3` | Région d'appel de Bedrock |
+| `bedrockRegion` | `eu-west-1` | Région d'appel de Bedrock (point d'accès `bedrock-mantle`). **Pas `eu-west-3` (Paris)** : le point d'accès `bedrock-mantle.eu-west-3.api.aws` n'existe pas (« Connection error »). L'Irlande garde les données dans l'UE ; l'application, elle, reste à Paris |
 | `modelFast` / `modelSmart` | `anthropic.claude-haiku-5-5` / `anthropic.claude-sonnet-5-5` | Modèles utilisés |
 | `monthlyBudgetUsd` | `30` | Plafond mensuel des fonctions IA (en $) |
 | `mailFrom` | *(vide)* | Expéditeur des demandes de validation de CDC (ex. `hobbit@entreprise.fr`). Vide : aucun e-mail n'est envoyé, le lien est à transmettre à la main depuis le hub |
