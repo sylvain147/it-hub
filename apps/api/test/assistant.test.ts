@@ -199,3 +199,19 @@ describe('assistant (chat global)', () => {
     expect(mentionedProjects(projects, 'la bi', []).map((x) => x.id)).toEqual([]);
   });
 });
+
+describe('erreurs de Bedrock', () => {
+  it('rend lisible un refus de Bedrock au lieu d’une « erreur interne »', async () => {
+    const { BedrockProvider } = await import('../src/ai/bedrock.js');
+    const { z } = await import('zod');
+    const refuse = async () => new Response(JSON.stringify({ message: 'You don’t have access to the model with the specified model ID.' }), { status: 403, headers: { 'content-type': 'application/json' } });
+    const p = new BedrockProvider({ skipAuth: true, fetch: refuse as typeof fetch, maxRetries: 0 });
+    const call = { tier: 'fast' as const, operation: 'assistant', system: 's', input: 'q', schema: z.object({ a: z.string() }), maxTokens: 100, effort: 'low' as const, ctx: { user: 'u', cdcId: '' } };
+    await expect(p.structured(call, 'anthropic.claude-haiku-5-5')).rejects.toMatchObject({ status: 502, message: expect.stringMatching(/HTTP 403 .*access to the model.*Vérifiez l’accès au modèle/) });
+    const panne = async () => {
+      throw new TypeError('fetch failed');
+    };
+    const q = new BedrockProvider({ skipAuth: true, fetch: panne as typeof fetch, maxRetries: 0 });
+    await expect(q.structured(call, 'anthropic.claude-haiku-5-5')).rejects.toMatchObject({ status: 502, message: expect.stringContaining('impossible') });
+  });
+});
