@@ -8,8 +8,9 @@ import { EmptyState, ErrorBox, formatDate, Spinner } from '../components/ui';
 import { DueLabel, HealthBadge } from './common';
 import { MyProjectsCheck, useMyProjectsFilter } from './mine';
 
-/** Trois vues seulement : le mois, le trimestre, l'année. */
+/** Quatre vues : la semaine (jour par jour), le mois, le trimestre, l'année. */
 const PERIODS = [
+  { id: 'semaine', label: 'Semaine', months: 0 },
   { id: 'mois', label: 'Mois', months: 1 },
   { id: 'trimestre', label: 'Trimestre', months: 3 },
   { id: 'annee', label: 'Année', months: 12 },
@@ -18,6 +19,7 @@ type PeriodId = (typeof PERIODS)[number]['id'];
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const WEEKDAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 const DAY = 86400000;
 
 /** Premier jour du mois de `iso`, décalé de `delta` mois. */
@@ -31,23 +33,43 @@ function addDays(iso: string, delta: number): string {
   return new Date(Date.parse(iso) + delta * DAY).toISOString().slice(0, 10);
 }
 
-/** Fenêtre [from, to[ : le mois en cours, le trimestre qui commence ce mois-ci, ou l'année glissante (mois précédent compris). */
+/** Lundi de la semaine de `iso`. */
+function weekStart(iso: string): string {
+  return addDays(iso, -((new Date(iso).getUTCDay() + 6) % 7));
+}
+
+/**
+ * Fenêtre [from, to[ : la semaine en cours (du lundi au dimanche), le mois en cours, le trimestre qui commence ce
+ * mois-ci, ou l'année glissante (mois précédent compris).
+ */
 function windowOf(period: PeriodId, today: string, offset: number): { from: string; to: string } {
+  if (period === 'semaine') {
+    const from = addDays(weekStart(today), 7 * offset);
+    return { from, to: addDays(from, 7) };
+  }
   const months = PERIODS.find((p) => p.id === period)!.months;
   const start = period === 'annee' ? -1 : 0;
   return { from: monthStart(today, start + months * offset), to: monthStart(today, start + months * (offset + 1)) };
 }
 
-/** Intitulé de la période : « novembre 2026 », « nov. 2026 – janv. 2027 ». */
-function periodLabel(from: string, to: string): string {
+/** Intitulé de la période : « semaine du 9 au 15 nov. 2026 », « novembre 2026 », « nov. 2026 – janv. 2027 ». */
+function periodLabel(from: string, to: string, period?: PeriodId): string {
   const last = addDays(to, -1);
+  if (period === 'semaine') {
+    const day = (iso: string, withMonth: boolean) => `${Number(iso.slice(8))}${withMonth ? ` ${MONTHS_SHORT[Number(iso.slice(5, 7)) - 1]}` : ''}`;
+    return `semaine du ${day(from, from.slice(5, 7) !== last.slice(5, 7))} au ${day(last, true)} ${last.slice(0, 4)}`;
+  }
   const m = (iso: string, short: boolean) => `${(short ? MONTHS_SHORT : MONTHS)[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
   return from.slice(0, 7) === last.slice(0, 7) ? m(from, false) : `${m(from, true)} – ${m(last, true)}`;
 }
 
-/** Graduations : les lundis pour un mois, les mois au-delà. */
+/** Graduations : chaque jour pour une semaine, les lundis pour un mois, les mois au-delà. */
 function ticksOf(period: PeriodId, from: string, to: string): { date: string; label: string }[] {
   const ticks: { date: string; label: string }[] = [];
+  if (period === 'semaine') {
+    for (let d = from; d < to; d = addDays(d, 1)) ticks.push({ date: d, label: `${WEEKDAYS[new Date(d).getUTCDay()]} ${Number(d.slice(8))}` });
+    return ticks;
+  }
   if (period === 'mois') {
     for (let d = from; d < to; d = addDays(d, 1)) if (new Date(d).getUTCDay() === 1) ticks.push({ date: d, label: `lun. ${Number(d.slice(8))}` });
     return ticks;
@@ -160,6 +182,7 @@ export function GlobalPlanningPage() {
     .sort((a, b) => a.jalon.date.localeCompare(b.jalon.date));
   const late = rows.reduce((n, r) => n + r.jalons.filter((j) => isJalonLate(j)).length, 0);
   const ticks = ticksOf(period, from, to);
+  const weekend = period === 'semaine' ? ticks.map((t) => t.date).filter((d) => [0, 6].includes(new Date(d).getUTCDay())) : [];
 
   return (
     <div className="page page-wide">
@@ -178,7 +201,7 @@ export function GlobalPlanningPage() {
         </div>
         <div className="planning-nav">
           <button className="btn btn-sm" onClick={() => setOffset((o) => o - 1)} aria-label="Période précédente">◀</button>
-          <strong className="planning-period">{periodLabel(from, to)}</strong>
+          <strong className="planning-period">{periodLabel(from, to, period)}</strong>
           <button className="btn btn-sm" onClick={() => setOffset((o) => o + 1)} aria-label="Période suivante">▶</button>
           {offset !== 0 && <button className="btn btn-sm btn-ghost" onClick={() => setOffset(0)}>Aujourd’hui</button>}
         </div>
@@ -199,7 +222,7 @@ export function GlobalPlanningPage() {
             <div className="pl-row pl-head">
               <div className="pl-name" />
               <div className="pl-track" ref={track.ref}>
-                {ticks.map((t) => <span key={t.date} className="pl-tick" style={{ left: x(t.date) }}>{t.label}</span>)}
+                {ticks.map((t) => <span key={t.date} className={t.date === today ? 'pl-tick pl-tick-today' : 'pl-tick'} style={{ left: x(t.date) }}>{t.label}</span>)}
               </div>
             </div>
             {shown.map(({ project: p, visible }) => {
@@ -215,6 +238,8 @@ export function GlobalPlanningPage() {
                   </div>
                   <div className="pl-track" style={{ height: lanes * LANE + 12 }}>
                     {ticks.map((t) => <span key={t.date} className="pl-grid" style={{ left: x(t.date) }} />)}
+                    {/* Vue semaine : le week-end grisé. */}
+                    {weekend.map((d) => <span key={d} className="pl-weekend" style={{ left: x(d), width: xEnd(d) - x(d) }} />)}
                     {start && end && end >= start && (
                       <span className="pl-project" style={{ left: x(start), width: xEnd(end) - x(start) }} title={`Projet : ${p.startDate ? `du ${formatDate(p.startDate)} ` : ''}${p.targetDate ? `au ${formatDate(p.targetDate)}` : ''}`} />
                     )}
@@ -247,7 +272,7 @@ export function GlobalPlanningPage() {
 
       {entries.length > 0 && (
         <section className="card">
-          <h2>Échéances : {periodLabel(from, to)}</h2>
+          <h2>Échéances : {periodLabel(from, to, period)}</h2>
           <div className="table-wrap">
             <table className="table">
               <thead>
