@@ -157,7 +157,7 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .modal-head h2 { margin: 0; }
 .modal-body { padding: 16px 20px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
-.modal-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.modal-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
 .menu { position: relative; }
 .menu-list { position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); min-width: 220px; z-index: 20; padding: 4px; }
 .menu-list button { display: block; width: 100%; text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
@@ -186,6 +186,8 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .job-banner { background: #f4f3ff; color: #42307d; border-bottom: 1px solid #d9d0f5; padding: 10px 24px; display: flex; align-items: center; gap: 8px; position: sticky; top: 62px; z-index: 9; }
 .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; padding: 20px 24px; align-items: start; }
 .editor-side { position: sticky; top: 80px; max-height: calc(100vh - 100px); display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.editor-side .tabs { flex-wrap: wrap; flex-shrink: 0; }
+.editor-side .tab { flex: 1 1 auto; padding: 8px 8px; white-space: nowrap; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); background: #fafbfc; }
 .tab { flex: 1; border: none; background: none; padding: 10px 4px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
 .tab.active { color: var(--blue); border-bottom-color: var(--blue); background: #fff; }
@@ -1220,3 +1222,102 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
   .idea-actions { grid-column: 1 / -1; justify-content: flex-start; max-width: none; }
   .idea-quick-row { flex-wrap: wrap; }
 }
+
+/* To-do : vue « Cette semaine », une carte par jour */
+.week-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.week-label { min-width: 150px; text-align: center; font-size: 15px; }
+.week-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr)); gap: 12px; align-items: start; }
+.week-day { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+.week-day h3 { margin: 0 0 4px; font-size: 14px; display: flex; align-items: baseline; gap: 6px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.week-today { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-50); }
+.week-today-badge { margin-left: auto; background: var(--blue); color: #fff; text-decoration: none; }
+.week-past { background: #fafbfc; }
+.week-late { border-color: #fecdca; background: #fffbfa; }
+.week-late h3 { color: var(--danger); }
+.week-undated { border-style: dashed; }
+.week-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.week-tasks li { display: flex; align-items: flex-start; gap: 8px; }
+.week-tasks input[type='checkbox'] { margin-top: 3px; accent-color: var(--blue); width: 15px; height: 15px; flex-shrink: 0; }
+.week-task-title { all: unset; cursor: pointer; line-height: 1.35; overflow-wrap: anywhere; }
+.week-task-title:hover { color: var(--blue); }
+.week-tasks li.done .week-task-title { text-decoration: line-through; color: var(--muted); }
+.week-task-meta { display: block; font-size: 11.5px; color: var(--muted); }
+.week-empty { margin: 0; }
+.week-add { margin-top: 4px; border-style: dashed; background: transparent; }
+
+/*
+ * Thème Nazgûl : noir absolu, sans couleur… sauf l'Œil. La page entière est inversée (filtre posé sur la racine : les
+ * éléments fixes et les fenêtres restent bien placés ; la rotation de teinte garde les teintes d'origine), les images
+ * sont ré-inversées, puis chaque zone de l'interface passe en niveaux de gris — toutes sauf le logo, l'Œil, qui reste
+ * rouge. Le gris est posé sur les éléments eux-mêmes (jamais sur un parent d'élément fixe, qui s'en trouverait déplacé).
+ * Les couleurs ci-dessous sont les INVERSES de celles vues à l'écran (blanc ici = noir à l'écran).
+ */
+[data-theme='nazgul'] { filter: invert(1) hue-rotate(180deg); }
+[data-theme='nazgul'] img, [data-theme='nazgul'] video { filter: invert(1) hue-rotate(180deg); }
+[data-theme='nazgul'] .content > *,
+[data-theme='nazgul'] .side-nav,
+[data-theme='nazgul'] .user-btn,
+[data-theme='nazgul'] .user-menu,
+[data-theme='nazgul'] .wordmark,
+[data-theme='nazgul'] .burger,
+[data-theme='nazgul'] .modal-backdrop,
+[data-theme='nazgul'] .toasts { filter: grayscale(1); }
+[data-theme='nazgul'] .sidebar, [data-theme='nazgul'] .mobile-bar { color: #2e2e2e; }
+[data-theme='nazgul'] .brand, [data-theme='nazgul'] .user-id strong, [data-theme='nazgul'] .user-avatar { color: #000; }
+[data-theme='nazgul'] .nav-link, [data-theme='nazgul'] .user-btn { color: #3a3a3a; }
+[data-theme='nazgul'] .nav-link:hover, [data-theme='nazgul'] .user-btn:hover, [data-theme='nazgul'] .user-btn[aria-expanded='true'] { background: rgba(0, 0, 0, 0.07); }
+[data-theme='nazgul'] .nav-link.active { background: rgba(0, 0, 0, 0.14); color: #000; }
+[data-theme='nazgul'] .user-avatar { background: rgba(0, 0, 0, 0.15); }
+[data-theme='nazgul'] .sidebar-foot { border-top-color: rgba(0, 0, 0, 0.15); }
+[data-theme='nazgul'] .brand-logo { background: #000; }
+/* En-têtes sur fond du thème (chat de l'assistant) : texte clair à l'écran. */
+[data-theme='nazgul'] .gandalf-head, [data-theme='nazgul'] .pr-head { color: #111; }
+[data-theme='nazgul'] .gandalf-head .btn-ghost, [data-theme='nazgul'] .gandalf-close { color: #111; border-color: rgba(0, 0, 0, 0.3); }
+[data-theme='nazgul'] .gandalf-head img { background: #000; }
+.ng-fx { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+/* Fumées : à l'écran, des volutes gris clair qui montent et se dissipent. */
+.ng-smoke { position: absolute; bottom: -35vmax; width: 55vmax; height: 55vmax; border-radius: 50%; background: radial-gradient(circle, rgba(40, 40, 40, 0.13), rgba(40, 40, 40, 0) 62%); filter: blur(28px); animation: ng-rise 28s linear infinite; }
+.ng-smoke-1 { left: -10vw; }
+.ng-smoke-2 { left: 25vw; animation-delay: -7s; animation-duration: 34s; }
+.ng-smoke-3 { left: 55vw; animation-delay: -15s; }
+.ng-smoke-4 { left: 75vw; animation-delay: -22s; animation-duration: 31s; }
+@keyframes ng-rise {
+  0% { transform: translate(0, 0) scale(0.55); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(8vw, -135vh) scale(1.5); opacity: 0; }
+}
+/* Flammes des ténèbres : à l'écran, des langues noires cernées d'un halo gris qui vacillent au bas de la page. */
+.ng-flames { position: absolute; left: 0; right: 0; bottom: -6px; height: 110px; opacity: 0.55; }
+.ng-flame { position: absolute; bottom: 0; width: 54px; margin-left: -27px; clip-path: polygon(50% 0, 64% 22%, 84% 52%, 90% 76%, 76% 94%, 50% 100%, 24% 94%, 10% 76%, 16% 52%, 36% 22%); background: radial-gradient(ellipse 60% 75% at 50% 85%, #fff 0 32%, rgba(120, 120, 120, 0.7) 58%, rgba(150, 150, 150, 0.15) 85%); transform-origin: 50% 100%; filter: blur(1.5px); animation: ng-flicker 1.8s ease-in-out infinite alternate; }
+@keyframes ng-flicker {
+  0% { transform: scaleY(0.78) skewX(-5deg); }
+  50% { transform: scaleY(1.12) skewX(3deg); }
+  100% { transform: scaleY(0.9) skewX(-2deg); }
+}
+@media (prefers-reduced-motion: reduce) { .ng-smoke, .ng-flame { animation: none; } }
+
+/* Validation d'un CDC : onglet du CDC et page publique du lien */
+.review-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.review { border: 1px solid var(--line); border-left: 4px solid #d0d5dd; border-radius: 8px; padding: 8px 10px; }
+.review-valide { border-left-color: var(--ok); }
+.review-refuse { border-left-color: var(--danger); }
+.review-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.review-badge-attente { background: #f2f4f7; color: #475467; }
+.review-badge-valide { background: #ecfdf3; color: var(--ok); }
+.review-badge-refuse { background: #fef3f2; color: var(--danger); }
+.review-comment { margin: 6px 0 2px; font-style: italic; }
+.review-links { display: flex; flex-direction: column; gap: 10px; }
+.review-links li { display: flex; flex-direction: column; gap: 4px; }
+.review-link-row { display: flex; gap: 6px; }
+.review-link-row .input { flex: 1; }
+.pr-page { min-height: 100vh; background: var(--bg); }
+.pr-head { background: var(--navy); color: #fff; padding: 12px 24px; }
+.pr-head .brand-logo { width: 34px; height: 34px; }
+.pr-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.pr-main { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; display: flex; flex-direction: column; gap: 16px; }
+.pr-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 24px; }
+.pr-narrow { max-width: 520px; margin: 40px auto 0; width: 100%; }
+.pr-message { margin: 12px 0; padding: 8px 12px; border-left: 3px solid var(--blue); background: var(--blue-50); white-space: pre-wrap; }
+.pr-section h2 { margin-top: 20px; font-size: 17px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.pr-thanks { border-left: 4px solid var(--ok); }
+.pr-thanks-refuse { border-left-color: var(--danger); }
