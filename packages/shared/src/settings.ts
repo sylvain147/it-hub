@@ -60,27 +60,11 @@ export const DEFAULT_CONTACT_ROLES = [
   'Achats',
 ];
 
-/** Types proposés à la création d'un ticket : le titre commence par le type en majuscules (« [DEV] - Nom du projet »). */
+/** Types de tickets proposés (champ `type` d'un ticket, facultatif). */
 export const DEFAULT_TICKET_TYPES = ['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif'];
 
 /** Domaines proposés pour un projet (choix multiple). */
 export const DEFAULT_PROJECT_DOMAINS = ['IT', 'Logistique', 'Marketing', 'Finance'];
-
-const TICKET_TYPE_PREFIX = /^\[[^\]]*\] - /;
-
-/** Titre proposé pour un nouveau ticket : « [DEV] - Nom du projet » (sans projet : « [DEV] - », à compléter). */
-export function ticketTypeTitle(type: string, projectName = ''): string {
-  return `[${type.trim().toUpperCase()}] - ${projectName.trim()}`;
-}
-
-/**
- * Change le type d'un titre déjà saisi : remplace le préfixe « [XXX] - » s'il y en a un, sinon l'ajoute.
- * Type vide (le type est facultatif) : le préfixe est retiré.
- */
-export function withTicketType(title: string, type: string): string {
-  const rest = title.replace(TICKET_TYPE_PREFIX, '');
-  return type.trim() ? ticketTypeTitle(type) + rest : rest;
-}
 
 const statusSettingSchema = z.object({
   key: z.string().max(40),

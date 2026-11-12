@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { byTicketPriority, ticketTypeTitle } from '@samm/shared';
+import { byTicketPriority } from '@samm/shared';
 import { useAuth } from '../auth';
 import { EmptyState } from '../components/ui';
 import { useProject } from './common';
@@ -33,7 +33,7 @@ export function TicketsTab() {
         <div className="toolbar-row">
           <span className="strong">+ Nouveau ticket :</span>
           {lists.ticketTypes.map((t) => (
-            <button key={t} className="btn btn-sm" onClick={() => setEditing({ type: t })} title={`Titre proposé : ${ticketTypeTitle(t, project.name)}`}>{t}</button>
+            <button key={t} className="btn btn-sm" onClick={() => setEditing({ type: t })} title={`Nouveau ticket de type « ${t} »`}>{t}</button>
           ))}
           <button className="btn btn-sm btn-ghost" onClick={() => setEditing({ type: '' })}>Sans type</button>
           <button className="btn btn-sm btn-primary" onClick={() => setProcess(true)} title="Crée d’un coup les tickets Cadrage, Dev, Recette, Correctif et MEP">⚡ Process complet</button>

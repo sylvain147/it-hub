@@ -46,7 +46,7 @@ export function ActionCard({ action, projects, onChange }: { action: ChatAction;
       let done: ActionState;
       if (action.kind === 'ticket') {
         const projectId = action.projectId || NO_PROJECT_ID;
-        const t = (await api.createItem(projectId, 'tasks', { title: action.title, details, priority: action.priority, dueDate: action.dueDate, assigneeId: action.assigneeId || me.email })) as Task;
+        const t = (await api.createItem(projectId, 'tasks', { title: action.title, type: action.ticketType, details, priority: action.priority, dueDate: action.dueDate, assigneeId: action.assigneeId || me.email })) as Task;
         done = { state: 'creee', label: `Ticket ${ticketKey(t)} créé`, path: action.projectId ? `/projets/${action.projectId}?onglet=tickets` : '/sprints?onglet=liste' };
       } else if (action.kind === 'todo') {
         await api.createTodo({ title: action.title, details: action.details, dueDate: action.dueDate || defaultDueDate(), projectId: action.projectId, assigneeId: action.assigneeId || me.email });
@@ -82,7 +82,7 @@ export function ActionCard({ action, projects, onChange }: { action: ChatAction;
     <div className="gandalf-action">
       <p className="gandalf-action-q">{question(action.kind, project)}</p>
       <label className="gandalf-action-field">
-        <span className="small muted">{TITLE[action.kind]}</span>
+        <span className="small muted">{TITLE[action.kind]}{action.kind === 'ticket' && action.ticketType && ` · ${action.ticketType}`}</span>
         <input className="input input-sm" value={action.title} onChange={(e) => set({ title: e.target.value })} aria-label="Intitulé" />
       </label>
       <div className="gandalf-action-row">

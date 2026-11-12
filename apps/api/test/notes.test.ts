@@ -109,7 +109,7 @@ describe('notes en vrac et frise des jalons', () => {
     expect(erp.jalons.map((j: any) => j.label)).toEqual(['Recette']);
     const portail = json.find((p: any) => p.id === second);
     expect(portail).toMatchObject({ startDate: '2026-09-01', targetDate: '2027-03-31' });
-    expect(portail.jalons.map((j: any) => [j.label, j.done]).sort()).toEqual([['Devis reçu', true], ['Mise en production', false], ['Recette', false]]);
+    expect(portail.jalons.map((j: any) => [j.label, j.done]).sort()).toEqual([['Devis reçu', true], ['Fin du projet', false], ['Mise en production', false], ['Recette', false]]);
     expect(portail.todos).toEqual([expect.objectContaining({ title: 'Relancer le prestataire', dueDate: '2026-12-15', done: false, assigneeId: MEMBRE })]);
     expect(erp.todos).toEqual([]);
   });

@@ -5,7 +5,7 @@ import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
 import { DueLabel, PriorityTag } from '../projects/common';
 import { StatusOptions } from '../settings/context';
-import { DeskBadge, sprintLabel, TicketModal, TicketProject, TicketStatusChip, type TicketRow } from './tickets';
+import { DeskBadge, sprintLabel, TicketModal, TicketProject, TicketStatusChip, TicketTypeBadge, type TicketRow } from './tickets';
 
 /** Texte comparable : minuscules, sans accents. */
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -27,7 +27,7 @@ export function AllTickets({ sprints, open, mineIds, onChanged }: { sprints: Spr
       if (mineIds && !mineIds.has(t.projectId)) return false;
       if (status === 'ouverts' ? t.done : status && t.status !== status) return false;
       if (!needle) return true;
-      return [ticketKey(t), t.title, t.projectName, t.assignee, t.deskId, t.deskId && `desk #${t.deskId}`].some((s) => s && fold(s).includes(needle));
+      return [ticketKey(t), t.title, t.type, t.projectName, t.assignee, t.deskId, t.deskId && `desk #${t.deskId}`].some((s) => s && fold(s).includes(needle));
     });
   }, [data.data, q, status, mineIds]);
 
@@ -65,7 +65,7 @@ export function AllTickets({ sprints, open, mineIds, onChanged }: { sprints: Spr
                 <tr key={t.id} className={t.done ? 'row-done' : ''}>
                   <td className="nowrap ticket-key">{ticketKey(t)}</td>
                   <td>
-                    <button className="btn-link" onClick={() => setEditing(t)} title="Ouvrir le ticket">{t.title}</button> <PriorityTag priority={t.priority} hideNormal />
+                    <TicketTypeBadge type={t.type ?? ''} /> <button className="btn-link" onClick={() => setEditing(t)} title="Ouvrir le ticket">{t.title}</button> <PriorityTag priority={t.priority} hideNormal />
                   </td>
                   <td><TicketProject t={t} /></td>
                   <td className="nowrap"><TicketStatusChip status={t.status} /></td>

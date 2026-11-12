@@ -296,6 +296,8 @@ function FicheForm({ onDone }: { onDone: () => void }) {
   const { lists } = useSettings();
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
+  // Description ou sections modifiées et CDC rattachés : on propose de les mettre à jour.
+  const [sync, setSync] = useState<CdcChange | null>(null);
   const set = <K extends keyof ProjectFields>(k: K, v: ProjectFields[K]) => setF((x) => ({ ...x, [k]: v }));
 
   async function save() {
@@ -305,7 +307,9 @@ function FicheForm({ onDone }: { onDone: () => void }) {
       const fields = { ...f, blockedReason: f.blocked ? f.blockedReason : '', tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))].slice(0, 20) };
       setProject(await api.updateProject(project.id, project.rev, fields));
       toast('Fiche enregistrée.');
-      onDone();
+      const change = cdcChange(project, fields);
+      if (project.cdcs.length && change) setSync(change);
+      else onDone();
     } catch (e) {
       setError(e);
       setSaving(false);
@@ -325,6 +329,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
   }
 
   const conflict = error instanceof ApiError && error.status === 409;
+  if (sync) return <CdcSyncCard change={sync} onDone={onDone} />;
   return (
     <section className="card">
       <div className="card-head">
@@ -425,6 +430,86 @@ function FicheForm({ onDone }: { onDone: () => void }) {
         )}
       </div>
       <p className="muted small">Dernière modification le {formatDateTime(project.updatedAt)} par {shortUser(project.updatedBy)}.</p>
+    </section>
+  );
+}
+
+/** Ce qui, dans la fiche, se reporte dans les CDC : la description, les sections modifiées ou ajoutées. */
+interface CdcChange {
+  description: boolean;
+  sectionIds: string[];
+  previousTitles: Record<string, string>;
+  /** Libellés des parties modifiées, pour la confirmation. */
+  labels: string[];
+}
+
+function cdcChange(before: ProjectDetail, after: ProjectFields): CdcChange | null {
+  const description = before.description.trim() !== after.description.trim();
+  const changed = after.sections.filter((s) => {
+    const old = before.sections.find((x) => x.id === s.id);
+    return !old || old.content.trim() !== s.content.trim() || old.title.trim() !== s.title.trim();
+  });
+  if (!description && !changed.length) return null;
+  const previousTitles = Object.fromEntries(changed.flatMap((s) => {
+    const old = before.sections.find((x) => x.id === s.id);
+    return old && old.title !== s.title ? [[s.id, old.title]] : [];
+  }));
+  return { description, sectionIds: changed.map((s) => s.id), previousTitles, labels: [...(description ? ['la description (Contexte)'] : []), ...changed.map((s) => `« ${s.title} »`)] };
+}
+
+/**
+ * Après l'enregistrement de la fiche : « Mettre aussi à jour les cahiers des charges ? ». Rien n'est modifié sans
+ * confirmation ; chaque CDC coché reçoit une nouvelle version (les autres sections du CDC ne bougent pas).
+ */
+function CdcSyncCard({ change, onDone }: { change: CdcChange; onDone: () => void }) {
+  const { project } = useProject();
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(project.cdcs.map((c) => c.id)));
+  const [busy, setBusy] = useState(false);
+  const toggle = (id: string) =>
+    setChosen((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  async function apply() {
+    setBusy(true);
+    try {
+      const r = await api.syncProjectCdcs(project.id, { cdcIds: [...chosen], description: change.description, sectionIds: change.sectionIds, previousTitles: change.previousTitles });
+      if (r.updated.length) toast(`${r.updated.length} cahier${r.updated.length > 1 ? 's' : ''} des charges mis à jour (${r.updated.map((u) => `${u.title} v${u.version}`).join(', ')}).`);
+      for (const s of r.skipped) toast(`« ${s.title} » non modifié : ${s.reason}.`, 'error');
+      onDone();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>📄 Mettre aussi à jour les cahiers des charges ?</h2>
+      </div>
+      <p>
+        Vous avez modifié {change.labels.join(', ')}. Ces passages peuvent être reportés dans les cahiers des charges du projet : la description remplace le Contexte,
+        chaque section modifiée remplace la section du même titre (ou s’ajoute). Les autres sections des CDC ne bougent pas, et une nouvelle version est créée.
+      </p>
+      <ul className="list-plain cdc-sync-list">
+        {project.cdcs.map((c) => (
+          <li key={c.id}>
+            <label className="check">
+              <input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /> <strong>{c.title}</strong>{' '}
+              <span className="muted small">v{c.currentVersion.label}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="actions mt">
+        <span className="tb-flex" />
+        <button className="btn" disabled={busy} onClick={onDone}>Ne pas toucher aux CDC</button>
+        <button className="btn btn-primary" disabled={busy || !chosen.size} onClick={() => void apply()}>{busy && <Spinner small />} Mettre à jour {chosen.size > 1 ? `les ${chosen.size} CDC` : 'le CDC'}</button>
+      </div>
     </section>
   );
 }
