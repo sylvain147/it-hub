@@ -69,6 +69,26 @@ describe('relevé TMA', () => {
     expect(allocateHours('Pilotage TMA', 1)).toEqual({ tickets: [], otherHours: 1 });
   });
 
+  it('les arrondis ne rendent jamais les heures hors ticket négatives', () => {
+    // 2 h en parts égales sur 3 tickets : 0,67 + 0,67 + 0,66 (et non 3 × 0,67 = 2,01 h).
+    expect(allocateHours('#11001 #11002 #11003', 2)).toEqual({
+      tickets: [{ id: '11001', hours: 0.67 }, { id: '11002', hours: 0.67 }, { id: '11003', hours: 0.66 }],
+      otherHours: 0,
+    });
+    // Durées écrites qui, arrondies chacune, dépasseraient le total de la ligne.
+    const r = allocateHours('#11001 (20 min) #11002 (20 min) #11003 (20 min)', 2);
+    expect(r.tickets.map((t) => t.hours)).toEqual([0.67, 0.67, 0.66]);
+    expect(r.otherHours).toBe(0);
+    for (const n of [1, 3, 7, 11]) {
+      for (const hours of [0.1, 0.25, 1, 2, 4.25, 7.5]) {
+        const a = allocateHours(Array.from({ length: n }, (_, i) => `#${11000 + i} (${10 + i} min)`).join(' ') + ' Analyse (5 min)', hours);
+        expect(a.otherHours).toBeGreaterThanOrEqual(0);
+        expect(a.tickets.every((t) => t.hours >= 0)).toBe(true);
+        expect(Math.round((a.tickets.reduce((s, t) => s + t.hours, 0) + a.otherHours) * 100)).toBe(Math.round(hours * 100));
+      }
+    }
+  });
+
   it('convertit les dates Excel', () => {
     expect(excelDate(46296)).toBe('2026-10-01');
     expect(excelDate('15/09/2026')).toBe('2026-09-15');
