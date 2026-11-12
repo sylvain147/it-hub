@@ -1148,7 +1148,11 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .pl-sample-bar { position: static; display: inline-block; width: 22px; height: 14px; background: color-mix(in srgb, var(--blue) 12%, transparent); }
 .chef-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .badge-chef { background: #f2f4f7; color: var(--ink); font-weight: 500; white-space: nowrap; }
-.weather-emoji { font-size: 15px; cursor: default; }
+.health-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; flex-shrink: 0; margin-right: 2px; }
+.health-dot-vert { background: #12b76a; }
+.health-dot-orange { background: #f79009; }
+.health-dot-rouge { background: #f04438; }
+.health-dot-lg { width: 26px; height: 26px; margin: 0; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.2); }
 /* Frise cliquable (page d'un projet) : chaque flèche change le statut */
 .psteps-clickable .pstep { padding: 0; }
 .pstep-btn { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 6px 10px 6px 16px; cursor: pointer; text-align: center; }
