@@ -1,6 +1,8 @@
 import { AnthropicBedrockMantle, type BedrockMantleClientOptions } from '@anthropic-ai/bedrock-sdk';
+import { APIError } from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
+import { HttpError } from '../lib/util.js';
 import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 
 /**
@@ -17,11 +19,16 @@ export class BedrockProvider implements LlmProvider {
 
   async structured<T>(call: StructuredCall<T>, model: string): Promise<{ output: T; usage: LlmUsage }> {
     const params = bedrockParams(call, model);
-    // Au-delà de 16 000 tokens de sortie, la réponse est reçue en flux (évite les délais d'attente HTTP).
-    const response =
-      call.maxTokens > 16000
-        ? await this.client.messages.stream(params, { timeout: 7 * 60 * 1000, maxRetries: 0 }).finalMessage()
-        : await this.client.messages.parse(params, call.timeoutMs ? { timeout: call.timeoutMs, maxRetries: 0 } : undefined);
+    let response;
+    try {
+      // Au-delà de 16 000 tokens de sortie, la réponse est reçue en flux (évite les délais d'attente HTTP).
+      response =
+        call.maxTokens > 16000
+          ? await this.client.messages.stream(params, { timeout: 7 * 60 * 1000, maxRetries: 0 }).finalMessage()
+          : await this.client.messages.parse(params, call.timeoutMs ? { timeout: call.timeoutMs, maxRetries: 0 } : undefined);
+    } catch (e) {
+      throw bedrockError(e, model);
+    }
 
     if (response.stop_reason === 'refusal') {
       throw new Error('Le modèle a refusé de traiter la demande. Reformulez ou retirez le contenu sensible.');
@@ -44,6 +51,25 @@ export class BedrockProvider implements LlmProvider {
       },
     };
   }
+}
+
+/**
+ * Erreur d'appel à Bedrock rendue lisible (au lieu de « Erreur interne ») : code HTTP et message renvoyés par
+ * Bedrock (droits, accès au modèle, quota…), ou cause technique (identifiants AWS, réseau). Détail complet dans les logs.
+ */
+export function bedrockError(e: unknown, model: string): HttpError {
+  console.error(`Appel Bedrock (${model}, ${config.bedrockRegion}) en échec`, e);
+  if (e instanceof APIError && e.status) {
+    const status = e.status;
+    const hint =
+      status === 403 ? ' Vérifiez l’accès au modèle dans la console Bedrock et les droits IAM de la fonction.'
+      : status === 404 ? ' Vérifiez le nom du modèle et la région.'
+      : status === 429 ? ' Quota Bedrock atteint : réessayez dans une minute.'
+      : '';
+    return new HttpError(status === 429 ? 429 : 502, `L’IA (Bedrock, ${model}) a refusé l’appel : HTTP ${status} — ${e.message}.${hint}`);
+  }
+  const err = e as Error;
+  return new HttpError(502, `Appel à l’IA (Bedrock, ${model}, ${config.bedrockRegion}) impossible : ${err?.name ?? 'Erreur'} — ${err?.message ?? String(e)}`);
 }
 
 /** Paramètres de l'appel Messages. */
