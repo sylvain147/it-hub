@@ -21,8 +21,9 @@ import { QuestionsPanel } from './QuestionsPanel';
 import { SourcesPanel } from './SourcesPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { TranslationsPanel } from './TranslationsPanel';
+import { ReviewsPanel } from './ReviewsPanel';
 
-type Tab = 'questions' | 'sources' | 'versions' | 'translations';
+type Tab = 'questions' | 'sources' | 'versions' | 'translations' | 'validations';
 
 export function CdcEditorPage() {
   const { id = '' } = useParams();
@@ -192,6 +193,7 @@ export function CdcEditorPage() {
             <button className={tab === 'sources' ? 'tab active' : 'tab'} onClick={() => setTab('sources')}>Transcriptions</button>
             <button className={tab === 'versions' ? 'tab active' : 'tab'} onClick={() => setTab('versions')}>Versions</button>
             <button className={tab === 'translations' ? 'tab active' : 'tab'} onClick={() => setTab('translations')}>Traductions</button>
+            <button className={tab === 'validations' ? 'tab active' : 'tab'} onClick={() => setTab('validations')}>Validations</button>
           </div>
           {tab === 'questions' && (
             <QuestionsPanel
@@ -216,6 +218,7 @@ export function CdcEditorPage() {
               }}
             />
           )}
+          {tab === 'validations' && <ReviewsPanel detail={detail} />}
           {tab === 'translations' && (
             <TranslationsPanel cdcId={id} currentLabel={detail.currentVersion.label} refreshKey={refreshKey} aiDisabledReason={aiDisabledReason} onJob={onJob} />
           )}

@@ -36,6 +36,7 @@ import { noteRoutes } from './notes/routes.js';
 import { assistantRoutes } from './assistant/routes.js';
 import { anneauRoutes } from './anneau/routes.js';
 import { ideaRoutes } from './ideas/routes.js';
+import { cdcReviewRoutes, publicReviewRoutes } from './cdcReviews/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
 import { HttpError, newId, nowIso, monthOf } from './lib/util.js';
@@ -311,10 +312,13 @@ export function createApp() {
   api.route('/notifications', notificationRoutes());
   api.route('/anneau', anneauRoutes());
   api.route('/idees', ideaRoutes());
+  api.route('/cdcs', cdcReviewRoutes());
 
   // Activité récente des projets (accueil).
   api.get('/activity', async (c) => c.json(await pr.recentActivity(Math.min(Number(c.req.query('limit') ?? 30) || 30, 100))));
 
+  // Pages publiques (sans connexion) : validation d'un CDC par un lien reçu par e-mail. Avant l'authentification.
+  app.route('/api/public/validation', publicReviewRoutes());
   app.route('/api', api);
   app.notFound((c) => c.json({ error: 'Route inconnue' }, 404));
   return app;

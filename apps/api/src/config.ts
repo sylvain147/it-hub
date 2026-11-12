@@ -50,6 +50,12 @@ export const config = {
   modelSmart: env.MODEL_SMART ?? 'anthropic.claude-sonnet-5-5',
   monthlyBudgetUsd: num('MONTHLY_BUDGET_USD', 30),
   pricing: { ...DEFAULT_PRICING, ...(env.PRICING_JSON ? (JSON.parse(env.PRICING_JSON) as Record<string, ModelPricing>) : {}) },
+  /**
+   * Expéditeur des e-mails du hub (demandes de validation de CDC), adresse vérifiée dans Amazon SES. Vide : pas d'envoi
+   * (en local, les e-mails sont écrits dans `<localDataDir>/emails` et le lien est affiché au demandeur).
+   */
+  mailFrom: env.MAIL_FROM ?? '',
+  sesRegion: env.SES_REGION ?? env.AWS_REGION ?? 'eu-west-3',
   /** Durée au-delà de laquelle un job « en cours » est considéré comme abandonné. */
   staleJobMinutes: 20,
 };

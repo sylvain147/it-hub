@@ -19,8 +19,11 @@ Dans `infra/cdk.json` (section `context`) :
 | `bedrockRegion` | `eu-west-3` | Région d'appel de Bedrock |
 | `modelFast` / `modelSmart` | `anthropic.claude-haiku-5-5` / `anthropic.claude-sonnet-5-5` | Modèles utilisés |
 | `monthlyBudgetUsd` | `30` | Plafond mensuel des fonctions IA (en $) |
+| `mailFrom` | *(vide)* | Expéditeur des demandes de validation de CDC (ex. `hobbit@entreprise.fr`). Vide : aucun e-mail n'est envoyé, le lien est à transmettre à la main depuis le hub |
 
 > ⚠️ **Confidentialité, à vérifier avant la mise en production.** Bedrock propose un routage *global* (requêtes traitées dans n'importe quelle région, sans surcoût) et un routage *régional / UE* (données traitées en Europe, environ +10 %). Vérifiez dans la console Bedrock quel routage s'applique à `bedrockRegion` pour vos modèles et choisissez une configuration qui garde les données dans l'UE si votre politique interne l'exige. Les tarifs Bedrock peuvent aussi différer des tarifs publics utilisés par le tableau de consommation : ajustez au besoin la variable `PRICING_JSON` des Lambdas.
+
+> **E-mails (validation des CDC).** L'adresse `mailFrom` (ou son domaine) doit être **vérifiée dans Amazon SES** (console SES → *Identities*, dans la région de l'application). Un compte SES neuf est en mode *sandbox* : il n'envoie qu'aux adresses vérifiées. Pour écrire à des personnes extérieures (prestataires, métier), demandez la **sortie du sandbox** (*Request production access*). Tant que ce n'est pas fait, le hub affiche le lien de chaque demande, à copier et transmettre soi-même.
 
 ## 3. Premier déploiement (depuis un poste)
 

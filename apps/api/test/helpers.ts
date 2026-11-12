@@ -29,10 +29,11 @@ export async function setupTestEnv() {
   setProvider(new MockProvider(0));
   const app = createApp();
 
-  async function call<T = any>(method: string, path: string, body?: unknown, user = 'alice@test'): Promise<{ status: number; json: T }> {
+  /** `user` vide : requête sans utilisateur (pages publiques). */
+  async function call<T = any>(method: string, path: string, body?: unknown, user = 'alice@test', headers: Record<string, string> = {}): Promise<{ status: number; json: T }> {
     const res = await app.request(`/api${path}`, {
       method,
-      headers: { 'content-type': 'application/json', 'x-dev-user': user },
+      headers: { 'content-type': 'application/json', ...(user ? { 'x-dev-user': user } : {}), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
