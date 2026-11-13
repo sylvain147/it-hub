@@ -1,8 +1,9 @@
 /**
- * Relevé mensuel du temps passé par le prestataire (fichier Excel « TMA » : une ligne par activité,
- * date, nombre de jours, nom, prénom, commentaire libre citant les tickets Desk).
+ * Relevé mensuel du temps passé par le prestataire (fichier Excel « TMA », ou son impression en PDF : une ligne
+ * par activité, date, nombre de jours, nom, prénom, commentaire libre citant les tickets Desk).
  * Lu dans le navigateur ; les heures sont réparties entre les tickets cités par le code, sans IA.
  */
+import { pdfTableRows, type PdfTextItem } from '../files/pdfTable.js';
 import { readXlsx, type CellValue } from '../files/xlsx.js';
 import { maskPersonalData } from './mask.js';
 
@@ -118,43 +119,59 @@ export function excelDate(v: CellValue): string | null {
 const toNumber = (v: CellValue) => (typeof v === 'number' ? v : Number(String(v ?? '').replace(',', '.').trim()));
 const capitalize = (s: string) => s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase());
 
+const NOT_RECOGNIZED =
+  'Relevé TMA non reconnu : un tableau avec les colonnes « Date », « Nb jours » (ou heures), « Nom » et « Commentaires » est attendu (Excel ou PDF).';
+
 /** Lit le relevé TMA (premier onglet dont l'en-tête contient une date, une durée et un nom). */
 export function parseTmaWorkbook(bytes: Uint8Array): TmaImport {
   for (const sheet of readXlsx(bytes)) {
-    const headerIdx = sheet.rows.findIndex((r) => r.some((c) => norm(c).startsWith('date')) && r.some((c) => /jour|heure/.test(norm(c))));
-    if (headerIdx < 0) continue;
-    const header = sheet.rows[headerIdx]!.map(norm);
-    const col = (test: (h: string) => boolean) => header.findIndex(test);
-    const cDate = col((h) => h.startsWith('date'));
-    const cDays = col((h) => /jour/.test(h));
-    const cHours = col((h) => /heure/.test(h));
-    const cLast = col((h) => h === 'nom' || h === 'nom de famille');
-    const cFirst = col((h) => h === 'prenom');
-    const cPerson = col((h) => /intervenant|consultant|collaborateur|ressource/.test(h));
-    // « Commentaires » de préférence (« Date de l'activité » contient aussi « activité »).
-    const cComment = [/comment/, /libell|descript|tache|activit/].map((re) => header.findIndex((h, i) => i !== cDate && re.test(h))).find((i) => i >= 0) ?? -1;
-    if (cLast < 0 && cPerson < 0) continue;
-
-    const entries: TmaEntry[] = [];
-    let skipped = 0;
-    for (const r of sheet.rows.slice(headerIdx + 1)) {
-      const date = excelDate(r[cDate] ?? null);
-      const hours = cDays >= 0 ? toNumber(r[cDays] ?? null) * HOURS_PER_DAY : toNumber(r[cHours] ?? null);
-      const person = cPerson >= 0 ? String(r[cPerson] ?? '').trim() : `${String(r[cFirst] ?? '').trim()} ${String(r[cLast] ?? '').trim()}`.trim();
-      if (!date || !Number.isFinite(hours) || hours <= 0 || !person) {
-        skipped++;
-        continue;
-      }
-      const comment = maskPersonalData(String(r[cComment] ?? '').trim());
-      const h = round2(hours);
-      const { tickets, otherHours } = allocateHours(comment, h);
-      entries.push({ date, person: capitalize(person), hours: h, comment, tickets, otherHours, activity: PILOTAGE.test(comment) ? 'pilotage' : 'autre' });
-    }
-    if (!entries.length) continue;
-    const counts = new Map<string, number>();
-    for (const e of entries) counts.set(e.date.slice(0, 7), (counts.get(e.date.slice(0, 7)) ?? 0) + 1);
-    const month = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
-    return { entries: entries.sort((a, b) => a.date.localeCompare(b.date) || a.person.localeCompare(b.person)), month, skipped, outOfMonth: entries.length - counts.get(month)! };
+    const r = parseTmaRows(sheet.rows);
+    if (r) return r;
   }
-  throw new Error('Relevé TMA non reconnu : un onglet avec les colonnes « Date », « Nb jours » (ou heures), « Nom » et « Commentaires » est attendu.');
+  throw new Error(NOT_RECOGNIZED);
+}
+
+/** Lit le relevé TMA imprimé en PDF (même tableau que le classeur), à partir du texte de ses pages. */
+export function parseTmaPdf(items: PdfTextItem[]): TmaImport {
+  const r = parseTmaRows(pdfTableRows(items, (s) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)));
+  if (!r) throw new Error(items.length ? NOT_RECOGNIZED : 'Ce PDF ne contient pas de texte (document scanné ?) : demandez le relevé en Excel.');
+  return r;
+}
+
+/** Lit un tableau de relevé : ligne d'en-tête (date, durée, nom) puis une ligne par activité. */
+function parseTmaRows(rows: CellValue[][]): TmaImport | null {
+  const headerIdx = rows.findIndex((r) => r.some((c) => norm(c).startsWith('date')) && r.some((c) => /jour|heure/.test(norm(c))));
+  if (headerIdx < 0) return null;
+  const header = rows[headerIdx]!.map(norm);
+  const col = (test: (h: string) => boolean) => header.findIndex(test);
+  const cDate = col((h) => h.startsWith('date'));
+  const cDays = col((h) => /jour/.test(h));
+  const cHours = col((h) => /heure/.test(h));
+  const cLast = col((h) => h === 'nom' || h === 'nom de famille');
+  const cFirst = col((h) => h === 'prenom');
+  const cPerson = col((h) => /intervenant|consultant|collaborateur|ressource/.test(h));
+  // « Commentaires » de préférence (« Date de l'activité » contient aussi « activité »).
+  const cComment = [/comment/, /libell|descript|tache|activit/].map((re) => header.findIndex((h, i) => i !== cDate && re.test(h))).find((i) => i >= 0) ?? -1;
+  if (cLast < 0 && cPerson < 0) return null;
+
+  const entries: TmaEntry[] = [];
+  let skipped = 0;
+  for (const r of rows.slice(headerIdx + 1)) {
+    const date = excelDate(r[cDate] ?? null);
+    const hours = cDays >= 0 ? toNumber(r[cDays] ?? null) * HOURS_PER_DAY : toNumber(r[cHours] ?? null);
+    const person = cPerson >= 0 ? String(r[cPerson] ?? '').trim() : `${String(r[cFirst] ?? '').trim()} ${String(r[cLast] ?? '').trim()}`.trim();
+    if (!date || !Number.isFinite(hours) || hours <= 0 || !person) {
+      skipped++;
+      continue;
+    }
+    const comment = maskPersonalData(String(r[cComment] ?? '').trim());
+    const h = round2(hours);
+    const { tickets, otherHours } = allocateHours(comment, h);
+    entries.push({ date, person: capitalize(person), hours: h, comment, tickets, otherHours, activity: PILOTAGE.test(comment) ? 'pilotage' : 'autre' });
+  }
+  if (!entries.length) return null;
+  const counts = new Map<string, number>();
+  for (const e of entries) counts.set(e.date.slice(0, 7), (counts.get(e.date.slice(0, 7)) ?? 0) + 1);
+  const month = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+  return { entries: entries.sort((a, b) => a.date.localeCompare(b.date) || a.person.localeCompare(b.person)), month, skipped, outOfMonth: entries.length - counts.get(month)! };
 }

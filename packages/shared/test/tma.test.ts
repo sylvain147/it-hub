@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { maskPersonalData, namesToMask } from '../src/tma/mask.js';
 import { parseCsv, parseDeskDate, parseDeskExport } from '../src/tma/desk.js';
-import { allocateHours, excelDate, parseTmaWorkbook } from '../src/tma/activity.js';
+import { allocateHours, excelDate, parseTmaPdf, parseTmaWorkbook } from '../src/tma/activity.js';
+import { pdfTableRows } from '../src/files/pdfTable.js';
 import { buildMonthReport, buildThemeStats, previousMonth } from '../src/tma/report.js';
 import { writeXlsx } from '../src/files/xlsx.js';
 import { matchTmaPeople, personKey, tmaHoursByContact, unknownTmaPeople } from '../src/tma/people.js';
 import type { Prestataire } from '../src/settings.js';
-import { DESK_CSV, tmaWorkbook } from './fixtures/tma.js';
+import { DESK_CSV, tmaPdfItems, tmaWorkbook } from './fixtures/tma.js';
 
 describe('masquage des données personnelles', () => {
   it('retire e-mails, téléphones, numéros longs, noms après civilité, noms connus et signature', () => {
@@ -108,6 +109,37 @@ describe('relevé TMA', () => {
 
   it('refuse un classeur sans les colonnes attendues', () => {
     expect(() => parseTmaWorkbook(writeXlsx([{ name: 'X', rows: [['a', 'b'], [1, 2]] }]))).toThrow(/Relevé TMA non reconnu/);
+  });
+
+  it('reconstitue le tableau du relevé imprimé en PDF (cellules sur plusieurs lignes, pages sans en-tête, total)', () => {
+    const rows = pdfTableRows(tmaPdfItems(), (s) => /^\d{2}\/\d{2}\/\d{4}$/.test(s));
+    expect(rows).toHaveLength(7); // en-tête, 5 activités, Somme
+    expect(rows[0]).toEqual(['Axe 1', 'Axe 2', 'Axe 3', 'Type de facturation 3', "Date de l'activité", 'Nb jours', 'Nom', 'Prénom', 'Commentaires']);
+    expect(rows[3]).toEqual(['WITT GROUP', 'WITT TMA', 'Assistance Utilisateurs Régie', 'Réel (régie)', '02/10/2026', '0,53', 'DIDIER', 'ALAIN', 'Desk365#10555 (3h) Desk365#8503 MEP (1h15)']);
+    expect(rows[6]!.slice(4, 6)).toEqual(['Somme :', '1,09']);
+  });
+
+  it('sépare par leurs dates les lignes du PDF collées les unes aux autres', () => {
+    const isDate = (s: string) => /^\d{2}\/\d{2}\/\d{4}$/.test(s);
+    const tight = pdfTableRows(tmaPdfItems(undefined, { padding: 0 }), isDate);
+    const spaced = pdfTableRows(tmaPdfItems(), isDate).filter((r) => r.some(isDate));
+    expect(tight).toHaveLength(5);
+    // L'en-tête et le total, collés eux aussi, rejoignent la première et la dernière ligne ; les autres sont identiques.
+    expect(tight.slice(1, 4)).toEqual(spaced.slice(1, 4));
+    expect(tight[0]![4]).toBe("Date de l'activité 01/10/2026");
+  });
+
+  it('lit le relevé en PDF comme le classeur (jours arrondis à deux décimales)', () => {
+    const excel = parseTmaWorkbook(tmaWorkbook());
+    const r = parseTmaPdf(tmaPdfItems());
+    expect(r).toMatchObject({ month: '2026-10', skipped: 1, outOfMonth: 0 });
+    expect(r.entries.map((e) => [e.date, e.person, e.comment, e.tickets.map((t) => t.id)])).toEqual(excel.entries.map((e) => [e.date, e.person, e.comment, e.tickets.map((t) => t.id)]));
+    expect(r.entries.find((e) => e.person === 'Alain Didier' && e.date === '2026-10-02')).toMatchObject({ hours: 4.24, tickets: [{ id: '10555', hours: 2.99 }, { id: '8503', hours: 1.25 }] });
+  });
+
+  it('refuse un PDF sans relevé ou sans texte', () => {
+    expect(() => parseTmaPdf([{ page: 1, x: 50, y: 500, width: 100, height: 10, str: 'Facture du mois' }])).toThrow(/Relevé TMA non reconnu/);
+    expect(() => parseTmaPdf([])).toThrow(/document scanné/);
   });
 });
 

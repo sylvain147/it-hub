@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseDeskExport, parseTmaWorkbook } from '@samm/shared';
+import pdfmakeLib from 'pdfmake';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { parseDeskExport, parseTmaPdf, parseTmaWorkbook, pdfTextItems, type PdfJsDocument } from '@samm/shared';
 import { setupTestEnv } from './helpers.js';
 import { reportToMarkdown } from '../src/tma/jobs.js';
 import { DESK_CSV, tmaWorkbook, TMA_ROWS } from '../../../packages/shared/test/fixtures/tma.js';
@@ -204,5 +206,38 @@ describe('module Suivi TMA', () => {
     expect((await env.call('POST', '/tma/desk/import', { tickets: [] })).status).toBe(400);
     expect((await env.call('POST', '/tma/desk/import', { tickets: [{ ...tickets[0], id: 'abc' }] })).status).toBe(400);
     expect((await env.call('PUT', '/tma/months/2026-10', { entries: [{ ...october[0], hours: 30 }] })).status).toBe(400);
+  });
+});
+
+describe('relevé TMA en PDF', () => {
+  /** Impression PDF fictive du relevé : tableau à bordures, cellules centrées, commentaires sur plusieurs lignes. */
+  async function releveTmaPdf(): Promise<Uint8Array> {
+    const pdfmake = pdfmakeLib as unknown as { setFonts(f: unknown): void; setLocalAccessPolicy(cb: (p: string) => boolean): void; createPdf(d: unknown): { getBuffer(): Promise<Buffer> } };
+    pdfmake.setFonts({ Helvetica: { normal: 'Helvetica', bold: 'Helvetica-Bold', italics: 'Helvetica-Oblique', bolditalics: 'Helvetica-BoldOblique' } });
+    pdfmake.setLocalAccessPolicy((p) => p.startsWith('Helvetica'));
+    const cell = (text: string) => ({ text, margin: [2, 6, 2, 6] });
+    const rows = [...TMA_ROWS, [46298, 0.25, 'DURAND', 'ROMAIN', 'Analyse et chiffrage de l’évolution demandée, réunion téléphonique avec le métier puis rédaction de la proposition (Desk #11858).']] as const;
+    const body = [
+      ['Axe 3', "Date de l'activité", 'Nb jours', 'Nom', 'Prénom', 'Commentaires'].map(cell),
+      ...rows.map(([d, days, last, first, comment]) => {
+        const [y, m, day] = new Date(Date.UTC(1899, 11, 30) + d * 86400000).toISOString().slice(0, 10).split('-');
+        return ['Assistance Utilisateurs Régie', `${day}/${m}/${y}`, days.toFixed(2).replace('.', ','), last, first, comment].map(cell);
+      }),
+      [cell(''), cell('Somme :'), cell('1,34'), cell(''), cell(''), cell('')],
+    ];
+    const def = { pageOrientation: 'landscape', defaultStyle: { font: 'Helvetica', fontSize: 9 }, content: [{ table: { widths: [60, 70, 45, 80, 70, '*'], body } }] };
+    return new Uint8Array(await pdfmake.createPdf(def).getBuffer());
+  }
+
+  it('lit le PDF comme le classeur, puis l’importe', async () => {
+    const doc = await getDocument({ data: await releveTmaPdf() }).promise;
+    const r = parseTmaPdf(await pdfTextItems(doc as unknown as PdfJsDocument));
+    expect(r).toMatchObject({ month: '2026-10', skipped: 1 });
+    expect(r.entries).toHaveLength(6);
+    const excel = parseTmaWorkbook(tmaWorkbook()).entries;
+    for (const e of excel) expect(r.entries.find((p) => p.date === e.date && p.comment === e.comment)).toMatchObject({ person: e.person, tickets: e.tickets.map((t) => ({ id: t.id })) });
+    expect(r.entries.find((e) => e.comment.startsWith('Analyse'))).toMatchObject({ person: 'Romain Durand', hours: 2, tickets: [{ id: '11858', hours: 2 }] });
+    const put = await env.call('PUT', '/tma/months/2026-11', { fileName: 'TMA NOVEMBRE.pdf', entries: r.entries.map((e) => ({ ...e, date: e.date.replace('-10-', '-11-') })) });
+    expect(put.status).toBe(200);
   });
 });
