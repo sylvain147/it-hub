@@ -18,18 +18,20 @@ import { UserSelect } from '../users/context';
 export type ActionState = { state: 'proposee' } | { state: 'ignoree' } | { state: 'creee'; label: string; path: string };
 export type ChatAction = AssistantAction & { status?: ActionState };
 
-const TITLE: Record<AssistantAction['kind'], string> = { ticket: 'Ticket', todo: 'To-do', jalon: 'Jalon', ticket_update: 'Mise à jour' };
+const TITLE: Record<AssistantAction['kind'], string> = { ticket: 'Ticket', todo: 'To-do', jalon: 'Jalon', ticket_update: 'Mise à jour', projet: 'Nom du projet' };
 
 /** « Dois-je créer un ticket dans le projet X ? » */
 function question(kind: AssistantAction['kind'], project: ProjectRef | undefined) {
   const p = project && <strong>{project.name}</strong>;
   if (kind === 'ticket') return p ? <>Dois-je créer un ticket dans le projet {p} ?</> : <>Dois-je créer un ticket hors projet ?</>;
+  if (kind === 'projet') return <>Dois-je créer ce projet ?</>;
   if (kind === 'todo') return p ? <>Dois-je ajouter une tâche à la to-do du projet {p} ?</> : <>Dois-je ajouter une tâche à votre to-do ?</>;
   return p ? <>Dois-je ajouter un jalon au projet {p} ?</> : <>Dois-je ajouter un jalon ? Choisissez son projet.</>;
 }
 
 export function ActionCard({ action, projects, onChange }: { action: ChatAction; projects: ProjectRef[]; onChange: (a: ChatAction) => void }) {
   if (action.update) return <UpdateCard action={action} onChange={onChange} />;
+  if (action.kind === 'projet') return <ProjectCard action={action} onChange={onChange} />;
   return <CreateCard action={action} projects={projects} onChange={onChange} />;
 }
 
@@ -178,6 +180,81 @@ function CreateCard({ action, projects, onChange }: { action: ChatAction; projec
         >
           {busy && <Spinner small />} Créer
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** « Dois-je créer ce projet ? » : nom, domaine, chef de projet et fin visée, retouchables ; créé au clic par la route habituelle. */
+function ProjectCard({ action, onChange }: { action: ChatAction; onChange: (a: ChatAction) => void }) {
+  const { me } = useAuth();
+  const { lists } = useSettings();
+  const assistant = useAssistant();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const status = action.status ?? { state: 'proposee' };
+  const set = (patch: Partial<ChatAction>) => onChange({ ...action, ...patch });
+
+  async function create() {
+    setBusy(true);
+    setError('');
+    try {
+      const p = await api.createProject({
+        name: action.title,
+        description: [action.details, `_Proposé par ${assistant.name}._`].filter(Boolean).join('\n\n'),
+        priority: action.priority,
+        targetDate: action.dueDate,
+        chefDeProjetIds: [action.assigneeId || me.email],
+        domains: action.domain ? [action.domain] : [],
+      });
+      set({ projectId: p.id, projectName: p.name, status: { state: 'creee', label: 'Projet créé', path: `/projets/${p.id}` } });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (status.state === 'creee') {
+    return (
+      <div className="gandalf-action done">
+        <span>✓ {status.label} : <Link to={status.path}>{action.title}</Link></span>
+      </div>
+    );
+  }
+  if (status.state === 'ignoree') {
+    return (
+      <div className="gandalf-action ignored">
+        <span className="muted small">Ignoré : projet {action.title}</span>
+        <button className="btn-link small" onClick={() => set({ status: { state: 'proposee' } })}>Reprendre</button>
+      </div>
+    );
+  }
+  return (
+    <div className="gandalf-action">
+      <p className="gandalf-action-q">{question('projet', undefined)}</p>
+      <label className="gandalf-action-field">
+        <span className="small muted">{TITLE.projet}</span>
+        <input className="input input-sm" value={action.title} onChange={(e) => set({ title: e.target.value })} aria-label="Nom du projet" />
+      </label>
+      <div className="gandalf-action-row">
+        <select className="input input-sm" value={action.domain} onChange={(e) => set({ domain: e.target.value })} aria-label="Domaine">
+          <option value="">Aucun domaine</option>
+          {[...new Set([...lists.projectDomains, action.domain].filter(Boolean))].map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <UserSelect className="input input-sm" value={action.assigneeId || me.email} onChange={(email) => set({ assigneeId: email })} />
+        <input className="input input-sm" type="date" value={action.dueDate} onChange={(e) => set({ dueDate: e.target.value })} aria-label="Fin visée" title="Fin visée" />
+      </div>
+      {(action.details || action.reason) && (
+        <p className="small muted gandalf-action-why">
+          {action.priority !== 'normale' && <>Priorité {PRIORITY_LABELS[action.priority].toLowerCase()}. </>}
+          {action.details || action.reason}
+        </p>
+      )}
+      {error && <p className="small due-late">{error}</p>}
+      <div className="gandalf-action-buttons">
+        <button className="btn btn-sm" disabled={busy} onClick={() => set({ status: { state: 'ignoree' } })}>Ignorer</button>
+        <button className="btn btn-primary btn-sm" disabled={busy || !action.title.trim()} onClick={() => void create()}>{busy && <Spinner small />} Créer le projet</button>
       </div>
     </div>
   );

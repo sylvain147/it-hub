@@ -78,7 +78,14 @@ export class MockProvider implements LlmProvider {
     };
     const joined = between(input, 'pieces_jointes').split('\n').filter(Boolean);
     const focus = [...between(input, 'projets_detailles').matchAll(/^# Projet (.+) \((\/projets\/[^)]+)\)$/gm)].map((m) => `- [${m[1]}](${m[2]})`);
+    // Question pratique : les entrées de la FAQ qui en reprennent un mot.
+    const keywords = question.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 4);
+    const faq = (/## FAQ de l’équipe[^\n]*\n([\s\S]*?)(\n## |$)/.exec(context)?.[1] ?? '')
+      .split('\n')
+      .filter((l) => l.startsWith('- ') && keywords.some((w) => l.toLowerCase().includes(w)))
+      .slice(0, 3);
     const blocks = [
+      faq.length && `**D’après la FAQ**\n${faq.join('\n')}`,
       joined.length && `Pièces jointes reçues (non lues en simulation) :\n${joined.map((l) => `- ${l.replace(/^\d+\.\s*/, '')}`).join('\n')}`,
       focus.length && `Projets cités :\n${focus.join('\n')}`,
       part('Ma to-do').length && `**Ma to-do**\n${part('Ma to-do').join('\n')}`,
@@ -104,6 +111,7 @@ export class MockProvider implements LlmProvider {
               title: l.replace(/^(il faut|à faire|action|todo)\s*:?\s*/i, '').replace(/\.$/, '').slice(0, 120) || l,
               ticketType: '',
               details: '',
+              domain: '',
               projectId,
               dueDate: '',
               priority: i === 0 ? 'haute' : 'normale',
@@ -362,8 +370,17 @@ function commandAction(question: string, projectId: string, context: string): As
   // « Passe T-12 en recette » : mise à jour d'un ticket existant.
   const key = /\bt-(\d+)\b/.exec(q)?.[0];
   const status = /termin|fini/.test(q) ? 'termine' : /recette/.test(q) ? 'recette' : /attente|bloqu/.test(q) ? 'attente' : /en cours|commenc/.test(q) ? 'en_cours' : '';
-  if (key && status) return { kind: 'ticket_update', ticket: key.toUpperCase(), status, title: '', ticketType: '', details: '', projectId: '', dueDate: '', priority: '', assigneeId: '', reason: 'Demande de mise à jour (simulation)' };
+  if (key && status) return { kind: 'ticket_update', ticket: key.toUpperCase(), status, title: '', ticketType: '', details: '', domain: '', projectId: '', dueDate: '', priority: '', assigneeId: '', reason: 'Demande de mise à jour (simulation)' };
   if (!/^\s*(cr[ée]e|ajoute|mets|met|planifie|rappelle|note|programme)/.test(q)) return null;
+  // « Crée le projet Refonte du site, domaine Web » : nouveau projet.
+  const projet = /^\s*cr[ée]e(?:-moi)?\s+(?:le|un)\s+(?:nouveau\s+)?projet\s+(.+)$/i.exec(question);
+  if (projet) {
+    const domains = (/## Domaines de projet\n([^\n]*)/.exec(context)?.[1] ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+    const asked = /domaine\s+(.+)$/i.exec(question)?.[1]?.trim().toLowerCase() ?? '';
+    const domain = domains.find((d) => d.toLowerCase() === asked) ?? '';
+    const name = projet[1]!.replace(/,?\s*(domaine|dans le domaine)\s+.*$/i, '').trim();
+    return { kind: 'projet', ticket: '', status: '', title: name, ticketType: '', details: '', domain, projectId: '', dueDate: '', priority: 'normale', assigneeId: '', reason: 'Demande de création de projet (simulation)' };
+  }
   const kind = /\bjalon\b/.test(q) ? 'jalon' : /\bticket\b/.test(q) ? 'ticket' : /to-?do|t[âa]che|rappelle/.test(q) ? 'todo' : null;
   if (!kind) return null;
   const types = (/## Types de tickets\n([^\n]*)/.exec(context)?.[1] ?? '').split(',').map((t) => t.trim()).filter(Boolean);
@@ -372,5 +389,5 @@ function commandAction(question: string, projectId: string, context: string): As
   const projectName = projectId ? (new RegExp(`\\[([^\\]]+)\\]\\(/projets/${projectId}\\)`).exec(context)?.[1] ?? '') : '';
   const priority = /critique|bloquant/.test(q) ? 'critique' : /important|urgent|prioritaire/.test(q) ? 'haute' : 'normale';
   const title = ticketType ? projectName : question.replace(/^\s*\S+(\s+moi)?\s+(un|une|le|la)?\s*(ticket|t[âa]che|jalon|to-?do)?\s*/i, '').slice(0, 120) || question;
-  return { kind, ticket: '', status: '', title: title || question, ticketType, details: '', projectId, dueDate: '', priority, assigneeId: '', reason: 'Demande de création (simulation)' };
+  return { kind, ticket: '', status: '', title: title || question, ticketType, details: '', domain: '', projectId, dueDate: '', priority, assigneeId: '', reason: 'Demande de création (simulation)' };
 }

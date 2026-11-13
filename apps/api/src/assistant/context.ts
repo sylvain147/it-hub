@@ -2,7 +2,7 @@
  * Données envoyées à l'assistant : rassemblées et mises en forme par le code (Markdown compact), jamais par l'IA.
  *
  *  - contexte global (stable pendant une conversation, mis en cache) : projets et leurs indicateurs, jalons en retard
- *    et à venir, sprint en cours, mes tickets, ma to-do (avec ses sous-tâches), mes notes (extraits) ;
+ *    et à venir, sprint en cours, mes tickets, ma to-do (avec ses sous-tâches), mes notes (extraits), la FAQ ;
  *  - détail des projets cités dans la question ou les derniers échanges (au plus 3), comme pour un rapport.
  *
  * Seules les données que l'utilisateur voit déjà dans le hub sont envoyées : ses propres notes, sa to-do et celle des
@@ -19,7 +19,9 @@ import {
   isTaskOverdue,
   ticketKey,
   statusLabel,
+  byFaqCategory,
   type AssistantMessage,
+  type FaqEntry,
   type HubUser,
   type ListSettings,
   type PersonalNote,
@@ -43,6 +45,17 @@ export interface AssistantData {
   todos: PersonalTask[];
   /** Mes notes, hors archives. */
   notes: PersonalNote[];
+  /** FAQ de l'équipe (vue par tous). */
+  faq: FaqEntry[];
+}
+
+/** FAQ envoyée : au plus 150 entrées, réponses abrégées (sans les images). */
+const FAQ_MAX = 150;
+const FAQ_ANSWER_CHARS = 800;
+
+function faqLine(f: FaqEntry): string {
+  const answer = f.answer.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim();
+  return `- [${cut(f.question, 200)}](/faq?entree=${f.id})${f.category ? ` (${f.category})` : ''} : ${answer ? cut(answer, FAQ_ANSWER_CHARS) : 'SANS RÉPONSE'}`;
 }
 
 /** Fenêtre des échéances à venir (jours). */
@@ -149,6 +162,7 @@ export function globalContext(d: AssistantData): string {
     `Utilisateur : ${d.me.name} (${d.me.email}). « Je », « mes », « moi » désignent cet utilisateur.`,
     section('Équipe (utilisateurs du hub)', d.users.filter((u) => u.active).map((u) => `- ${u.name} (${u.email})`)),
     section('Types de tickets', [d.lists.ticketTypes.join(', ')]),
+    section('Domaines de projet', [d.lists.projectDomains.join(', ')]),
     section('Mes projets (chef de projet ou suivi)', mine.map((p) => projectLine(p, d))),
     section('Autres projets en cours', others.map((p) => projectLine(p, d))),
     closed.length ? section('Projets clos', [closed.map((p) => `${projectLink(p)} (${statusLabel(d.lists, 'project', p.status)})`).join(' ; ')]) : '',
@@ -167,6 +181,7 @@ export function globalContext(d: AssistantData): string {
           }),
         )
       : '',
+    d.faq.length ? section('FAQ de l’équipe (questions et réponses)', [...d.faq].sort(byFaqCategory).slice(0, FAQ_MAX).map(faqLine)) : '',
   ]
     .filter(Boolean)
     .join('\n\n');

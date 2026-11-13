@@ -132,6 +132,33 @@ describe('assistant (chat global)', () => {
     setProvider(new MockProvider(0));
   });
 
+  it('répond d’après la FAQ de l’équipe, sans les images des réponses', async () => {
+    const f = (await env.call('POST', '/faq', { question: 'Comment obtenir un accès VPN ?', answer: 'Demander au support.\n\n![capture](asset:hub/abc)', category: 'Réseau' }, ADMIN)).json;
+    await env.call('POST', '/faq', { question: 'Qui valide les congés ?' }, ADMIN);
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Comment avoir le VPN ?' }, MEMBRE);
+    const ctx = calls.at(-1)!.context!;
+    expect(ctx).toContain(`## FAQ de l’équipe (questions et réponses)\n- [Comment obtenir un accès VPN ?](/faq?entree=${f.id}) (Réseau) : Demander au support.\n- [Qui valide les congés ?]`);
+    expect(ctx).toContain('Qui valide les congés ?](/faq?entree=');
+    expect(ctx).toContain(': SANS RÉPONSE');
+    expect(ctx).not.toContain('asset:hub');
+    expect(r.json.answer).toContain('D’après la FAQ');
+    expect(calls.at(-1)!.system).toContain('/faq?entree=<id>');
+    setProvider(new MockProvider(0));
+  });
+
+  it('propose de créer un projet qu’on lui demande, sans le créer', async () => {
+    const before = (await env.call('GET', '/projects', undefined, MEMBRE)).json.length;
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Crée le projet Refonte du site, domaine Web' }, MEMBRE);
+    expect(calls.at(-1)!.context).toContain('## Domaines de projet\nIT, Logistique, Marketing, Finance');
+    expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'projet', title: 'Refonte du site', domain: 'Web', projectId: '' })]);
+    expect((await env.call('GET', '/projects', undefined, MEMBRE)).json.length).toBe(before);
+    // Projet déjà existant : pas de doublon proposé.
+    expect((await env.call('POST', '/assistant', { question: 'Crée le projet Migration ERP' }, MEMBRE)).json.actions).toEqual([]);
+    setProvider(new MockProvider(0));
+  });
+
   it('devient Saroumane sous le thème Mordor, avec un prompt système fixe par personnage', async () => {
     const calls = spy();
     await env.call('POST', '/assistant', { question: 'Bonjour' }, MEMBRE);
@@ -186,6 +213,17 @@ describe('assistant (chat global)', () => {
       ['Dev', 'Paie', 'paul@exemple.fr'],
       ['Dev', 'Paie - Export', ''],
       ['', 'Corriger', ''],
+    ]);
+    // Projet : domaine du paramétrage seulement, chef de projet actif, jamais rattaché à un projet existant.
+    expect(
+      sanitizeActions(
+        [a({ kind: 'projet', title: 'Portail SAV', domain: 'relation client', assigneeId: 'paul@exemple.fr', projectId: 'p1', dueDate: '2027-03-31' }), a({ kind: 'projet', title: 'paie' }), a({ kind: 'projet', title: 'Juridique', domain: 'Inventé' })],
+        projects,
+        { projectDomains: ['Web', 'Relation client'], users },
+      ),
+    ).toEqual([
+      expect.objectContaining({ kind: 'projet', title: 'Portail SAV', domain: 'Relation client', assigneeId: 'paul@exemple.fr', projectId: '', dueDate: '2027-03-31' }),
+      expect.objectContaining({ kind: 'projet', title: 'Juridique', domain: '' }),
     ]);
   });
 

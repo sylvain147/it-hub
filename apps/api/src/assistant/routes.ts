@@ -28,6 +28,7 @@ import { reportInput } from '../projects/ai.js';
 import * as sprints from '../sprints/repo.js';
 import * as users from '../users/repo.js';
 import { listNotes } from '../notes/routes.js';
+import { listFaq } from '../faq/routes.js';
 import { linkLegacyChefs } from '../users/routes.js';
 import { globalContext, mentionedProjects, type AssistantData } from './context.js';
 import { assistantSystem } from './prompts.js';
@@ -50,7 +51,7 @@ const MAX_ACTIONS = 10;
 export function sanitizeActions(
   raw: AssistantOutput['actions'],
   projects: ProjectSummary[],
-  refs: { ticketTypes?: string[]; users?: HubUser[]; tickets?: TicketView[] } = {},
+  refs: { ticketTypes?: string[]; projectDomains?: string[]; users?: HubUser[]; tickets?: TicketView[] } = {},
 ): AssistantAction[] {
   const byId = new Map(projects.map((p) => [p.id, p]));
   return raw
@@ -72,11 +73,32 @@ export function sanitizeActions(
           details: '',
           projectId: t.projectId,
           projectName: t.projectName,
+          domain: '',
           dueDate: dueDate ?? '',
           priority: priority ?? t.priority,
           assigneeId: '',
           reason: a.reason.trim().slice(0, 300),
           update: { ticketId: t.id, number: t.number, status, dueDate, priority, before: { status: t.status, dueDate: t.dueDate, priority: t.priority } },
+        };
+      }
+      if (a.kind === 'projet') {
+        // Nouveau projet : pas de doublon d'un projet existant ; domaine du paramétrage ; chef de projet actif.
+        const name = a.title.trim().slice(0, 200);
+        if (!name || projects.some((p) => nameKey(p.name) === nameKey(name))) return null;
+        const chef = refs.users?.find((u) => u.active && u.email === (a.assigneeId ?? '').trim().toLowerCase());
+        return {
+          kind: 'projet',
+          title: name,
+          ticketType: '',
+          details: a.details.trim().slice(0, 4000),
+          projectId: '',
+          projectName: '',
+          domain: refs.projectDomains?.find((d) => nameKey(d) === nameKey(a.domain ?? '')) ?? '',
+          dueDate: date,
+          priority: a.priority || 'normale',
+          assigneeId: chef?.email ?? '',
+          reason: a.reason.trim().slice(0, 300),
+          update: null,
         };
       }
       const project = byId.get(a.projectId.trim().replace(/^\/?projets\//, ''));
@@ -92,6 +114,7 @@ export function sanitizeActions(
         details: a.details.trim().slice(0, 4000),
         projectId: project?.id ?? '',
         projectName: project?.name ?? '',
+        domain: '',
         dueDate: date,
         priority: a.priority || 'normale',
         assigneeId: assignee?.email ?? '',
@@ -107,7 +130,7 @@ export function sanitizeActions(
 const TIMEOUT_MS = 25_000;
 
 export async function loadAssistantData(email: string): Promise<AssistantData> {
-  const [lists, all, projects, tickets, sprintItems, todos, notes] = await Promise.all([
+  const [lists, all, projects, tickets, sprintItems, todos, notes, faq] = await Promise.all([
     getLists(),
     users.listUsers(),
     pr.listProjects(),
@@ -115,6 +138,7 @@ export async function loadAssistantData(email: string): Promise<AssistantData> {
     sprints.listSprintItems(),
     users.listTodos(),
     listNotes(email),
+    listFaq(),
   ]);
   await linkLegacyChefs(projects);
   const jalons = (await Promise.all(projects.map(async (p) => (await pr.listItems(p.id, 'jalons')).map((item) => ({ projectId: p.id, item }))))).flat();
@@ -130,6 +154,7 @@ export async function loadAssistantData(email: string): Promise<AssistantData> {
     // La to-do personnelle des autres n'est pas envoyée, même à qui a le droit de la voir.
     todos: todos.filter((t) => t.assigneeId === email || t.createdBy === email || !!t.projectId),
     notes: notes.filter((n) => !n.archived),
+    faq,
   };
 }
 
@@ -174,7 +199,7 @@ export function assistantRoutes() {
       answer: out.answer.trim(),
       followUps: out.followUps.map((q) => q.trim()).filter(Boolean).slice(0, 3),
       projects: focus.map((p) => ({ id: p.id, name: p.name })),
-      actions: sanitizeActions(out.actions, data.projects, { ticketTypes: data.lists.ticketTypes, users: data.users, tickets: data.tickets }),
+      actions: sanitizeActions(out.actions, data.projects, { ticketTypes: data.lists.ticketTypes, projectDomains: data.lists.projectDomains, users: data.users, tickets: data.tickets }),
     };
     return c.json(res);
   });

@@ -55,7 +55,7 @@ export const assistantAskBody = z.object({
 export type AssistantAskBody = z.input<typeof assistantAskBody>;
 
 /** Ce que Gandalf peut proposer de créer (toujours validé par l'utilisateur, créé par les routes habituelles). */
-export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon', 'ticket_update'] as const;
+export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon', 'ticket_update', 'projet'] as const;
 export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
 
 /**
@@ -64,7 +64,7 @@ export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
  */
 export interface AssistantAction {
   kind: AssistantActionKind;
-  /** Intitulé du ticket ou de la tâche, libellé du jalon. */
+  /** Intitulé du ticket ou de la tâche, libellé du jalon, nom du projet. */
   title: string;
   /** Type d'un ticket (parmi les types du paramétrage) ; vide : aucun. */
   ticketType: string;
@@ -73,11 +73,13 @@ export interface AssistantAction {
   /** Projet existant (vérifié par le serveur) ; vide : aucun projet (ticket hors projet, tâche personnelle). Obligatoire pour un jalon. */
   projectId: string;
   projectName: string;
-  /** Échéance (AAAA-MM-JJ) ou date du jalon, vide si inconnue. */
+  /** Domaine d'un projet à créer (parmi ceux du paramétrage) ; vide : aucun. */
+  domain: string;
+  /** Échéance (AAAA-MM-JJ), date du jalon ou fin visée d'un projet, vide si inconnue. */
   dueDate: string;
   /** Priorité d'un ticket. */
   priority: Priority;
-  /** Responsable (utilisateur actif du hub, vérifié par le serveur) ; vide : l'utilisateur qui crée. */
+  /** Responsable, ou chef de projet d'un projet (utilisateur actif du hub, vérifié par le serveur) ; vide : l'utilisateur qui crée. */
   assigneeId: string;
   /** Motif court : ce qui, dans le texte, justifie la proposition. */
   reason: string;
@@ -99,13 +101,14 @@ export const assistantActionOutputSchema = z.object({
   kind: z.enum(ASSISTANT_ACTION_KINDS),
   ticket: z.string().describe('ticket_update : clé du ticket existant à mettre à jour (« T-12 ») ; chaîne vide sinon'),
   status: z.enum([...TICKET_STATUSES, '']).describe('ticket_update : nouveau statut (a_faire, en_cours, attente, recette, termine), chaîne vide si inchangé ; chaîne vide sinon'),
-  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
+  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon, nom pour un projet) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
   ticketType: z.string().describe('Ticket : type parmi les types de tickets du hub (ex. Dev), chaîne vide si aucun ne correspond ou pour une tâche ou un jalon'),
-  details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases ; chaîne vide si rien'),
+  details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases (description pour un projet) ; chaîne vide si rien'),
+  domain: z.string().describe('projet : domaine parmi les domaines de projet du hub, chaîne vide si aucun ne correspond ; chaîne vide sinon'),
   projectId: z.string().describe('Identifiant du projet concerné (celui des liens /projets/<id>), chaîne vide si aucun'),
   dueDate: z.string().describe('AAAA-MM-JJ si une date est donnée ou se déduit du texte, sinon chaîne vide'),
   priority: z.enum([...PRIORITIES, '']).describe('Priorité ; pour ticket_update, chaîne vide si inchangée'),
-  assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable, chaîne vide si personne n’est désigné'),
+  assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable (chef de projet pour un projet), chaîne vide si personne n’est désigné'),
   reason: z.string().describe('Motif court : ce qui, dans le texte, justifie la proposition'),
 });
 
