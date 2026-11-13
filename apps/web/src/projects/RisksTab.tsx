@@ -40,8 +40,7 @@ export function RisksTab() {
       {all.length === 0 ? (
         <EmptyState>Aucun risque identifié. Retard d’un prestataire, dépendance à un autre projet, disponibilité des utilisateurs pour la recette… mieux vaut les noter tôt.</EmptyState>
       ) : (
-        <div className="risks-layout">
-          <div className="table-wrap">
+        <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
@@ -75,47 +74,9 @@ export function RisksTab() {
                 ))}
               </tbody>
             </table>
-          </div>
-          <RiskMatrix risks={open} onPick={setEditing} />
         </div>
       )}
       {editing && <RiskDialog risk={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-    </div>
-  );
-}
-
-/** Matrice probabilité × impact des risques ouverts. */
-function RiskMatrix({ risks, onPick }: { risks: Risk[]; onPick: (r: Risk) => void }) {
-  const levels = [...RISK_LEVELS].reverse();
-  return (
-    <div className="card risk-matrix">
-      <h3 className="no-margin">Matrice des risques ouverts</h3>
-      <div className="matrix">
-        <div className="matrix-ylabel">Probabilité</div>
-        {levels.map((p) => (
-          <div key={p} className="matrix-row">
-            <span className="matrix-axis">{RISK_LEVEL_LABELS[p]}</span>
-            {RISK_LEVELS.map((i) => {
-              const cell = risks.filter((r) => r.probability === p && r.impact === i);
-              const score = (RISK_LEVELS.indexOf(p) + 1) * (RISK_LEVELS.indexOf(i) + 1);
-              return (
-                <div key={i} className={`matrix-cell ${scoreClass(score)}`}>
-                  {cell.map((r) => (
-                    <button key={r.id} className="matrix-dot" title={r.title} onClick={() => onPick(r)}>
-                      {r.title.slice(0, 18)}{r.title.length > 18 ? '…' : ''}
-                    </button>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-        <div className="matrix-row">
-          <span className="matrix-axis" />
-          {RISK_LEVELS.map((i) => <span key={i} className="matrix-axis matrix-x">{RISK_LEVEL_LABELS[i]}</span>)}
-        </div>
-        <div className="matrix-xlabel">Impact</div>
-      </div>
     </div>
   );
 }
