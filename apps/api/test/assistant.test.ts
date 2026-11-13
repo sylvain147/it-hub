@@ -132,6 +132,33 @@ describe('assistant (chat global)', () => {
     setProvider(new MockProvider(0));
   });
 
+  it('répond d’après la FAQ de l’équipe, sans les images des réponses', async () => {
+    const f = (await env.call('POST', '/faq', { question: 'Comment obtenir un accès VPN ?', answer: 'Demander au support.\n\n![capture](asset:hub/abc)', category: 'Réseau' }, ADMIN)).json;
+    await env.call('POST', '/faq', { question: 'Qui valide les congés ?' }, ADMIN);
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Comment avoir le VPN ?' }, MEMBRE);
+    const ctx = calls.at(-1)!.context!;
+    expect(ctx).toContain(`## FAQ de l’équipe (questions et réponses)\n- [Comment obtenir un accès VPN ?](/faq?entree=${f.id}) (Réseau) : Demander au support.\n- [Qui valide les congés ?]`);
+    expect(ctx).toContain('Qui valide les congés ?](/faq?entree=');
+    expect(ctx).toContain(': SANS RÉPONSE');
+    expect(ctx).not.toContain('asset:hub');
+    expect(r.json.answer).toContain('D’après la FAQ');
+    expect(calls.at(-1)!.system).toContain('/faq?entree=<id>');
+    setProvider(new MockProvider(0));
+  });
+
+  it('propose de créer un projet qu’on lui demande, sans le créer', async () => {
+    const before = (await env.call('GET', '/projects', undefined, MEMBRE)).json.length;
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Crée le projet Refonte du site, domaine Web' }, MEMBRE);
+    expect(calls.at(-1)!.context).toContain('## Domaines de projet\nIT, Logistique, Marketing, Finance');
+    expect(r.json.actions).toEqual([expect.objectContaining({ kind: 'projet', title: 'Refonte du site', domain: 'Web', projectId: '' })]);
+    expect((await env.call('GET', '/projects', undefined, MEMBRE)).json.length).toBe(before);
+    // Projet déjà existant : pas de doublon proposé.
+    expect((await env.call('POST', '/assistant', { question: 'Crée le projet Migration ERP' }, MEMBRE)).json.actions).toEqual([]);
+    setProvider(new MockProvider(0));
+  });
+
   it('devient Saroumane sous le thème Mordor, avec un prompt système fixe par personnage', async () => {
     const calls = spy();
     await env.call('POST', '/assistant', { question: 'Bonjour' }, MEMBRE);
@@ -187,6 +214,17 @@ describe('assistant (chat global)', () => {
       ['Dev', 'Paie - Export', ''],
       ['', 'Corriger', ''],
     ]);
+    // Projet : domaine du paramétrage seulement, chef de projet actif, jamais rattaché à un projet existant.
+    expect(
+      sanitizeActions(
+        [a({ kind: 'projet', title: 'Portail SAV', domain: 'relation client', assigneeId: 'paul@exemple.fr', projectId: 'p1', dueDate: '2027-03-31' }), a({ kind: 'projet', title: 'paie' }), a({ kind: 'projet', title: 'Juridique', domain: 'Inventé' })],
+        projects,
+        { projectDomains: ['Web', 'Relation client'], users },
+      ),
+    ).toEqual([
+      expect.objectContaining({ kind: 'projet', title: 'Portail SAV', domain: 'Relation client', assigneeId: 'paul@exemple.fr', projectId: '', dueDate: '2027-03-31' }),
+      expect.objectContaining({ kind: 'projet', title: 'Juridique', domain: '' }),
+    ]);
   });
 
   it('reconnaît les projets par nom ou code, en mots entiers', () => {
@@ -197,6 +235,48 @@ describe('assistant (chat global)', () => {
     expect(mentionedProjects(projects, 'support prtg', []).map((x) => x.id)).toEqual([]);
     // Nom trop court (« BI ») : ignoré, pour éviter les faux positifs.
     expect(mentionedProjects(projects, 'la bi', []).map((x) => x.id)).toEqual([]);
+  });
+});
+
+describe('pièces jointes de l’assistant', () => {
+  // PNG 1×1 et PDF minimal, en base64.
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const PDF = Buffer.from('%PDF-1.4\n%%EOF').toString('base64');
+
+  it('envoie les images et PDF joints au modèle, avec cette question seulement', async () => {
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Que montre cette capture ?', attachments: [{ name: 'erreur.png', mediaType: 'image/png', data: PNG }, { name: 'devis.pdf', mediaType: 'application/pdf', data: PDF }] }, ADMIN);
+    expect(r.status).toBe(200);
+    expect(r.json.answer).toContain('erreur.png (image)');
+    const call = calls.at(-1)!;
+    expect(call.attachments).toEqual([{ mediaType: 'image/png', data: PNG }, { mediaType: 'application/pdf', data: PDF }]);
+    expect(call.input).toContain('<pieces_jointes>\n1. erreur.png (image)\n2. devis.pdf (PDF)\n</pieces_jointes>');
+    // Sans pièce jointe : rien de plus dans l'appel.
+    await env.call('POST', '/assistant', { question: 'Et sinon ?' }, ADMIN);
+    expect(calls.at(-1)!.attachments).toEqual([]);
+    expect(calls.at(-1)!.input).not.toContain('pieces_jointes');
+  });
+
+  it('refuse un format inconnu, trop de pièces jointes ou des pièces trop lourdes', async () => {
+    const ask = (attachments: unknown[]) => env.call('POST', '/assistant', { question: 'Voici', attachments }, ADMIN);
+    expect((await ask([{ name: 'a.exe', mediaType: 'application/x-msdownload', data: PNG }])).json.error).toMatch(/Format de pièce jointe non pris en charge/);
+    expect((await ask(Array.from({ length: 6 }, () => ({ name: 'a.png', mediaType: 'image/png', data: PNG })))).json.error).toMatch(/5 pièces jointes au plus/);
+    expect((await ask([{ name: 'a.png', mediaType: 'image/png', data: 'A'.repeat(4_600_000) }])).json.error).toMatch(/trop lourdes/);
+    expect((await ask([{ name: 'a.png', mediaType: 'image/png', data: 'pas du base64 !' }])).status).toBe(400);
+  });
+
+  it('place les pièces jointes avant le texte dans la requête Bedrock', async () => {
+    const { captureBedrockRequest } = await import('../src/ai/bedrock.js');
+    const { z } = await import('zod');
+    const req = await captureBedrockRequest(
+      { tier: 'fast', operation: 'assistant', system: 's', input: 'q', attachments: [{ mediaType: 'image/png', data: PNG }, { mediaType: 'application/pdf', data: PDF }], schema: z.object({ a: z.string() }), maxTokens: 100, effort: 'low', ctx: { user: 'u', cdcId: '' } },
+      'eu.anthropic.claude-haiku-5-5',
+    );
+    expect((req.body.messages as any[])[0].content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG } },
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: PDF } },
+      { type: 'text', text: 'q' },
+    ]);
   });
 });
 

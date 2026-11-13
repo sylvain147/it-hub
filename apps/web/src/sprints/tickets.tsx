@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
+import { boardOf, deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
+import { boardPrefix, useBoards, useDefaultBoardId } from './boards';
 import { formatDate, shortUser, toast } from '../components/ui';
 import { DueLabel, ItemModal, MarkdownField, MarkdownView, PriorityTag } from '../projects/common';
 import { StatusOptions, useSettings } from '../settings/context';
@@ -204,10 +205,18 @@ export function PlanProjectBar({ projectId, projectName, count, open, onDone }: 
   );
 }
 
-/** Sprints où l'on peut planifier un ticket : en cours, puis à venir. */
-export function useOpenSprints() {
-  const data = useLoad(() => api.sprints(), []);
-  return (data.data?.sprints ?? []).filter((s) => s.state !== 'closed');
+/**
+ * Sprints où l'on peut planifier un ticket, tous tableaux confondus : en cours, puis à venir. Avec plusieurs tableaux,
+ * leur nom est précédé de celui de leur tableau (« Support · Sprint 3 »).
+ */
+export function useOpenSprints(): Sprint[] {
+  const data = useLoad(() => api.allSprints(), []);
+  const boards = useBoards();
+  const rank = { active: 0, future: 1, closed: 2 } as const;
+  return (data.data ?? [])
+    .filter((s) => s.state !== 'closed')
+    .map((s) => ({ ...s, name: boardPrefix(boards, s.boardId) + s.name }))
+    .sort((a, b) => rank[a.state] - rank[b.state] || a.id - b.id);
 }
 
 export function sprintLabel(s: Pick<Sprint, 'name' | 'state'>) {
@@ -233,8 +242,9 @@ export function TicketModal({
   onSaved,
 }: {
   ticket: TicketRow | null;
-  defaults?: { projectId?: string; projectName?: string; sprintId?: number | null; status?: TicketStatus; type?: string };
-  /** Sprints en cours et à venir (chargés si absents). */
+  /** Valeurs d'un nouveau ticket ; `boardId` : tableau de la page d'où on le crée (sinon mon tableau par défaut). */
+  defaults?: { projectId?: string; projectName?: string; sprintId?: number | null; status?: TicketStatus; type?: string; boardId?: string };
+  /** Sprints en cours et à venir de tous les tableaux (chargés si absents). */
   sprints?: Sprint[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -242,7 +252,9 @@ export function TicketModal({
   const { me } = useAuth();
   const { name } = useUsers();
   const loaded = useOpenSprints();
-  const open = sprints ?? loaded;
+  const allOpen = sprints ?? loaded;
+  const boards = useBoards();
+  const myBoard = useDefaultBoardId(boards);
   const projects = useLoad(() => api.listProjects(), []);
   const { lists } = useSettings();
   const typeLabel = useTicketTypeLabel();
@@ -266,6 +278,8 @@ export function TicketModal({
     status: ticket?.status ?? defaults?.status ?? ('a_faire' as TicketStatus),
     priority: ticket?.priority ?? ('normale' as Priority),
     sprintId: ticket ? ticket.sprintId : (defaults?.sprintId ?? null),
+    // Vide : mon tableau par défaut (connu une fois les tableaux chargés).
+    boardId: ticket ? boardOf(ticket) : (defaults?.boardId ?? ''),
     dueDate: ticket?.dueDate ?? '',
     deskId: ticket?.deskId ?? '',
     // Vide : aucun projet (le ticket est enregistré hors projet).
@@ -283,7 +297,7 @@ export function TicketModal({
   async function save() {
     const who = external ? { assigneeId: '', assignee: f.assignee.trim() } : { assigneeId: f.assigneeId || me.email, assignee: '' };
     const times = { estimatedHours: parseHours(f.estimatedHours), spentHours: parseHours(f.spentHours) };
-    const fields = { title: f.title, type, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
+    const fields = { title: f.title, type, details: f.details, status: f.status, priority: f.priority, sprintId: f.sprintId, boardId: f.boardId, dueDate: f.dueDate, deskId: f.deskId, ...times, ...who };
     // Changer le projet déplace le ticket (même numéro, même historique).
     const projectId = f.projectId || NO_PROJECT_ID;
     if (ticket) {
@@ -318,7 +332,13 @@ export function TicketModal({
   }
   // Type d'un ancien ticket absent du paramétrage : proposé quand même.
   const typeChoices = type && !lists.ticketTypes.includes(type) ? [...lists.ticketTypes, type] : lists.ticketTypes;
-  const sprintGone = f.sprintId !== null && !open.some((s) => s.id === f.sprintId);
+  // Tableau du ticket : celui du sprint choisi ; les sprints proposés sont ceux du tableau.
+  const boardId = f.boardId || myBoard;
+  const open = allOpen.filter((s) => s.boardId === boardId);
+  const sprintGone = f.sprintId !== null && !allOpen.some((s) => s.id === f.sprintId);
+  function chooseBoard(id: string) {
+    setF((x) => ({ ...x, boardId: id, sprintId: allOpen.some((s) => s.id === x.sprintId && s.boardId === id) ? x.sprintId : null }));
+  }
 
   return (
     <ItemModal
@@ -381,6 +401,15 @@ export function TicketModal({
           <StatusOptions list="ticket" current={f.status} />
         </select>
       </label>
+      {boards && boards.length > 1 && (
+        <label className="field">
+          <span>Tableau</span>
+          <select className="input" value={boardId} onChange={(e) => chooseBoard(e.target.value)}>
+            {!boards.some((b) => b.id === boardId) && <option value={boardId}>Tableau supprimé</option>}
+            {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>
+      )}
       <label className="field">
         <span>Sprint</span>
         <select className="input" value={f.sprintId ?? ''} onChange={(e) => set('sprintId', e.target.value ? Number(e.target.value) : null)}>

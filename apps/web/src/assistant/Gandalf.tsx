@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { ASSISTANT_HISTORY_CHARS, ASSISTANT_HISTORY_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STARTERS, type AssistantAnswer, type AssistantMessage } from '@samm/shared';
+import { ASSISTANT_ATTACHMENTS_CHARS, ASSISTANT_ATTACHMENTS_MAX, ASSISTANT_HISTORY_CHARS, ASSISTANT_HISTORY_MAX, ASSISTANT_QUESTION_MAX, ASSISTANT_STARTERS, type AssistantAnswer, type AssistantMessage } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { MarkdownView } from '../projects/common';
 import { useProjectRefs } from '../tasks/tasks';
 import { useAssistant } from '../theme';
 import { ActionCard, type ChatAction } from './actions';
+import { ACCEPT, prepareFile, questionWithTexts, type PendingFile, type SentFile } from './attachments';
+import { toast } from '../components/ui';
 
 /**
  * Gandalf, l'assistant (Saroumane sous le thème Mordor : `useAssistant`) : bouton volant en bas à droite, qui ouvre un chat où l'on interroge l'IA sur les projets,
@@ -14,7 +16,8 @@ import { ActionCard, type ChatAction } from './actions';
  * d'une page à l'autre ; chaque question est un appel IA, envoyé seulement au clic.
  *
  * On peut aussi lui coller un long texte (compte rendu, transcription, e-mail) : il propose alors les tickets, tâches
- * et jalons à créer, que l'on valide un par un (`actions.tsx`). Une autre page lui confie un texte par `openGandalf`.
+ * et jalons à créer, que l'on valide un par un (`actions.tsx`). Images (collées, glissées) et fichiers joints :
+ * `attachments.ts` ; ils ne partent qu'avec la question où ils sont joints. Une autre page lui confie un texte par `openGandalf`.
  */
 
 const OPEN_EVENT = 'hobbit:gandalf';
@@ -49,6 +52,8 @@ interface ChatEntry extends AssistantMessage {
   /** Propositions d'actions, avec leur état (créée, ignorée). */
   actions?: ChatAction[];
   error?: boolean;
+  /** Pièces jointes d'une question (nom et vignette). */
+  files?: SentFile[];
 }
 
 const storageKey = (email: string) => `hobbit:assistant:${email}`;
@@ -72,6 +77,10 @@ export function Gandalf() {
   const [chat, setChat] = useState<ChatEntry[]>(() => loadChat(me.email));
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [reading, setReading] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Projets proposés pour le rattachement des actions, chargés à l'ouverture.
@@ -109,19 +118,44 @@ export function Gandalf() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  async function ask(text: string) {
-    const q = text.trim();
+  async function addFiles(list: File[]) {
+    if (!list.length) return;
+    const room = ASSISTANT_ATTACHMENTS_MAX - files.length;
+    if (list.length > room) toast(`${ASSISTANT_ATTACHMENTS_MAX} pièces jointes au plus par message.`, 'error');
+    setReading((n) => n + Math.min(room, list.length));
+    for (const f of list.slice(0, Math.max(0, room))) {
+      try {
+        const p = await prepareFile(f);
+        setFiles((xs) => [...xs, p]);
+      } catch (e) {
+        toast((e as Error).message, 'error');
+      } finally {
+        setReading((n) => n - 1);
+      }
+    }
+    inputRef.current?.focus();
+  }
+
+  async function ask(text: string, withFiles: PendingFile[] = []) {
+    // Sans texte, des pièces jointes seules : Gandalf les analyse.
+    const typed = text.trim() || (withFiles.length ? 'Voici les pièces jointes : analyse-les.' : '');
+    const q = questionWithTexts(typed, withFiles);
     if (!q || busy) return;
+    const attachments = withFiles.flatMap((f) => (f.kind === 'binary' ? [f.attachment] : []));
+    if (q.length > ASSISTANT_QUESTION_MAX) return toast(`Texte trop long avec les pièces jointes (${ASSISTANT_QUESTION_MAX.toLocaleString('fr-FR')} caractères au plus).`, 'error');
+    if (attachments.reduce((n, a) => n + a.data.length, 0) > ASSISTANT_ATTACHMENTS_CHARS) return toast('Pièces jointes trop lourdes (3 Mo au total au plus) : retirez-en une.', 'error');
     // Seuls les derniers échanges réussis repartent avec la question.
     const history = chat
       .filter((m) => !m.error)
       .slice(-ASSISTANT_HISTORY_MAX * 2)
       .map(({ role, content }) => ({ role, content: content.length > ASSISTANT_HISTORY_CHARS ? `${content.slice(0, ASSISTANT_HISTORY_CHARS)}…` : content }));
-    setChat((c) => [...c, { role: 'user', content: q }]);
+    const sent = withFiles.map((f) => ({ name: f.name, thumb: f.kind === 'binary' ? f.thumb : undefined }));
+    setChat((c) => [...c, { role: 'user', content: q, ...(sent.length ? { files: sent } : {}) }]);
     setQuestion('');
+    if (withFiles.length) setFiles([]);
     setBusy(true);
     try {
-      const r = await api.askAssistant({ question: q, history });
+      const r = await api.askAssistant({ question: q, history, attachments });
       setChat((c) => [...c, { role: 'assistant', content: r.answer, projects: r.projects, followUps: r.followUps, actions: r.actions }]);
     } catch (e) {
       setChat((c) => [...c, { role: 'assistant', content: (e as Error).message, error: true }]);
@@ -154,7 +188,23 @@ export function Gandalf() {
         {busy && !open && <span className="gandalf-fab-busy" aria-label={`${name} réfléchit`} />}
       </button>
       {open && (
-        <div className="gandalf-pop" role="dialog" aria-label={`${name}, l’assistant`}>
+        <div
+          className={`gandalf-pop${dragging ? ' dragging' : ''}`}
+          role="dialog"
+          aria-label={`${name}, l’assistant`}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes('Files')) return;
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragging(false)}
+          onDrop={(e) => {
+            if (!e.dataTransfer.files.length) return;
+            e.preventDefault();
+            setDragging(false);
+            void addFiles([...e.dataTransfer.files]);
+          }}
+        >
           <div className="gandalf-head">
             <img src={avatar} alt="" />
             <div className="gandalf-title">
@@ -175,6 +225,7 @@ export function Gandalf() {
                   Demandez-lui aussi de créer un ticket, une tâche ou un jalon (« Crée-moi un ticket de dev sur La Poste, c’est important »), ou collez-lui un compte rendu,
                   une transcription de réunion ou un e-mail : il propose ce qu’il faut créer, et rien n’est créé sans votre clic.
                 </p>
+                <p className="small">Collez une capture d’écran (Ctrl+V) ou joignez un fichier (📎 : image, PDF, Word, Excel, texte) pour qu’il l’analyse.</p>
                 <div className="assistant-chips">
                   {ASSISTANT_STARTERS.map((s) => (
                     <button key={s} className="chip" onClick={() => void ask(s)}>{s}</button>
@@ -184,6 +235,11 @@ export function Gandalf() {
             )}
             {chat.map((m, i) => (
               <div key={i} className={`assistant-msg ${m.role}${m.error ? ' error' : ''}`}>
+                {m.files && m.files.length > 0 && (
+                  <div className="gandalf-files">
+                    {m.files.map((f, k) => (f.thumb ? <img key={k} src={f.thumb} alt={f.name} title={f.name} /> : <span key={k} className="gandalf-file">📄 {f.name}</span>))}
+                  </div>
+                )}
                 {m.role === 'user' ? <UserText text={m.content} /> : m.error ? <p>⚠ {m.content}</p> : <MarkdownView markdown={m.content} />}
                 {m.actions && m.actions.length > 0 && (
                   <div className="gandalf-actions">
@@ -210,7 +266,30 @@ export function Gandalf() {
             <div ref={endRef} />
           </div>
 
+          {(files.length > 0 || reading > 0) && (
+            <div className="gandalf-files gandalf-pending">
+              {files.map((f, k) => (
+                <span key={k} className="gandalf-file" title={f.name}>
+                  {f.kind === 'binary' && f.thumb ? <img src={f.thumb} alt="" /> : '📄'} <span className="gandalf-file-name">{f.name}</span>
+                  <button className="gandalf-file-remove" onClick={() => setFiles((xs) => xs.filter((_, j) => j !== k))} aria-label={`Retirer ${f.name}`}>×</button>
+                </span>
+              ))}
+              {reading > 0 && <span className="gandalf-file muted">Lecture…</span>}
+            </div>
+          )}
           <div className="gandalf-input">
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              hidden
+              accept={ACCEPT}
+              onChange={(e) => {
+                void addFiles([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
+            />
+            <button className="btn btn-ghost gandalf-attach" onClick={() => fileRef.current?.click()} disabled={busy || files.length >= ASSISTANT_ATTACHMENTS_MAX} title="Joindre un fichier (image, PDF, Word, Excel, texte)" aria-label="Joindre un fichier">📎</button>
             <textarea
               ref={inputRef}
               className="input"
@@ -218,18 +297,25 @@ export function Gandalf() {
               value={question}
               maxLength={ASSISTANT_QUESTION_MAX}
               onChange={(e) => setQuestion(e.target.value)}
+              onPaste={(e) => {
+                // Image seule (capture d'écran) : jointe. Une copie Excel ou Word porte aussi une image, mais d'abord du texte : il est collé.
+                const images = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
+                if (!images.length || e.clipboardData.getData('text/plain').trim()) return;
+                e.preventDefault();
+                void addFiles(images);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  void ask(question);
+                  if (!reading) void ask(question, files);
                 }
               }}
               placeholder="Une question, une demande ou un compte rendu… (Entrée pour envoyer)"
               aria-label="Question"
             />
-            <button className="btn btn-primary" disabled={busy || !question.trim()} onClick={() => void ask(question)}>Envoyer</button>
+            <button className="btn btn-primary" disabled={busy || reading > 0 || (!question.trim() && !files.length)} onClick={() => void ask(question, files)}>Envoyer</button>
           </div>
-          <p className="muted gandalf-foot">Chaque question est un appel à l’IA (suivi dans la consommation IA). Vérifiez les points importants dans le hub.</p>
+          <p className="muted gandalf-foot">Chaque question est un appel à l’IA (suivi dans la consommation IA), pièces jointes comprises. Vérifiez les points importants dans le hub.</p>
         </div>
       )}
     </>

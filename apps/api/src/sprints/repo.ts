@@ -9,7 +9,7 @@
  * L'équipe ne compte que quelques sprints par trimestre : la partition se lit en entier.
  */
 import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { pastSprintTimes, type Sprint, type SprintDocKind, type SprintDocument } from '@samm/shared';
+import { boardOf, pastSprintTimes, type Sprint, type SprintDocKind, type SprintDocument } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, nextCounter, queryAll } from '../db/client.js';
 import { HttpError, notFound, nowIso } from '../lib/util.js';
@@ -34,7 +34,8 @@ const DOC_ATTR: Record<SprintDocKind, 'compteRendu' | 'preparation'> = { compte_
 
 export function toSprint(it: SprintItem): Sprint {
   const { pk: _pk, sk: _sk, compteRendu: _c, preparation: _p, activeJobId: _j, activeJobAt: _a, ...s } = it;
-  return s;
+  // Sprints d'avant les tableaux : tableau principal.
+  return { ...s, boardId: boardOf(s) };
 }
 
 export function activeJob(it: SprintItem): string | null {
@@ -53,14 +54,14 @@ export async function requireSprintItem(id: string | number): Promise<SprintItem
   return it;
 }
 
-/** Tous les sprints, par numéro. */
-export async function listSprintItems(): Promise<SprintItem[]> {
+/** Tous les sprints (d'un tableau, s'il est donné), par numéro. */
+export async function listSprintItems(boardId?: string): Promise<SprintItem[]> {
   const items = await queryAll<SprintItem>({ KeyConditionExpression: 'pk = :p', ExpressionAttributeValues: { ':p': SPRINT_PK } });
-  return items.sort((a, b) => a.id - b.id);
+  return items.filter((s) => !boardId || boardOf(s) === boardId).sort((a, b) => a.id - b.id);
 }
 
 /** `past` : sprint déjà terminé, enregistré directement comme clos (historique). */
-export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'startDate' | 'endDate'>, user: string, past = false): Promise<Sprint> {
+export async function createSprint(fields: Pick<Sprint, 'name' | 'goal' | 'startDate' | 'endDate' | 'boardId'>, user: string, past = false): Promise<Sprint> {
   const id = await nextCounter('SPRINT');
   const now = nowIso();
   const item: SprintItem = {
@@ -134,9 +135,10 @@ export function newDocument(markdown: string, user: string): SprintDocument {
   return { markdown, createdAt: nowIso(), createdBy: user, editedAt: null, editedBy: null };
 }
 
-/** Un ticket ne se planifie que dans un sprint en cours ou à venir. */
-export async function assertPlannable(sprintId: number): Promise<void> {
+/** Un ticket ne se planifie que dans un sprint en cours ou à venir ; renvoie le sprint. */
+export async function assertPlannable(sprintId: number): Promise<Sprint> {
   const it = await getSprintItem(sprintId);
   if (!it) throw new HttpError(400, `Le sprint ${sprintId} n’existe pas.`);
   if (it.state === 'closed') throw new HttpError(400, `Le sprint « ${it.name} » est clos : choisissez un sprint en cours ou à venir.`);
+  return toSprint(it);
 }

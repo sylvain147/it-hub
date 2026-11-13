@@ -1,35 +1,41 @@
 import { useMemo, useState } from 'react';
-import { ticketKey, type SprintListItem, type TicketStatus } from '@samm/shared';
+import { boardOf, ticketKey, type Board, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Spinner } from '../components/ui';
 import { DueLabel, PriorityTag } from '../projects/common';
 import { StatusOptions } from '../settings/context';
+import { boardPrefix } from './boards';
 import { DeskBadge, sprintLabel, TicketModal, TicketProject, TicketStatusChip, TicketTypeBadge, type TicketRow } from './tickets';
 
 /** Texte comparable : minuscules, sans accents. */
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /**
- * Onglet « Tous les tickets » de la page Tickets : tous les tickets (projets et hors projet, terminés compris), avec
- * recherche (numéro, intitulé, projet, responsable, ticket Desk) et filtre par statut. Un clic ouvre la fiche.
+ * Onglet « Tous les tickets » de la page Tickets : tous les tickets (projets et hors projet, terminés compris) du tableau
+ * affiché, ou de tous les tableaux, avec recherche (numéro, intitulé, projet, responsable, ticket Desk) et filtre par
+ * statut. Un clic ouvre la fiche.
  */
-export function AllTickets({ sprints, open, mineIds, onChanged }: { sprints: SprintListItem[]; open: SprintListItem[]; mineIds: Set<string> | null; onChanged: () => Promise<void> }) {
+export function AllTickets({ boards, boardId, mineIds, onChanged }: { boards: Board[]; boardId: string; mineIds: Set<string> | null; onChanged: () => Promise<void> }) {
   const data = useLoad(() => api.allTickets(), []);
+  const sprints = useLoad(() => api.allSprints(), []);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<TicketStatus | 'ouverts' | ''>('');
+  // Vide : tous les tableaux.
+  const [board, setBoard] = useState(boardId);
   const [editing, setEditing] = useState<TicketRow | null>(null);
-  const sprintName = useMemo(() => new Map(sprints.map((s) => [s.id, sprintLabel(s)])), [sprints]);
+  const sprintName = useMemo(() => new Map((sprints.data ?? []).map((s) => [s.id, (board ? '' : boardPrefix(boards, s.boardId)) + sprintLabel(s)])), [sprints.data, boards, board]);
 
   const rows = useMemo(() => {
     const needle = fold(q.trim());
     return (data.data ?? []).filter((t) => {
       if (mineIds && !mineIds.has(t.projectId)) return false;
+      if (board && boardOf(t) !== board) return false;
       if (status === 'ouverts' ? t.done : status && t.status !== status) return false;
       if (!needle) return true;
       return [ticketKey(t), t.title, t.type, t.projectName, t.assignee, t.deskId, t.deskId && `desk #${t.deskId}`].some((s) => s && fold(s).includes(needle));
     });
-  }, [data.data, q, status, mineIds]);
+  }, [data.data, q, status, mineIds, board]);
 
   return (
     <section className="card">
@@ -40,6 +46,12 @@ export function AllTickets({ sprints, open, mineIds, onChanged }: { sprints: Spr
           <option value="ouverts">Non terminés</option>
           <StatusOptions list="ticket" />
         </select>
+        {boards.length > 1 && (
+          <select className="input input-auto" value={board} onChange={(e) => setBoard(e.target.value)} aria-label="Tableau">
+            {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            <option value="">Tous les tableaux</option>
+          </select>
+        )}
         {data.data && <span className="muted small">{rows.length} ticket{rows.length > 1 ? 's' : ''}</span>}
       </div>
       <ErrorBox error={data.error} />
@@ -79,7 +91,7 @@ export function AllTickets({ sprints, open, mineIds, onChanged }: { sprints: Spr
           </table>
         </div>
       )}
-      {editing && <TicketModal ticket={editing} sprints={open} onClose={() => setEditing(null)} onSaved={async () => { await Promise.all([data.reload(), onChanged()]); }} />}
+      {editing && <TicketModal ticket={editing} onClose={() => setEditing(null)} onSaved={async () => { await Promise.all([data.reload(), onChanged()]); }} />}
     </section>
   );
 }

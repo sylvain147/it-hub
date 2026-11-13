@@ -14,7 +14,8 @@ export function Home() {
   const [allTasks, setAllTasks] = useState(false);
   const { data: projects } = useLoad(() => api.listProjects(), []);
   const { data: todos } = useLoad(() => api.todos(allTasks ? 'all' : undefined), [allTasks]);
-  const { data: sprints } = useLoad(() => api.sprints(), []);
+  // Tickets de tous les tableaux.
+  const { data: tickets } = useLoad(() => api.allTickets(), []);
   const { data: activity } = useLoad(() => api.activity(), []);
   const { name } = useUsers();
 
@@ -28,7 +29,7 @@ export function Home() {
   // Ma to-do dans l'ordre choisi par glisser-déposer, puis par échéance.
   const rank = (t: { position?: number }) => t.position ?? Number.MAX_SAFE_INTEGER;
   const myTodos = (todos?.personal ?? []).filter((t) => !t.done).sort((a, b) => rank(a) - rank(b) || byDueDate(a, b)).slice(0, 10);
-  const myTickets = (sprints?.tickets ?? []).filter((t) => !t.done && (allTasks || t.assigneeId === me.email)).sort(byDueDate).slice(0, 10);
+  const myTickets = (tickets ?? []).filter((t) => !t.done && (allTasks || t.assigneeId === me.email)).sort(byDueDate).slice(0, 10);
   const projectName = (id: string) => (projects ?? []).find((p) => p.id === id)?.name ?? '';
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const deadlines = active

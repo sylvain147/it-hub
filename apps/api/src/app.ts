@@ -36,6 +36,8 @@ import { noteRoutes } from './notes/routes.js';
 import { assistantRoutes } from './assistant/routes.js';
 import { anneauRoutes } from './anneau/routes.js';
 import { ideaRoutes } from './ideas/routes.js';
+import { faqRoutes } from './faq/routes.js';
+import { boardRoutes } from './sprints/boardRoutes.js';
 import { patchRoutes } from './patch/routes.js';
 import { cdcReviewRoutes, publicReviewRoutes } from './cdcReviews/routes.js';
 import * as pr from './projects/repo.js';
@@ -305,6 +307,7 @@ export function createApp() {
   api.route('/settings', settingsRoutes());
   api.route('/projects', projectRoutes());
   api.route('/sprints', sprintRoutes());
+  api.route('/boards', boardRoutes());
   api.route('/users', userRoutes());
   api.route('/todos', todoRoutes());
   api.route('/notes', noteRoutes());
@@ -313,6 +316,7 @@ export function createApp() {
   api.route('/notifications', notificationRoutes());
   api.route('/anneau', anneauRoutes());
   api.route('/idees', ideaRoutes());
+  api.route('/faq', faqRoutes());
   api.route('/patch', patchRoutes());
   api.route('/cdcs', cdcReviewRoutes());
 

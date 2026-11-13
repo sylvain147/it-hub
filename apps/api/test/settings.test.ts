@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CDC_STATUSES, normalizeListSettings, statusOptions } from '@samm/shared';
 import { setupTestEnv } from './helpers.js';
 import * as pr from '../src/projects/repo.js';
+import * as settingsRepo from '../src/settings/repo.js';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { ddb } from '../src/db/client.js';
+import { config } from '../src/config.js';
 
 let env: Awaited<ReturnType<typeof setupTestEnv>>;
 let projectId = '';
@@ -93,7 +97,7 @@ describe('paramétrage : statuts, jalons et rôles', () => {
     expect(n.statuses.project).toHaveLength(9);
     expect(n.statuses.cdc.map((s) => s.key)).toEqual([...CDC_STATUSES]);
     // Domaines des projets : valeurs d'origine si absents.
-    expect(n.projectDomains).toEqual(['IT', 'Logistique', 'Marketing', 'Finance']);
+    expect(n.projectDomains).toEqual(['IT', 'Logistique', 'Marketing', 'Finance', 'Juridique', 'Relation client', 'Web']);
   });
 
   it('place un statut ajouté depuis l’enregistrement après celui qui le précède', () => {
@@ -103,6 +107,18 @@ describe('paramétrage : statuts, jalons et rôles', () => {
     expect(n.statuses.project.map((s) => s.key)).toEqual(['en_cours', 'idee', 'cadrage', 'planifie', 'recette', 'production', 'en_pause', 'termine', 'abandonne']);
     expect(n.statuses.project.find((s) => s.key === 'planifie')!.label).toBe('Planifié');
     expect(n.projectDomains).toEqual(['IT', 'RH']);
+  });
+
+  it('ajoute une fois les nouveaux domaines à un paramétrage déjà enregistré', async () => {
+    const lists = normalizeListSettings({ projectDomains: ['IT', 'juridique'] });
+    await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...settingsRepo.settingsKeys.lists(), lists } }));
+    settingsRepo.clearListsCache();
+    // « juridique » existe déjà (casse près) : seuls les autres sont ajoutés.
+    expect((await settingsRepo.getLists()).projectDomains).toEqual(['IT', 'juridique', 'Relation client', 'Web']);
+    // Retiré ensuite par un administrateur : il ne revient pas.
+    await settingsRepo.putLists({ ...(await settingsRepo.getLists()), projectDomains: ['IT'] }, 'admin@x.fr');
+    settingsRepo.clearListsCache();
+    expect((await settingsRepo.getLists()).projectDomains).toEqual(['IT']);
   });
 });
 

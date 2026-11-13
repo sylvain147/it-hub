@@ -23,15 +23,39 @@ export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 export const ASSISTANT_QUESTION_MAX = 60_000;
 export const ASSISTANT_HISTORY_CHARS = 2000;
 
+/**
+ * Pièces jointes d'une question : images (collées ou jointes) et PDF, envoyés tels quels au modèle avec cette seule
+ * question (ils ne repartent pas avec les suivantes). Les fichiers texte, Word et Excel sont lus dans le navigateur
+ * et ajoutés au texte de la question. Taille limitée par celle d'une requête à l'API (6 Mo).
+ */
+export const ASSISTANT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export const ASSISTANT_ATTACHMENT_TYPES = [...ASSISTANT_IMAGE_TYPES, 'application/pdf'] as const;
+export const ASSISTANT_ATTACHMENTS_MAX = 5;
+/** Taille totale des pièces jointes, encodées en base64 (caractères). */
+export const ASSISTANT_ATTACHMENTS_CHARS = 4_500_000;
+
+export const assistantAttachmentSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  mediaType: z.enum(ASSISTANT_ATTACHMENT_TYPES, 'Format de pièce jointe non pris en charge (images PNG, JPEG, GIF, WebP ou PDF).'),
+  /** Contenu en base64 (sans le préfixe `data:`). */
+  data: z.string().min(1).regex(/^[A-Za-z0-9+/]+=*$/, 'Pièce jointe illisible.'),
+});
+export type AssistantAttachment = z.infer<typeof assistantAttachmentSchema>;
+
 export const assistantAskBody = z.object({
   question: z.string().trim().min(1, 'Posez une question.').max(ASSISTANT_QUESTION_MAX, `Texte trop long (${ASSISTANT_QUESTION_MAX.toLocaleString('fr-FR')} caractères au plus).`),
   /** Échanges précédents, du plus ancien au plus récent. */
   history: z.array(assistantMessageSchema).max(ASSISTANT_HISTORY_MAX * 2).default([]),
+  attachments: z
+    .array(assistantAttachmentSchema)
+    .max(ASSISTANT_ATTACHMENTS_MAX, `${ASSISTANT_ATTACHMENTS_MAX} pièces jointes au plus.`)
+    .refine((xs) => xs.reduce((n, a) => n + a.data.length, 0) <= ASSISTANT_ATTACHMENTS_CHARS, 'Pièces jointes trop lourdes (3 Mo au total au plus).')
+    .default([]),
 });
 export type AssistantAskBody = z.input<typeof assistantAskBody>;
 
 /** Ce que Gandalf peut proposer de créer (toujours validé par l'utilisateur, créé par les routes habituelles). */
-export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon', 'ticket_update'] as const;
+export const ASSISTANT_ACTION_KINDS = ['ticket', 'todo', 'jalon', 'ticket_update', 'projet'] as const;
 export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
 
 /**
@@ -40,7 +64,7 @@ export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
  */
 export interface AssistantAction {
   kind: AssistantActionKind;
-  /** Intitulé du ticket ou de la tâche, libellé du jalon. */
+  /** Intitulé du ticket ou de la tâche, libellé du jalon, nom du projet. */
   title: string;
   /** Type d'un ticket (parmi les types du paramétrage) ; vide : aucun. */
   ticketType: string;
@@ -49,11 +73,13 @@ export interface AssistantAction {
   /** Projet existant (vérifié par le serveur) ; vide : aucun projet (ticket hors projet, tâche personnelle). Obligatoire pour un jalon. */
   projectId: string;
   projectName: string;
-  /** Échéance (AAAA-MM-JJ) ou date du jalon, vide si inconnue. */
+  /** Domaine d'un projet à créer (parmi ceux du paramétrage) ; vide : aucun. */
+  domain: string;
+  /** Échéance (AAAA-MM-JJ), date du jalon ou fin visée d'un projet, vide si inconnue. */
   dueDate: string;
   /** Priorité d'un ticket. */
   priority: Priority;
-  /** Responsable (utilisateur actif du hub, vérifié par le serveur) ; vide : l'utilisateur qui crée. */
+  /** Responsable, ou chef de projet d'un projet (utilisateur actif du hub, vérifié par le serveur) ; vide : l'utilisateur qui crée. */
   assigneeId: string;
   /** Motif court : ce qui, dans le texte, justifie la proposition. */
   reason: string;
@@ -75,13 +101,14 @@ export const assistantActionOutputSchema = z.object({
   kind: z.enum(ASSISTANT_ACTION_KINDS),
   ticket: z.string().describe('ticket_update : clé du ticket existant à mettre à jour (« T-12 ») ; chaîne vide sinon'),
   status: z.enum([...TICKET_STATUSES, '']).describe('ticket_update : nouveau statut (a_faire, en_cours, attente, recette, termine), chaîne vide si inchangé ; chaîne vide sinon'),
-  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
+  title: z.string().describe('Intitulé court commençant par un verbe (libellé pour un jalon, nom pour un projet) ; pour un ticket typé, sans le type (par défaut le nom du projet)'),
   ticketType: z.string().describe('Ticket : type parmi les types de tickets du hub (ex. Dev), chaîne vide si aucun ne correspond ou pour une tâche ou un jalon'),
-  details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases ; chaîne vide si rien'),
+  details: z.string().describe('Contexte utile tiré du texte, 1 à 3 phrases (description pour un projet) ; chaîne vide si rien'),
+  domain: z.string().describe('projet : domaine parmi les domaines de projet du hub, chaîne vide si aucun ne correspond ; chaîne vide sinon'),
   projectId: z.string().describe('Identifiant du projet concerné (celui des liens /projets/<id>), chaîne vide si aucun'),
   dueDate: z.string().describe('AAAA-MM-JJ si une date est donnée ou se déduit du texte, sinon chaîne vide'),
   priority: z.enum([...PRIORITIES, '']).describe('Priorité ; pour ticket_update, chaîne vide si inchangée'),
-  assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable, chaîne vide si personne n’est désigné'),
+  assigneeId: z.string().describe('E-mail de l’utilisateur du hub désigné comme responsable (chef de projet pour un projet), chaîne vide si personne n’est désigné'),
   reason: z.string().describe('Motif court : ce qui, dans le texte, justifie la proposition'),
 });
 

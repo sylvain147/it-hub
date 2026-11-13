@@ -2,7 +2,7 @@
  * Données envoyées à l'assistant : rassemblées et mises en forme par le code (Markdown compact), jamais par l'IA.
  *
  *  - contexte global (stable pendant une conversation, mis en cache) : projets et leurs indicateurs, jalons en retard
- *    et à venir, sprint en cours, mes tickets, ma to-do (avec ses sous-tâches), mes notes (extraits) ;
+ *    et à venir, sprint en cours, mes tickets, ma to-do (avec ses sous-tâches), mes notes (extraits), la FAQ ;
  *  - détail des projets cités dans la question ou les derniers échanges (au plus 3), comme pour un rapport.
  *
  * Seules les données que l'utilisateur voit déjà dans le hub sont envoyées : ses propres notes, sa to-do et celle des
@@ -19,7 +19,10 @@ import {
   isTaskOverdue,
   ticketKey,
   statusLabel,
+  byFaqCategory,
   type AssistantMessage,
+  type Board,
+  type FaqEntry,
   type HubUser,
   type ListSettings,
   type PersonalNote,
@@ -39,10 +42,23 @@ export interface AssistantData {
   jalons: { projectId: string; item: ProjectItem<'jalons'> }[];
   tickets: TicketView[];
   sprints: Sprint[];
+  /** Tableaux de tickets (chacun a ses sprints). */
+  boards: Board[];
   /** To-do visible : la mienne (confiée à moi ou par moi) et celle des projets. */
   todos: PersonalTask[];
   /** Mes notes, hors archives. */
   notes: PersonalNote[];
+  /** FAQ de l'équipe (vue par tous). */
+  faq: FaqEntry[];
+}
+
+/** FAQ envoyée : au plus 150 entrées, réponses abrégées (sans les images). */
+const FAQ_MAX = 150;
+const FAQ_ANSWER_CHARS = 800;
+
+function faqLine(f: FaqEntry): string {
+  const answer = f.answer.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim();
+  return `- [${cut(f.question, 200)}](/faq?entree=${f.id})${f.category ? ` (${f.category})` : ''} : ${answer ? cut(answer, FAQ_ANSWER_CHARS) : 'SANS RÉPONSE'}`;
 }
 
 /** Fenêtre des échéances à venir (jours). */
@@ -123,18 +139,21 @@ export function globalContext(d: AssistantData): string {
     .slice(0, 80)
     .map(({ projectId, item: j }) => `- ${j.startDate ? `du ${j.startDate} au ` : ''}${j.date} — ${cut(j.label, 120)} — ${projectLink(byId.get(projectId)!)}${isJalonLate(j, d.today) ? ' — EN RETARD' : ''}`);
 
-  const active = d.sprints.find((s) => s.state === 'active');
-  const sprintTickets = active ? d.tickets.filter((t) => t.sprintId === active.id) : [];
-  const sprintLines = active
-    ? [
-        `- « ${active.name} » du ${active.startDate} au ${active.endDate}${active.goal ? ` — objectif : ${cut(active.goal, 300)}` : ''}`,
-        `- ${sprintTickets.length} ticket(s) : ${(['a_faire', 'en_cours', 'attente', 'recette', 'termine'] as const)
-          .map((st) => `${statusLabel(d.lists, 'ticket', st)} ${sprintTickets.filter((t) => t.status === st).length}`)
-          .join(', ')}`,
-      ]
-    : [];
-  const nextSprint = d.sprints.filter((s) => s.state === 'future').sort((a, b) => (a.startDate || '9').localeCompare(b.startDate || '9'))[0];
-  if (nextSprint) sprintLines.push(`- Sprint suivant : « ${nextSprint.name} »${nextSprint.startDate ? ` à partir du ${nextSprint.startDate}` : ''}`);
+  // Un sprint en cours par tableau ; le nom du tableau n'est donné que s'il y en a plusieurs.
+  const boardName = (id: string) => (d.boards.length > 1 ? ` (tableau « ${d.boards.find((b) => b.id === id)?.name ?? id} »)` : '');
+  const sprintLines = d.boards.flatMap((b) => {
+    const ofBoard = d.sprints.filter((s) => s.boardId === b.id);
+    const active = ofBoard.find((s) => s.state === 'active');
+    const next = ofBoard.filter((s) => s.state === 'future').sort((x, y) => (x.startDate || '9').localeCompare(y.startDate || '9'))[0];
+    const sprintTickets = active ? d.tickets.filter((t) => t.sprintId === active.id) : [];
+    return [
+      active && `- « ${active.name} »${boardName(b.id)} du ${active.startDate} au ${active.endDate}${active.goal ? ` — objectif : ${cut(active.goal, 300)}` : ''}`,
+      active && `  - ${sprintTickets.length} ticket(s) : ${(['a_faire', 'en_cours', 'attente', 'recette', 'termine'] as const)
+        .map((st) => `${statusLabel(d.lists, 'ticket', st)} ${sprintTickets.filter((t) => t.status === st).length}`)
+        .join(', ')}`,
+      next && `- Sprint suivant${boardName(b.id)} : « ${next.name} »${next.startDate ? ` à partir du ${next.startDate}` : ''}`,
+    ].filter((l): l is string => !!l);
+  });
 
   const openTickets = d.tickets.filter((t) => !t.done);
   const myTickets = openTickets.filter((t) => t.assigneeId === d.me.email).sort((a, b) => (a.dueDate || '9').localeCompare(b.dueDate || '9'));
@@ -149,11 +168,12 @@ export function globalContext(d: AssistantData): string {
     `Utilisateur : ${d.me.name} (${d.me.email}). « Je », « mes », « moi » désignent cet utilisateur.`,
     section('Équipe (utilisateurs du hub)', d.users.filter((u) => u.active).map((u) => `- ${u.name} (${u.email})`)),
     section('Types de tickets', [d.lists.ticketTypes.join(', ')]),
+    section('Domaines de projet', [d.lists.projectDomains.join(', ')]),
     section('Mes projets (chef de projet ou suivi)', mine.map((p) => projectLine(p, d))),
     section('Autres projets en cours', others.map((p) => projectLine(p, d))),
     closed.length ? section('Projets clos', [closed.map((p) => `${projectLink(p)} (${statusLabel(d.lists, 'project', p.status)})`).join(' ; ')]) : '',
     section(`Jalons non atteints : en retard et des ${UPCOMING_DAYS} prochains jours`, jalons),
-    section('Sprint en cours', sprintLines, '(aucun sprint en cours)'),
+    section('Sprints en cours', sprintLines, '(aucun sprint en cours)'),
     section('Mes tickets ouverts', myTickets.slice(0, 60).map((t) => ticketLine(t, d, sprints))),
     section('Tickets en retard des autres', lateOthers.slice(0, 40).map((t) => ticketLine(t, d, sprints))),
     section('Ma to-do (à faire, avec les sous-tâches)', myTodos.sort(byDue).slice(0, 80).map((t) => todoLine(t, d, name)), '(vide)'),
@@ -167,6 +187,7 @@ export function globalContext(d: AssistantData): string {
           }),
         )
       : '',
+    d.faq.length ? section('FAQ de l’équipe (questions et réponses)', [...d.faq].sort(byFaqCategory).slice(0, FAQ_MAX).map(faqLine)) : '',
   ]
     .filter(Boolean)
     .join('\n\n');

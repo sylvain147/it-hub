@@ -26,12 +26,20 @@ export interface StructuredCall<T> {
   context?: string;
   /** Données variables de l'appel. */
   input: string;
+  /** Images et PDF joints aux données variables (assistant), placés avant le texte. */
+  attachments?: LlmAttachment[];
   schema: z.ZodType<T>;
   maxTokens: number;
   effort: Effort;
   /** Délai maximal de la réponse (ms), sans nouvelle tentative : appels synchrones de l'API. */
   timeoutMs?: number;
   ctx: { user: string; cdcId: string };
+}
+
+export interface LlmAttachment {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'application/pdf';
+  /** Contenu en base64. */
+  data: string;
 }
 
 export interface LlmUsage {

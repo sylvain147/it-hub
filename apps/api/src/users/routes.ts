@@ -17,6 +17,7 @@ import {
   type Permission,
 } from '@samm/shared';
 import { requirePermission, userName } from '../auth.js';
+import { requireBoard } from '../sprints/boards.js';
 import { config } from '../config.js';
 import { body, parseBody } from '../lib/http.js';
 import { HttpError, newId, nowIso } from '../lib/util.js';
@@ -150,7 +151,7 @@ export function userRoutes() {
     await assertBackup(b.backupId, b.email);
     const now = nowIso();
     const by = userName(c);
-    const u: HubUser = { ...b, active: true, theme: DEFAULT_THEME, tools: null, createdAt: now, createdBy: by, updatedAt: now, updatedBy: by, lastSeenAt: null, invitedAt: null };
+    const u: HubUser = { ...b, active: true, theme: DEFAULT_THEME, tools: null, defaultBoardId: '', createdAt: now, createdBy: by, updatedAt: now, updatedBy: by, lastSeenAt: null, invitedAt: null };
     if (!(await users.createUser(u))) throw new HttpError(409, `${b.email} a déjà un accès au hub.`);
     if (await inviteUser(u.email, u.name)) {
       u.invitedAt = nowIso();
@@ -193,13 +194,14 @@ export async function meHandler(email: string): Promise<Me> {
   return me(await users.getUser(email));
 }
 
-/** Préférences que chacun règle pour soi (thème de couleur, outils du menu) ; aucun droit particulier. */
+/** Préférences que chacun règle pour soi (thème de couleur, outils du menu, tableau de tickets par défaut) ; aucun droit particulier. */
 export function meRoutes() {
   const r = new Hono();
   r.put('/preferences', async (c) => {
     const email = userName(c);
-    const { theme, tools } = await body(c, mePreferencesSchema);
-    await users.setUserPreferences(email, { theme, tools });
+    const { theme, tools, defaultBoardId } = await body(c, mePreferencesSchema);
+    if (defaultBoardId) await requireBoard(defaultBoardId);
+    await users.setUserPreferences(email, { theme, tools, defaultBoardId });
     return c.json(await meHandler(email));
   });
 

@@ -202,6 +202,14 @@ describe('fonds conditionnels des cartes', () => {
       'Sans ticket Desk',
     ]);
   });
+  it('colore selon le type de ticket, sans tenir compte de la casse', () => {
+    const byType: CardRule[] = [{ kind: 'type', value: 'Dev', days: 0, color: 'violet' }, { kind: 'type', value: '', days: 0, color: 'rouge' }];
+    expect(cardColor(byType, { ...base, type: 'DEV' }, today)).toBe('violet');
+    expect(cardColor(byType, { ...base, type: 'Recette' }, today)).toBeNull();
+    // Type non choisi : règle ignorée, même pour un ticket sans type.
+    expect(cardColor(byType, { ...base, type: '' }, today)).toBeNull();
+    expect(describeCardRule(byType[0]!, { project: () => '', user: () => '' })).toBe('Type : Dev');
+  });
 });
 
 describe('types de tickets', () => {

@@ -19,6 +19,25 @@ const encodeXml = (s: string) =>
     // Caractères de contrôle interdits en XML.
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 
+/** Texte d'un document Word (.docx) : un paragraphe par ligne, cellules de tableau séparées par « | ». */
+export function docxToText(bytes: Uint8Array, maxChars = 400_000): string {
+  const xml = unzipSync(bytes, { filter: (f) => f.name === 'word/document.xml' })['word/document.xml'];
+  if (!xml) throw new Error('Document Word illisible.');
+  return decodeXml(
+    strFromU8(xml)
+      .replace(/<w:tab\/>/g, '\t')
+      .replace(/<w:br\/>/g, '\n')
+      .replace(/<\/w:p>\s*<\/w:tc>/g, ' | ')
+      .replace(/<\/w:tr>/g, '\n')
+      .replace(/<\/w:p>/g, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
+    .replace(/ \| \n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, maxChars);
+}
+
 /** Convertit chaque onglet en lignes « A | B | C » (lignes vides ignorées). */
 export function xlsxToText(bytes: Uint8Array, maxChars = 400_000): { sheets: { name: string; text: string }[] } {
   const sheets: { name: string; text: string }[] = [];

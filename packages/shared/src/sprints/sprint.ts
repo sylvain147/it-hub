@@ -7,7 +7,7 @@ import type { SprintPreparation } from './preparation.js';
  * Module « Sprints » : les tickets des projets se planifient dans des sprints (ou restent au backlog), avancent sur le
  * tableau du sprint en cours, et l'assistant rédige à la demande le compte rendu ou la préparation d'un sprint.
  *
- * Un seul sprint est en cours à la fois (une seule équipe). Clore un sprint renvoie ses tickets non terminés vers le
+ * Chaque tableau (`boards.ts`) a ses sprints, dont un seul est en cours à la fois. Clore un sprint renvoie ses tickets non terminés vers le
  * sprint suivant ou le backlog.
  */
 
@@ -27,12 +27,18 @@ export const sprintInputSchema = z.object({
 export type SprintInput = z.input<typeof sprintInputSchema>;
 
 /** Création : nom (« Sprint 4 » par défaut) et dates (à la suite du dernier sprint) facultatifs. */
-export const createSprintBody = sprintInputSchema.extend({ name: z.string().trim().max(100).default('') });
+export const createSprintBody = sprintInputSchema.extend({
+  name: z.string().trim().max(100).default(''),
+  /** Tableau du sprint ; vide : le tableau principal. */
+  boardId: z.string().trim().max(40).default(''),
+});
 export type CreateSprintBody = z.input<typeof createSprintBody>;
 
 export interface Sprint extends z.infer<typeof sprintInputSchema> {
-  /** Numéro du sprint (1, 2, 3…). */
+  /** Numéro du sprint (1, 2, 3…), unique tous tableaux confondus. */
   id: number;
+  /** Tableau du sprint (ceux d'avant les tableaux : le tableau principal). */
+  boardId: string;
   state: SprintState;
   /** Instants de lancement et de clôture (ISO). */
   startedAt: string | null;
@@ -91,9 +97,11 @@ export interface SprintListItem extends Sprint {
 }
 
 export interface SprintsOverview {
+  /** Tableau affiché. */
+  boardId: string;
   /** En cours, puis à venir (dans l'ordre), puis clos du plus récent au plus ancien. */
   sprints: SprintListItem[];
-  /** Tickets des sprints en cours et à venir, et tickets ouverts du backlog. */
+  /** Tickets du tableau : ceux des sprints en cours et à venir, et les tickets ouverts de son backlog. */
   tickets: TicketView[];
 }
 

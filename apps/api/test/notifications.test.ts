@@ -80,10 +80,19 @@ describe('notifications Teams', () => {
     expect(card(sent[2]).body[0].text).toBe('🏁 Sprint Teams est clôturé');
   });
 
+  it('signale une nouvelle entrée de la FAQ, et une question encore sans réponse', async () => {
+    sent.length = 0;
+    await env.call('POST', '/faq', { question: 'Où trouver le VPN ?', category: 'Réseau' }, MEMBRE);
+    await env.call('POST', '/faq', { question: 'Comment ouvrir un ticket Desk ?', answer: 'Depuis le portail.' }, MEMBRE);
+    expect(card(sent[0]).body[0].text).toBe('❓ Nouvelle question dans la FAQ, sans réponse : Où trouver le VPN ?');
+    expect(card(sent[0]).body[1].facts).toEqual([{ title: 'Thème', value: 'Réseau' }, { title: 'Ajoutée par', value: 'Chloé Durand' }]);
+    expect(card(sent[1]).body[0].text).toBe('❓ Nouvelle entrée dans la FAQ : Comment ouvrir un ticket Desk ?');
+  });
+
   it('respecte les notifications désactivées', async () => {
     sent.length = 0;
     const res = await env.call('PUT', '/notifications/teams', { events: { idee_ajoutee: false } }, ADMIN);
-    expect(res.json.events).toEqual({ sprint_demarre: true, sprint_clos: true, idee_ajoutee: false, mise_en_prod: true });
+    expect(res.json.events).toEqual({ sprint_demarre: true, sprint_clos: true, idee_ajoutee: false, faq_ajoutee: true, mise_en_prod: true });
     expect(res.json.connected).toBe(true); // l'adresse est gardée
     await env.call('POST', '/idees', { title: 'Sans notification' }, MEMBRE);
     expect(sent).toHaveLength(0);

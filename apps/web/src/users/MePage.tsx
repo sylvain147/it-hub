@@ -9,6 +9,7 @@ import { ringClass, useRingHolder } from '../anneau/Anneau';
 import { UserSelect, useUsers } from './context';
 import type { Perimeter } from '@samm/shared';
 import { ThemeModal } from './ThemeModal';
+import { useBoards, useDefaultBoardId } from '../sprints/boards';
 
 const move = <T,>(xs: T[], i: number, d: -1 | 1): T[] => {
   const next = [...xs];
@@ -100,6 +101,7 @@ export function MePage() {
                 </button>
               </dd>
             </div>
+            <DefaultBoard />
             <div>
               <dt>Dans le hub depuis</dt>
               <dd>{formatDateTime(me.createdAt)}</dd>
@@ -111,6 +113,40 @@ export function MePage() {
 
       <ToolsEditor />
       {theme && <ThemeModal onClose={() => setTheme(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Mon tableau de tickets par défaut : les tickets que je crée sans tableau précis (onglet d'un projet, Gandalf…) y vont ;
+ * créés depuis la page d'un tableau, ils vont dans ce tableau. Affiché seulement s'il y a plusieurs tableaux.
+ */
+function DefaultBoard() {
+  const { me, reloadMe } = useAuth();
+  const boards = useBoards();
+  const current = useDefaultBoardId(boards);
+  const [busy, setBusy] = useState(false);
+  if (!boards || boards.length < 2) return null;
+  async function choose(defaultBoardId: string) {
+    setBusy(true);
+    try {
+      await api.setPreferences({ defaultBoardId });
+      await reloadMe();
+      toast(`Vos nouveaux tickets iront dans « ${boards!.find((b) => b.id === defaultBoardId)?.name} ».`);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <dt>Tableau de tickets par défaut</dt>
+      <dd>
+        <select className="input input-sm input-auto" value={current} disabled={busy} onChange={(e) => void choose(e.target.value)} aria-label="Tableau de tickets par défaut" title={me.defaultBoardId ? undefined : 'Pas encore choisi : le tableau principal'}>
+          {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </dd>
     </div>
   );
 }
