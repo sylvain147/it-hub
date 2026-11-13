@@ -5,6 +5,8 @@ import {
   buildSprintReport,
   cardColor,
   describeCardRule,
+  formatDuration,
+  parseDuration,
   type CardRule,
   movementLabel,
   normalizeTaskRecord,
@@ -225,5 +227,31 @@ describe('types de tickets', () => {
       { type: 'Dev', title: 'Paie - Lot 2', status: 'a_faire' },
       { type: 'MEP', title: 'Paie - Lot 2', status: 'attente' },
     ]);
+  });
+});
+
+describe('durées des tickets', () => {
+  it('lit les jours (8 h) et les heures', () => {
+    expect(parseDuration('')).toBeNull();
+    expect(parseDuration('4')).toBe(4);
+    expect(parseDuration('2,5')).toBe(2.5);
+    expect(parseDuration('2d 3h')).toBe(19);
+    expect(parseDuration('2j3h')).toBe(19);
+    expect(parseDuration('1,5 j')).toBe(12);
+    expect(parseDuration('1 jour 4 heures')).toBe(12);
+    expect(parseDuration('1j 4')).toBe(12);
+    expect(parseDuration('1h30')).toBe(1.5);
+    expect(parseDuration('45min')).toBe(0.75);
+    expect(parseDuration('3 semaines')).toBeNaN();
+    expect(parseDuration('j')).toBeNaN();
+  });
+
+  it('affiche en jours et heures, relu à l’identique', () => {
+    expect(formatDuration(6)).toBe('6 h');
+    expect(formatDuration(8)).toBe('1 j');
+    expect(formatDuration(19)).toBe('2 j 3 h');
+    expect(formatDuration(9.5)).toBe('1 j 1,5 h');
+    expect(formatDuration(0)).toBe('0 h');
+    for (const h of [0.75, 6, 8, 19, 9.5, 123.25]) expect(parseDuration(formatDuration(h))).toBe(h);
   });
 });
