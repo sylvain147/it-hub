@@ -46,6 +46,7 @@ import {
   MAX_TICKET_HISTORY,
   MAX_TICKET_COMMENTS,
   ticketKey,
+  formatDuration,
   type TicketComment,
 } from '@samm/shared';
 import { config } from '../config.js';
@@ -73,6 +74,7 @@ const SK_PREFIX: Record<ProjectItemKind, string> = {
   files: 'FILE#',
   notes: 'NOTE#',
   risks: 'RISK#',
+  times: 'TIME#',
 };
 
 export const projectKeys = {
@@ -95,6 +97,7 @@ const KIND_LABELS: Record<ProjectItemKind, { one: string }> = {
   files: { one: 'le document' },
   notes: { one: 'la note' },
   risks: { one: 'le risque' },
+  times: { one: 'le temps passé' },
 };
 
 export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): string {
@@ -112,6 +115,8 @@ export function itemTitle(kind: ProjectItemKind, it: Record<string, unknown>): s
     case 'contacts':
     case 'files':
       return String(it.name);
+    case 'times':
+      return `${formatDuration(Number(it.hours))}${it.label ? ` — ${String(it.label)}` : ''}`;
   }
 }
 
@@ -141,6 +146,8 @@ interface MetaItem extends Omit<ProjectFields, 'sections' | 'chefDeProjetIds' | 
   /** Anciens champs fixes, remplacés par les sections libres (`normalizeProjectSections`) et retirés au premier enregistrement. */
   objectifs?: string;
   horsPerimetre?: string;
+  /** Ancien code du projet, retiré de la fiche. */
+  code?: string;
   activeJobId: string | null;
   activeJobAt: string | null;
   createdAt: string;
@@ -150,7 +157,7 @@ interface MetaItem extends Omit<ProjectFields, 'sections' | 'chefDeProjetIds' | 
 }
 
 function toSummary(it: MetaItem, cdcCount = 0): ProjectSummary {
-  const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, objectifs: _o, horsPerimetre: _h, ...rest } = it;
+  const { pk: _pk, sk: _sk, gsi1pk: _g, gsi1sk: _s, activeJobAt, objectifs: _o, horsPerimetre: _h, code: _code, ...rest } = it;
   const stale = it.activeJobAt && (Date.now() - Date.parse(it.activeJobAt)) / 60000 > config.staleJobMinutes;
   const { chefDeProjetId: _c, ...fiche } = rest;
   return { ...fiche, domains: it.domains ?? [], blocked: it.blocked ?? false, blockedReason: it.blockedReason ?? '', chefDeProjetIds: normalizeChefIds(it), sections: normalizeProjectSections(it), followers: it.followers ?? [], activeJobId: stale || !activeJobAt ? null : it.activeJobId, cdcCount };
@@ -316,6 +323,7 @@ function partition(all: (Record<string, unknown> & { sk: string })[]): ProjectIt
   items.jalons.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
   items.notes.sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.date || b.createdAt).localeCompare(a.date || a.createdAt) || b.createdAt.localeCompare(a.createdAt));
   for (const k of ['prestations', 'contacts', 'links', 'files', 'risks'] as const) (items[k] as ItemBase[]).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  items.times.sort((a, b) => (b.date || b.createdAt).localeCompare(a.date || a.createdAt) || b.createdAt.localeCompare(a.createdAt));
   return items;
 }
 

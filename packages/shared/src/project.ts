@@ -138,7 +138,6 @@ export type ProjectSection = z.infer<typeof projectSectionSchema>;
 
 export const projectFieldsSchema = z.object({
   name: z.string().trim().min(1, 'Le nom du projet est obligatoire').max(200),
-  code: z.string().trim().max(40).default(''),
   status: z.enum(PROJECT_STATUSES).default('cadrage'),
   priority: z.enum(PRIORITIES).default('normale'),
   health: z.enum(HEALTHS).default('vert'),
@@ -525,6 +524,21 @@ export const riskInputSchema = z.object({
   status: z.enum(RISK_STATUSES).default('ouvert'),
 });
 
+/** Temps passé sur un projet hors ticket (réunions, cadrage, suivi…). */
+export const timeInputSchema = z.object({
+  /** Jour du travail (AAAA-MM-JJ). */
+  date: isoDate.default(''),
+  /** Durée en heures (au quart d'heure). */
+  hours: z
+    .number({ message: 'Durée invalide (en heures)' })
+    .positive('La durée est obligatoire')
+    .max(10_000, 'Durée trop grande')
+    .transform((h) => Math.round(h * 4) / 4),
+  label: z.string().trim().max(300).default(''),
+  /** Qui a passé ce temps (e-mail d'un utilisateur du hub). */
+  userId: z.string().trim().max(200).default(''),
+});
+
 /** Types d'éléments rattachés à un projet, avec leur schéma de saisie. */
 export const PROJECT_ITEM_SCHEMAS = {
   tasks: taskInputSchema,
@@ -535,6 +549,7 @@ export const PROJECT_ITEM_SCHEMAS = {
   files: fileInputSchema,
   notes: noteInputSchema,
   risks: riskInputSchema,
+  times: timeInputSchema,
 } as const;
 export type ProjectItemKind = keyof typeof PROJECT_ITEM_SCHEMAS;
 export const PROJECT_ITEM_KINDS = Object.keys(PROJECT_ITEM_SCHEMAS) as ProjectItemKind[];
@@ -579,6 +594,7 @@ export type Note = z.infer<typeof noteInputSchema> &
     origin: 'manuel' | 'ia';
   };
 export type Risk = z.infer<typeof riskInputSchema> & ItemBase;
+export type TimeEntry = z.infer<typeof timeInputSchema> & ItemBase;
 
 export interface ProjectItems {
   tasks: Task[];
@@ -589,6 +605,7 @@ export interface ProjectItems {
   files: ProjectFile[];
   notes: Note[];
   risks: Risk[];
+  times: TimeEntry[];
 }
 export type ProjectItem<K extends ProjectItemKind> = ProjectItems[K][number];
 
@@ -665,7 +682,6 @@ export interface PlanningProject {
   chefDeProjetIds: string[];
   followers: string[];
   name: string;
-  code: string;
   status: ProjectStatus;
   health: Health;
   startDate: string;
@@ -725,7 +741,14 @@ export function computeStats(items: ProjectItems, today = todayIso()): ProjectSt
   };
 }
 
-export const emptyItems = (): ProjectItems => ({ tasks: [], jalons: [], prestations: [], contacts: [], links: [], files: [], notes: [], risks: [] });
+/** Temps passé sur un projet : somme des tickets (temps passé, relevés TMA compris) et du temps saisi hors ticket. */
+export function projectSpentHours(items: Pick<ProjectItems, 'tasks' | 'times'>): { tickets: number; other: number; total: number } {
+  const tickets = items.tasks.reduce((n, t) => n + (t.spentHours ?? 0), 0);
+  const other = (items.times ?? []).reduce((n, t) => n + t.hours, 0);
+  return { tickets, other, total: tickets + other };
+}
+
+export const emptyItems = (): ProjectItems => ({ tasks: [], jalons: [], prestations: [], contacts: [], links: [], files: [], notes: [], risks: [], times: [] });
 
 // ---------------------------------------------------------------------------
 // Corps des requêtes

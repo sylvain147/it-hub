@@ -85,7 +85,7 @@ export function TicketTimes({ t }: { t: Pick<Task, 'estimatedHours' | 'spentHour
 }
 
 /** Saisie d'une durée en jours et heures (« 1j 4h », journée de 8 h ; un nombre seul est en heures) ; vide : non renseignée. */
-function HoursInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+export function HoursInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   const hours = parseDuration(value);
   const invalid = hours != null && Number.isNaN(hours);
   return (
@@ -99,7 +99,7 @@ function HoursInput({ value, onChange, label }: { value: string; onChange: (v: s
         placeholder="ex. 1j 4h"
         title="Jours (j ou d, journée de 8 h) et heures (h) : 1j 4h, 2d, 1,5j, 3h30. Un nombre seul est en heures."
       />
-      {invalid ? <span className="small due-late">Durée illisible (ex. 1j 4h)</span> : hours != null && /[jd]/i.test(value) && <span className="muted small">= {fmtHours(hours)}</span>}
+      {invalid ? <span className="small due-late">Durée illisible (ex. 1j 4h)</span> : hours != null && /[jdm]/i.test(value) && fmtHours(hours) !== value.trim() && <span className="muted small">= {fmtHours(hours)}</span>}
     </span>
   );
 }
