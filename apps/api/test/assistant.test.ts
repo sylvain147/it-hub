@@ -32,7 +32,7 @@ describe('assistant (chat global)', () => {
   let erp = '';
 
   it('répond à partir des données du hub, sans envoyer celles des autres', async () => {
-    erp = (await env.call('POST', '/projects', { name: 'Migration ERP', code: 'ERP', targetDate: '2027-06-30' }, ADMIN)).json.id;
+    erp = (await env.call('POST', '/projects', { name: 'Migration ERP', targetDate: '2027-06-30' }, ADMIN)).json.id;
     await env.call('POST', '/projects', { name: 'Portail fournisseurs' }, ADMIN);
     await env.call('POST', '/users', { email: MEMBRE, name: 'Chloé Durand' }, ADMIN);
     await env.call('PUT', `/projects/${erp}/suivi`, { follow: true }, MEMBRE);
@@ -227,9 +227,9 @@ describe('assistant (chat global)', () => {
     ]);
   });
 
-  it('reconnaît les projets par nom ou code, en mots entiers', () => {
-    const p = (id: string, name: string, code = '') => ({ id, name, code }) as any;
-    const projects = [p('1', 'ERP', ''), p('2', 'ERP Paie', 'PAIE'), p('3', 'Portail', 'PRT'), p('4', 'BI')];
+  it('reconnaît les projets par leur nom, en mots entiers', () => {
+    const p = (id: string, name: string) => ({ id, name }) as any;
+    const projects = [p('1', 'ERP'), p('2', 'ERP Paie'), p('3', 'Portail'), p('4', 'BI')];
     expect(mentionedProjects(projects, 'Point sur ERP paie et le portail', []).map((x) => x.id)).toEqual(['2', '3']);
     expect(mentionedProjects(projects, 'Les échéances de l’ERP ?', []).map((x) => x.id)).toEqual(['1']);
     expect(mentionedProjects(projects, 'support prtg', []).map((x) => x.id)).toEqual([]);

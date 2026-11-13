@@ -16,7 +16,6 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
   const { email } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState(initialName);
-  const [code, setCode] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('cadrage');
   const [priority, setPriority] = useState<Priority>('normale');
   const [chefs, setChefs] = useState([email]);
@@ -32,7 +31,7 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
     setBusy(true);
     setError(null);
     try {
-      const p = await api.createProject({ name, code, status, priority, chefDeProjetIds: chefs, demandeur, domains, targetDate, description });
+      const p = await api.createProject({ name, status, priority, chefDeProjetIds: chefs, demandeur, domains, targetDate, description });
       if (onCreated) onCreated(p);
       else navigate(`/projets/${p.id}`);
     } catch (e) {
@@ -60,10 +59,6 @@ export function NewProjectDialog({ initialName = '', onClose, onCreated }: { ini
         <label className="field span-2">
           <span>Nom du projet *</span>
           <input className="input input-title" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ex. Migration de l’offre Coliéco" onKeyDown={(e) => e.key === 'Enter' && name.trim() && void create()} />
-        </label>
-        <label className="field">
-          <span>Code</span>
-          <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. TC-300" />
         </label>
         <label className="field">
           <span>Date de fin visée</span>

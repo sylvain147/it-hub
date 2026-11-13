@@ -7,8 +7,10 @@ import {
   PRIORITIES,
   PRIORITY_LABELS,
   isJalonLate,
+  formatDuration,
   isTaskOverdue,
   projectFieldsSchema,
+  projectSpentHours,
   riskScore,
   type Health,
   type ProjectDetail,
@@ -22,6 +24,7 @@ import { hasPending } from './ProjectPage';
 import { StatusOptions, useSettings } from '../settings/context';
 import { UserChoices, useUsers } from '../users/context';
 import { ringClass, useRingHolder } from '../anneau/Anneau';
+import { TimeDialog } from './TimeDialog';
 
 export function fieldsOf(p: ProjectDetail): ProjectFields {
   return projectFieldsSchema.parse(p);
@@ -32,6 +35,7 @@ export function OverviewTab() {
   const { name } = useUsers();
   const [editing, setEditing] = useState(false);
   const [weather, setWeather] = useState(false);
+  const [times, setTimes] = useState(false);
   const [allActivity, setAllActivity] = useState(false);
   const s = p.stats;
   const today = new Date().toISOString().slice(0, 10);
@@ -47,6 +51,7 @@ export function OverviewTab() {
   ].sort((a, b) => a.date.localeCompare(b.date));
   const progress = s.openTasks + s.doneTasks ? Math.round((s.doneTasks / (s.openTasks + s.doneTasks)) * 100) : null;
   const budgetRef = p.budgetPrevu ?? null;
+  const spent = projectSpentHours(p.items);
 
   if (editing) return <FicheForm onDone={() => setEditing(false)} />;
 
@@ -151,6 +156,15 @@ export function OverviewTab() {
           )}
         </section>
 
+        <section className="card stat-card" onClick={() => setTimes(true)} role="button" title="Voir le détail et saisir du temps hors ticket">
+          <div className="stat-label">Temps passé</div>
+          <div className="stat-value">{formatDuration(spent.total)}</div>
+          <div className="muted small">
+            {formatDuration(spent.tickets)} sur les tickets{spent.other > 0 && <> · {formatDuration(spent.other)} hors ticket</>}
+          </div>
+          <div className="small"><span className="btn-link">+ Saisir du temps hors ticket</span></div>
+        </section>
+
         <section className="card stat-card" onClick={() => goTab('planning')} role="button">
           <div className="stat-label">Prochain jalon</div>
           {s.nextJalon ? (
@@ -208,6 +222,7 @@ export function OverviewTab() {
         </section>
       </aside>
       {weather && <WeatherDialog onClose={() => setWeather(false)} />}
+      {times && <TimeDialog onClose={() => setTimes(false)} />}
     </div>
   );
 }
@@ -304,7 +319,7 @@ function FicheForm({ onDone }: { onDone: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      const fields = { ...f, blockedReason: f.blocked ? f.blockedReason : '', tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))].slice(0, 20) };
+      const fields = { ...f, tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))].slice(0, 20) };
       setProject(await api.updateProject(project.id, project.rev, fields));
       toast('Fiche enregistrée.');
       const change = cdcChange(project, fields);
@@ -342,10 +357,6 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <input className="input input-title" value={f.name} onChange={(e) => set('name', e.target.value)} />
         </label>
         <label className="field">
-          <span>Code</span>
-          <input className="input" value={f.code} onChange={(e) => set('code', e.target.value)} placeholder="ex. TC-300" />
-        </label>
-        <label className="field">
           <span>Étiquettes <span className="muted">(séparées par des virgules)</span></span>
           <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="ex. logistique, ERP" />
         </label>
@@ -371,14 +382,6 @@ function FicheForm({ onDone }: { onDone: () => void }) {
           <span>Commentaire météo</span>
           <input className="input" value={f.healthComment} onChange={(e) => set('healthComment', e.target.value)} />
         </label>
-        <div className="field span-2">
-          <label className="check">
-            <input type="checkbox" checked={f.blocked} onChange={(e) => set('blocked', e.target.checked)} /> ⛔ Projet bloqué
-          </label>
-          {f.blocked && (
-            <input className="input" value={f.blockedReason} maxLength={500} onChange={(e) => set('blockedReason', e.target.value)} placeholder="Raison du blocage, ex. En attente de la validation du devis par la direction" aria-label="Raison du blocage" />
-          )}
-        </div>
         <div className="field span-2">
           <span>Chefs de projet <span className="muted">(un ou plusieurs, ex. un pour l’ERP et un pour le Web)</span></span>
           {!f.chefDeProjetIds.length && f.chefDeProjet && <span className="muted small">Actuellement : {f.chefDeProjet} (hors annuaire)</span>}

@@ -91,7 +91,7 @@ const d = (s: string) => s || '?';
 
 function ficheLines(p: ProjectSummary, lists: ListSettings): string[] {
   return [
-    `Projet : ${p.name}${p.code ? ` (${p.code})` : ''}`,
+    `Projet : ${p.name}`,
     `Statut : ${statusLabel(lists, 'project', p.status)} · priorité ${p.priority} · météo actuelle : ${HEALTH_LABELS[p.health]}${p.healthComment ? ` (${p.healthComment})` : ''}`,
     p.demandeur && `Demandeur : ${p.demandeur}`,
     p.chefDeProjet && `${p.chefDeProjetIds.length > 1 ? 'Chefs de projet' : 'Chef de projet'} : ${p.chefDeProjet}`,

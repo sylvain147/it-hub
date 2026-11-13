@@ -75,7 +75,7 @@ const projectLink = (p: Pick<ProjectSummary, 'id' | 'name'>) => `[${p.name}](/pr
 function projectLine(p: ProjectSummary, d: AssistantData): string {
   const s = p.stats;
   return [
-    `- ${projectLink(p)}${p.code ? ` (${p.code})` : ''}`,
+    `- ${projectLink(p)}`,
     statusLabel(d.lists, 'project', p.status),
     p.blocked && `BLOQUÉ${p.blockedReason ? ` (${cut(p.blockedReason, 160)})` : ''}`,
     p.domains?.length && `domaines : ${p.domains.join(', ')}`,
@@ -204,12 +204,12 @@ export function normalizeText(s: string): string {
 }
 
 /**
- * Projets cités (nom ou code, en mots entiers) dans la question, sinon dans les derniers échanges (question de relance :
+ * Projets cités (nom, en mots entiers) dans la question, sinon dans les derniers échanges (question de relance :
  * « et ses risques ? »). Au plus `max`, les plus longs noms d'abord (« ERP Paie » plutôt que « ERP »).
  */
 export function mentionedProjects(projects: ProjectSummary[], question: string, history: AssistantMessage[], max = 3): ProjectSummary[] {
   const keys = projects
-    .flatMap((p) => [p.name, p.code].filter((k) => normalizeText(k).trim().length >= 3).map((k) => ({ p, key: normalizeText(k) })))
+    .flatMap((p) => [p.name].filter((k) => normalizeText(k).trim().length >= 3).map((k) => ({ p, key: normalizeText(k) })))
     .sort((a, b) => b.key.length - a.key.length);
   const find = (text: string) => {
     let t = normalizeText(text);

@@ -20,7 +20,7 @@ export function ContactsTab() {
         <button className="btn btn-primary" onClick={() => setEditing('new')}>+ Ajouter un intervenant</button>
         {emails.length > 1 && (
           <>
-            <a className="btn" href={`mailto:${emails.join(',')}?subject=${encodeURIComponent(`[${project.code || project.name}] `)}`}>✉️ Écrire à tous</a>
+            <a className="btn" href={`mailto:${emails.join(',')}?subject=${encodeURIComponent(`[${project.name}] `)}`}>✉️ Écrire à tous</a>
             <button
               className="btn"
               onClick={() => {

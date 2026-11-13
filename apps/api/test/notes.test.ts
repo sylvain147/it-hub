@@ -15,7 +15,7 @@ describe('notes en vrac et frise des jalons', () => {
   let otherId = '';
 
   it('crée des notes personnelles, rattachées ou non à un projet', async () => {
-    projectId = (await env.call('POST', '/projects', { name: 'Migration ERP', code: 'ERP' }, ADMIN)).json.id;
+    projectId = (await env.call('POST', '/projects', { name: 'Migration ERP' }, ADMIN)).json.id;
     await env.call('POST', '/users', { email: MEMBRE, name: 'Chloé Durand' }, ADMIN);
 
     expect((await env.call('POST', '/notes', { title: '', content: '  ' }, MEMBRE)).status).toBe(400);
@@ -105,7 +105,7 @@ describe('notes en vrac et frise des jalons', () => {
     const { json } = await env.call('GET', '/projects/jalons', undefined, MEMBRE);
     expect(json).toHaveLength(2);
     const erp = json.find((p: any) => p.id === projectId);
-    expect(erp).toMatchObject({ name: 'Migration ERP', code: 'ERP', status: 'cadrage' });
+    expect(erp).toMatchObject({ name: 'Migration ERP', status: 'cadrage' });
     expect(erp.jalons.map((j: any) => j.label)).toEqual(['Recette']);
     const portail = json.find((p: any) => p.id === second);
     expect(portail).toMatchObject({ startDate: '2026-09-01', targetDate: '2027-03-31' });
