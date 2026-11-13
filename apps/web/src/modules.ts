@@ -63,6 +63,14 @@ export const MODULES: HubModule[] = [
     section: 'quotidien',
   },
   {
+    id: 'faq',
+    title: 'FAQ',
+    description: 'Les questions qui reviennent et leurs réponses, rangées par thème. Chacun ajoute une question, même sans réponse, et complète celles des autres.',
+    path: '/faq',
+    icon: '❓',
+    section: 'quotidien',
+  },
+  {
     id: 'planning',
     title: 'Planning',
     description: 'Les jalons de tous les projets sur une même frise : ce qui arrive, ce qui glisse, ce qui est en retard.',

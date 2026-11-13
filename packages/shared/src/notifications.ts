@@ -9,12 +9,13 @@ import { z } from 'zod';
  */
 
 /** Évènements qui peuvent être envoyés sur Teams (chacun s'active à part). */
-export const NOTIFICATION_EVENTS = ['sprint_demarre', 'sprint_clos', 'idee_ajoutee', 'mise_en_prod'] as const;
+export const NOTIFICATION_EVENTS = ['sprint_demarre', 'sprint_clos', 'idee_ajoutee', 'faq_ajoutee', 'mise_en_prod'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, { title: string; hint: string }> = {
   sprint_demarre: { title: 'Sprint démarré', hint: 'Nom, dates et objectif du sprint qui commence.' },
   sprint_clos: { title: 'Sprint clôturé', hint: 'Nom du sprint et nombre de tickets non terminés reportés.' },
   idee_ajoutee: { title: 'Nouvelle idée d’amélioration', hint: 'Intitulé, domaine et auteur de l’idée.' },
+  faq_ajoutee: { title: 'Nouvelle entrée de la FAQ', hint: 'Question, thème et auteur ; signale une question encore sans réponse.' },
   mise_en_prod: { title: 'Mise en production', hint: 'Nouvelle version de Hobbit en ligne, avec son patch note (nouveautés depuis la précédente).' },
 };
 

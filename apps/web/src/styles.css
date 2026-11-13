@@ -1200,6 +1200,18 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .idea-domains { display: flex; flex-wrap: wrap; gap: 6px; }
 .idea-chip { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; font: inherit; font-size: 13px; }
 .idea-chip:hover { border-color: var(--blue); }
+.faq-search { flex: 1 1 320px; }
+.faq-group { margin-bottom: 18px; }
+.faq-group h2 { font-size: 15px; margin: 0 0 8px; }
+.faq-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.faq-item { background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.faq-item.open { box-shadow: var(--shadow); }
+.faq-item.faq-target { border-color: var(--blue); }
+.faq-question { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border: none; background: none; text-align: left; font: inherit; font-weight: 600; cursor: pointer; color: var(--ink); }
+.faq-q { flex: 1; }
+.faq-caret { color: var(--muted); width: 12px; }
+.faq-answer { padding: 0 14px 10px 34px; }
+.faq-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .idea-chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
 .idea-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .idea-card { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: start; background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
