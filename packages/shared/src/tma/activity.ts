@@ -70,12 +70,31 @@ export function allocateHours(comment: string, hours: number): { tickets: { id: 
   });
   const total = [...comment.matchAll(DURATION)].reduce((n, m) => n + durationHours(m), 0);
   if (allTimed && total > 0) {
-    const tickets = ids.map((id) => ({ id, hours: round2((hours * own.get(id)!) / total) }));
-    return { tickets, otherHours: round2(hours - tickets.reduce((n, t) => n + t.hours, 0)) };
+    const timed = ids.reduce((n, id) => n + own.get(id)!, 0);
+    const ticketHours = Math.min(hours, round2((hours * timed) / total));
+    const parts = splitHours(ticketHours, ids.map((id) => own.get(id)!));
+    return { tickets: ids.map((id, i) => ({ id, hours: parts[i]! })), otherHours: round2(hours - ticketHours) };
   }
-  const share = hours / ids.length;
-  const tickets = ids.map((id) => ({ id, hours: round2(share) }));
-  return { tickets, otherHours: 0 };
+  const parts = splitHours(hours, ids.map(() => 1));
+  return { tickets: ids.map((id, i) => ({ id, hours: parts[i]! })), otherHours: 0 };
+}
+
+/**
+ * Partage des heures au prorata des poids, au centième près, sans que la somme des parts arrondies
+ * dépasse le total (sinon les heures hors ticket deviendraient négatives : 2 h sur 3 tickets ≠ 3 × 0,67 h).
+ */
+function splitHours(hours: number, weights: number[]): number[] {
+  const cents = Math.round(hours * 100);
+  const sum = weights.reduce((n, w) => n + w, 0);
+  const exact = weights.map((w) => (cents * w) / sum);
+  const parts = exact.map(Math.floor);
+  let rest = cents - parts.reduce((n, c) => n + c, 0);
+  // Les centimes restants vont aux plus grosses parties décimales.
+  for (const i of exact.map((e, i) => i).sort((a, b) => exact[b]! - parts[b]! - (exact[a]! - parts[a]!))) {
+    if (rest-- <= 0) break;
+    parts[i]!++;
+  }
+  return parts.map((c) => c / 100);
 }
 
 const norm = (v: CellValue) =>
