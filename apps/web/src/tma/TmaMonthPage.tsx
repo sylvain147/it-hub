@@ -50,7 +50,7 @@ export function TmaMonthPage() {
   }
 
   async function remove() {
-    if (!confirm(`Supprimer le relevé de ${monthLabel(month)} ? Vous pourrez le réimporter à partir du fichier Excel.`)) return;
+    if (!confirm(`Supprimer le relevé de ${monthLabel(month)} ? Vous pourrez le réimporter à partir du fichier du prestataire.`)) return;
     try {
       await api.deleteTmaMonth(month);
       navigate('/tma');

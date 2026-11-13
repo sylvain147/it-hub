@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { decodeFile, guessEncoding, monthLabel, parseDeskExport, parseTmaWorkbook, unknownTmaPeople, type DeskImport, type TmaImport } from '@samm/shared';
+import { decodeFile, guessEncoding, monthLabel, parseDeskExport, parseTmaPdf, parseTmaWorkbook, unknownTmaPeople, type DeskImport, type TmaImport } from '@samm/shared';
 import { api } from '../api';
 import { useJobPolling, useLoad } from '../hooks';
 import { EmptyState, ErrorBox, Modal, Spinner, formatDate, formatDateTime, shortUser, toast } from '../components/ui';
 import { useSettings } from '../settings/context';
 import { fmtH, fmtN } from './common';
+import { readPdfText } from './pdf';
 import { ThemeProposalCard } from './ThemeProposalCard';
 
 /** Tickets envoyés par requête lors d'un import Desk. */
@@ -36,12 +37,12 @@ export function TmaHome() {
     try {
       // Fichier lu et masqué sur ce poste : seules les colonnes utiles partiront au serveur.
       const bytes = new Uint8Array(await file.arrayBuffer());
-      if (/\.xlsx$/i.test(file.name)) {
-        const tma = parseTmaWorkbook(bytes);
+      if (/\.(xlsx|pdf)$/i.test(file.name)) {
+        const tma = /\.pdf$/i.test(file.name) ? parseTmaPdf(await readPdfText(bytes)) : parseTmaWorkbook(bytes);
         setPending({ kind: 'tma', fileName: file.name, data: tma, month: tma.month });
       } else if (/\.(csv|txt)$/i.test(file.name)) {
         setPending({ kind: 'desk', fileName: file.name, data: parseDeskExport(decodeFile(bytes, guessEncoding(bytes)).text) });
-      } else toast('Format non pris en charge : export Desk en CSV, ou relevé TMA en Excel (.xlsx).', 'error');
+      } else toast('Format non pris en charge : export Desk en CSV, ou relevé TMA en Excel (.xlsx) ou en PDF.', 'error');
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -106,9 +107,9 @@ export function TmaHome() {
           void open(e.dataTransfer.files);
         }}
       >
-        <input type="file" hidden accept=".csv,.txt,.xlsx" onChange={(e) => e.target.files && void open(e.target.files)} />
+        <input type="file" hidden accept=".csv,.txt,.xlsx,.pdf" onChange={(e) => e.target.files && void open(e.target.files)} />
         <div className="dropzone-icon">📥</div>
-        <strong>Déposez un export de tickets Desk (CSV) ou le relevé TMA du mois (Excel)</strong>
+        <strong>Déposez un export de tickets Desk (CSV) ou le relevé TMA du mois (Excel ou PDF)</strong>
         <span className="muted small">
           Le fichier est lu sur votre poste : seules les colonnes utiles sont envoyées, après masquage des données personnelles (noms, e-mails, téléphones,
           numéros de client, de commande et de chèque).
@@ -122,7 +123,7 @@ export function TmaHome() {
         <>
           <h2 className="section-h">Relevés mensuels du prestataire</h2>
           {!data.months.length ? (
-            <EmptyState>Aucun relevé importé. Déposez le fichier Excel envoyé chaque mois par le prestataire (ex. « TMA SEPTEMBRE.xlsx »).</EmptyState>
+            <EmptyState>Aucun relevé importé. Déposez le fichier envoyé chaque mois par le prestataire, en Excel ou en PDF (ex. « TMA SEPTEMBRE.xlsx »).</EmptyState>
           ) : (
             <div className="table-wrap">
               <table className="table">
