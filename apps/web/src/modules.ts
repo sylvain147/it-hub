@@ -94,6 +94,14 @@ export const MODULES: HubModule[] = [
     icon: '⏱️',
     section: 'outils',
   },
+  {
+    id: 'patch',
+    title: 'Patch management',
+    description: 'Les tests à faire après chaque patch des serveurs, et leur résultat (OK, KO) à chaque session, en production comme en testing.',
+    path: '/patch',
+    icon: '🔧',
+    section: 'outils',
+  },
 ];
 
 /** Outils du hub que chacun peut mettre dans sa section « Outils ». */
