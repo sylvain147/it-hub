@@ -250,6 +250,9 @@ const hours = z
   .nullable()
   .default(null);
 
+/** Tableau principal (`sprints/boards.ts`) : celui des tickets et sprints d'avant les tableaux. */
+export const DEFAULT_BOARD_ID = 'principal';
+
 export const taskInputSchema = z.object({
   title: z.string().trim().min(1, 'L’intitulé est obligatoire').max(300),
   /** Type du ticket (Cadrage, Dev…, parmi les `ticketTypes` du paramétrage), facultatif ; vide : aucun. */
@@ -258,6 +261,11 @@ export const taskInputSchema = z.object({
   status: z.enum(TICKET_STATUSES).default('a_faire'),
   priority: z.enum(PRIORITIES).default('normale'),
   sprintId: z.number().int().positive().nullable().default(null),
+  /**
+   * Tableau du ticket (`Board`). Vide à la création : celui du sprint choisi, sinon le tableau par défaut de qui le crée ;
+   * le serveur le garde cohérent avec le sprint (`placeTicket`).
+   */
+  boardId: z.string().trim().max(40).default(''),
   /** Utilisateur du hub responsable (e-mail). Vide : personne extérieure saisie en texte (ou ticket antérieur aux utilisateurs). */
   assigneeId: z.string().trim().toLowerCase().max(200).default(''),
   /** Nom du responsable, recopié de l'annuaire par le serveur quand `assigneeId` est renseigné. */
@@ -610,7 +618,7 @@ const LEGACY_STATUS: Record<string, TicketStatus> = { fait: 'termine', bloque: '
  * Ticket enregistré avant les sprints (tâche à cocher `done`, ou plus ancienne avec un statut « à faire / en cours /
  * bloqué / fait » et une priorité) : le statut est déduit, l'historique et le sprint sont vides.
  */
-export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'title' | 'type' | 'status' | 'done' | 'priority' | 'sprintId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours' | 'comments'> {
+export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): T & Pick<Task, 'title' | 'type' | 'status' | 'done' | 'priority' | 'sprintId' | 'boardId' | 'number' | 'statusChanges' | 'sprintChanges' | 'deskId' | 'estimatedHours' | 'spentHours' | 'tmaHours' | 'comments'> {
   const { priority: p, ...rest } = raw as T & { priority?: unknown };
   // Tickets d'avant le champ « type » : le type était le préfixe du titre (« [DEV] - Nom du projet »).
   const legacy = typeof raw.type === 'string' ? null : /^\[([^\]]+)\]\s*-\s*/.exec(String(raw.title ?? ''));
@@ -623,6 +631,8 @@ export function normalizeTaskRecord<T extends Record<string, unknown>>(raw: T): 
     status,
     done: status === 'termine',
     sprintId: typeof raw.sprintId === 'number' ? raw.sprintId : null,
+    // Tickets d'avant les tableaux : tableau principal.
+    boardId: typeof raw.boardId === 'string' && raw.boardId ? raw.boardId : DEFAULT_BOARD_ID,
     number: typeof raw.number === 'number' ? raw.number : 0,
     statusChanges: Array.isArray(raw.statusChanges) ? (raw.statusChanges as StatusChange[]) : [],
     sprintChanges: Array.isArray(raw.sprintChanges) ? (raw.sprintChanges as SprintChange[]) : [],

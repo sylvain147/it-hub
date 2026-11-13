@@ -19,6 +19,7 @@ export * from './sprints/sprint.js';
 export * from './sprints/report.js';
 export * from './sprints/preparation.js';
 export * from './sprints/cards.js';
+export * from './sprints/boards.js';
 export * from './users.js';
 export * from './feedback.js';
 export * from './notes.js';

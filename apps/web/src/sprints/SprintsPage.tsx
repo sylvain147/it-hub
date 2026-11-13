@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { byTicketPriority, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
+import { byTicketPriority, type Board, type CardRule, cardColor, describeCardRule, initials, isCardRuleComplete, isPastSprint, parisDay, shortDay, ticketKey, TICKET_STATUSES, type Sprint, type SprintListItem, type SprintsOverview, type TicketStatus, type TicketView } from '@samm/shared';
 import { api, PROJECT_CHANGED } from '../api';
 import { useAuth } from '../auth';
 import { useUsers } from '../users/context';
@@ -13,6 +13,7 @@ import { MyProjectsCheck, myProjectIds, useMyProjectsFilter } from '../projects/
 import { AllTickets } from './AllTickets';
 import { PlanProjectBar, sprintLabel, TicketLine, TicketModal, TicketTimes, TicketTypeBadge, type TicketRow } from './tickets';
 import { ringClass, useRingHolder } from '../anneau/Anneau';
+import { useBoards, useDefaultBoardId } from './boards';
 
 const STATE_BADGES: Record<Sprint['state'], string> = { future: 'badge', active: 'badge badge-warn', closed: 'badge badge-ok' };
 const STATE_LABELS: Record<Sprint['state'], string> = { future: 'À venir', active: 'En cours', closed: 'Clos' };
@@ -37,13 +38,27 @@ async function attempt(fn: () => Promise<unknown>, done?: string) {
 
 /**
  * Page « Tickets » : onglet « Sprints » (tableau du sprint en cours, planification des sprints à venir depuis le backlog,
- * sprints clos) et onglet « Tous les tickets » (liste avec recherche, `?onglet=liste`).
+ * sprints clos) et onglet « Tous les tickets » (liste avec recherche, `?onglet=liste`). Avec plusieurs tableaux, on
+ * choisit le tableau affiché (`?tableau=<id>`, par défaut le mien) : ses sprints, son backlog, ses règles d'affichage ;
+ * un ticket créé ici va dans ce tableau.
  */
 export function SprintsPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('onglet') === 'liste' ? 'liste' : 'sprints';
-  const data = useLoad(() => api.sprints(), []);
-  const { email } = useAuth();
+  const boards = useBoards();
+  const myBoard = useDefaultBoardId(boards);
+  const board = boards?.find((b) => b.id === params.get('tableau')) ?? boards?.find((b) => b.id === myBoard) ?? null;
+  const boardId = board?.id ?? '';
+  const data = useLoad(() => (boardId ? api.sprints(boardId) : Promise.resolve(null)), [boardId]);
+  const go = (next: { onglet?: string; tableau?: string }) => {
+    const p: Record<string, string> = {};
+    const onglet = 'onglet' in next ? next.onglet : tab === 'liste' ? 'liste' : undefined;
+    const tableau = next.tableau ?? boardId;
+    if (onglet) p.onglet = onglet;
+    if (tableau && tableau !== myBoard) p.tableau = tableau;
+    setParams(p, { replace: true });
+  };
+  const { email, me } = useAuth();
   const projects = useLoad(() => api.listProjects(), []);
   const [mine, setMine] = useMyProjectsFilter();
   const mineIds = useMemo(() => myProjectIds(projects.data, email), [projects.data, email]);
@@ -52,6 +67,8 @@ export function SprintsPage() {
   const [closing, setClosing] = useState<{ sprint: SprintListItem; past: boolean } | null>(null);
   // « Mes projets » : seuls les tickets de mes projets (chef de projet ou suivis) sont affichés.
   const o = useMemo(() => (data.data && mine ? { ...data.data, tickets: data.data.tickets.filter((t) => mineIds.has(t.projectId)) } : data.data), [data.data, mine, mineIds]);
+  // Le tableau affiché vient d'être changé : on attend ses données.
+  const shown = o && o.boardId === boardId ? o : null;
   const reload = async () => {
     await data.reload();
   };
@@ -62,13 +79,13 @@ export function SprintsPage() {
     return () => window.removeEventListener(PROJECT_CHANGED, onChange);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const active = o?.sprints.find((s) => s.state === 'active');
-  const future = o?.sprints.filter((s) => s.state === 'future') ?? [];
+  const active = shown?.sprints.find((s) => s.state === 'active');
+  const future = shown?.sprints.filter((s) => s.state === 'future') ?? [];
   // Sprints à venir dont la fin est dépassée (créés après coup) : à classer comme sprints passés, pas à démarrer.
   const today = parisDay(Date.now());
   const upcoming = future.filter((s) => !isPastSprint(s, today));
-  const closed = o?.sprints.filter((s) => s.state === 'closed') ?? [];
-  const open = o ? o.sprints.filter((s) => s.state !== 'closed') : [];
+  const closed = shown?.sprints.filter((s) => s.state === 'closed') ?? [];
+  const open = shown ? shown.sprints.filter((s) => s.state !== 'closed') : [];
   const open_ = (t: TicketRow) => setEditing({ ticket: t });
 
   return (
@@ -82,25 +99,36 @@ export function SprintsPage() {
           </p>
         </div>
         <div className="actions">
-          <button className="btn" onClick={() => setSprintForm('new')}>+ Nouveau sprint</button>
-          <button className="btn btn-primary" onClick={() => setEditing({ ticket: null, sprintId: null })}>+ Nouveau ticket</button>
+          <button className="btn" disabled={!board} onClick={() => setSprintForm('new')}>+ Nouveau sprint</button>
+          <button className="btn btn-primary" disabled={!board} onClick={() => setEditing({ ticket: null, sprintId: null })}>+ Nouveau ticket</button>
         </div>
       </div>
+      {boards && (boards.length > 1 || me.permissions.manageBoards) && (
+        <div className="board-switch" role="group" aria-label="Tableau">
+          <span className="muted small">Tableau :</span>
+          {boards.map((b) => (
+            <button key={b.id} className={b.id === boardId ? 'idea-chip on' : 'idea-chip'} aria-pressed={b.id === boardId} onClick={() => go({ tableau: b.id })}>
+              {b.name}{b.id === myBoard && boards.length > 1 && <span title="Mon tableau par défaut (choisi sur ma fiche)"> ★</span>}
+            </button>
+          ))}
+          {me.permissions.manageBoards && <Link to="/parametrage?onglet=tableau" className="small">{boards.length > 1 ? 'Gérer les tableaux…' : '+ Nouveau tableau'}</Link>}
+        </div>
+      )}
       <div className="tabs tabs-page">
-        <button className={tab === 'sprints' ? 'tab active' : 'tab'} onClick={() => setParams({}, { replace: true })}>Sprints</button>
-        <button className={tab === 'liste' ? 'tab active' : 'tab'} onClick={() => setParams({ onglet: 'liste' }, { replace: true })}>Tous les tickets</button>
+        <button className={tab === 'sprints' ? 'tab active' : 'tab'} onClick={() => go({ onglet: undefined })}>Sprints</button>
+        <button className={tab === 'liste' ? 'tab active' : 'tab'} onClick={() => go({ onglet: 'liste' })}>Tous les tickets</button>
       </div>
       <div className="filters">
         <MyProjectsCheck mine={mine} setMine={setMine} />
         {mine && <span className="muted small">Seuls les tickets des projets dont vous êtes chef de projet ou que vous suivez sont affichés.</span>}
       </div>
       <ErrorBox error={data.error} />
-      {!o && !data.error && <Spinner />}
-      {o && tab === 'liste' && <AllTickets sprints={o.sprints} open={open} mineIds={mine ? mineIds : null} onChanged={reload} />}
-      {o && tab === 'sprints' && (
+      {!shown && !data.error && <Spinner />}
+      {shown && tab === 'liste' && boards && <AllTickets boards={boards} boardId={boardId} mineIds={mine ? mineIds : null} onChanged={reload} />}
+      {shown && board && tab === 'sprints' && (
         <>
           {active ? (
-            <ActiveSprint o={o} sprint={active} onOpen={open_} onAdd={(status) => setEditing({ ticket: null, sprintId: active.id, status })} onChanged={reload} onEdit={() => setSprintForm(active)} onClose={() => setClosing({ sprint: active, past: false })} />
+            <ActiveSprint o={shown} board={board} sprint={active} onOpen={open_} onAdd={(status) => setEditing({ ticket: null, sprintId: active.id, status })} onChanged={reload} onEdit={() => setSprintForm(active)} onClose={() => setClosing({ sprint: active, past: false })} />
           ) : (
             <section className="card">
               <h2>Aucun sprint en cours</h2>
@@ -115,7 +143,7 @@ export function SprintsPage() {
             {future.map((s) => (
               <PlannedSprint
                 key={s.id}
-                o={o}
+                o={shown}
                 sprint={s}
                 open={open}
                 past={isPastSprint(s, today)}
@@ -127,7 +155,7 @@ export function SprintsPage() {
                 onChanged={reload}
               />
             ))}
-            <Backlog o={o} open={open} onOpen={open_} onAdd={() => setEditing({ ticket: null, sprintId: null })} onChanged={reload} />
+            <Backlog o={shown} open={open} onOpen={open_} onAdd={() => setEditing({ ticket: null, sprintId: null })} onChanged={reload} />
           </div>
 
           {closed.length > 0 && (
@@ -147,14 +175,14 @@ export function SprintsPage() {
         </>
       )}
       {editing && (
-        <TicketModal ticket={editing.ticket} defaults={{ sprintId: editing.sprintId, status: editing.status }} sprints={open} onClose={() => setEditing(null)} onSaved={reload} />
+        <TicketModal ticket={editing.ticket} defaults={{ sprintId: editing.sprintId, status: editing.status, boardId }} onClose={() => setEditing(null)} onSaved={reload} />
       )}
-      {sprintForm && <SprintFormModal sprint={sprintForm === 'new' ? null : sprintForm} onClose={() => setSprintForm(null)} onSaved={reload} />}
+      {sprintForm && <SprintFormModal sprint={sprintForm === 'new' ? null : sprintForm} board={board} onClose={() => setSprintForm(null)} onSaved={reload} />}
       {closing && (
         <CloseSprintModal
           sprint={closing.sprint}
           past={closing.past}
-          destinations={o?.sprints.filter((s) => s.state !== 'closed' && s.id !== closing.sprint.id && !isPastSprint(s, today)) ?? []}
+          destinations={shown?.sprints.filter((s) => s.state !== 'closed' && s.id !== closing.sprint.id && !isPastSprint(s, today)) ?? []}
           onClose={() => setClosing(null)}
           onClosed={reload}
         />
@@ -169,6 +197,7 @@ export function SprintsPage() {
 
 function ActiveSprint({
   o,
+  board,
   sprint,
   onOpen,
   onAdd,
@@ -177,6 +206,7 @@ function ActiveSprint({
   onClose,
 }: {
   o: SprintsOverview;
+  board: Board;
   sprint: SprintListItem;
   onOpen: (t: TicketRow) => void;
   onAdd: (status: TicketStatus) => void;
@@ -185,11 +215,12 @@ function ActiveSprint({
   onClose: () => void;
 }) {
   const { email } = useAuth();
-  const { options, label, lists } = useSettings();
+  const { options, label } = useSettings();
   const { name } = useUsers();
   const ringHolder = useRingHolder();
   const today = new Date().toISOString().slice(0, 10);
-  const rules = lists.cardRules.filter(isCardRuleComplete);
+  // Règles d'affichage propres au tableau.
+  const rules: CardRule[] = board.cardRules.filter(isCardRuleComplete);
   const [mine, setMine] = useState(false);
   const [projectId, setProjectId] = useState('');
   const [dragging, setDragging] = useState<string | null>(null);
@@ -235,13 +266,13 @@ function ActiveSprint({
         </label>
       </div>
       {rules.length > 0 && all.length > 0 && (
-        <div className="viz-legend card-legend" title="Paramétrage → Tableau des sprints">
+        <div className="viz-legend card-legend" title={`Paramétrage → Tableaux → ${board.name}`}>
           {rules.map((r, i) => (
             <span key={i} className="viz-legend-item">
               <span className={`sw card-bg-${r.color}`} aria-hidden /> {describeCardRule(r, { project: (id) => projects.find(([x]) => x === id)?.[1] ?? 'projet sans ticket ici', user: name })}
             </span>
           ))}
-          <Link to="/parametrage?onglet=tableau" className="small">Couleurs…</Link>
+          <Link to={`/parametrage?onglet=tableau&tableau=${board.id}`} className="small">Couleurs…</Link>
         </div>
       )}
       {!all.length ? (
@@ -458,17 +489,18 @@ function Backlog({ o, open, onOpen, onAdd, onChanged }: { o: SprintsOverview; op
 // Sprint : création, modification, clôture
 // ---------------------------------------------------------------------------
 
-export function SprintFormModal({ sprint, onClose, onSaved }: { sprint: Sprint | null; onClose: () => void; onSaved: () => Promise<void> | void }) {
+/** `board` : tableau d'un nouveau sprint. */
+export function SprintFormModal({ sprint, board, onClose, onSaved }: { sprint: Sprint | null; board?: Board | null; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [f, setF] = useState({ name: sprint?.name ?? '', goal: sprint?.goal ?? '', startDate: sprint?.startDate ?? '', endDate: sprint?.endDate ?? '' });
   const set = <K extends keyof typeof f>(k: K, v: string) => setF((x) => ({ ...x, [k]: v }));
   return (
     <ItemModal
-      title={sprint ? `Modifier « ${sprint.name} »` : 'Nouveau sprint'}
+      title={sprint ? `Modifier « ${sprint.name} »` : `Nouveau sprint${board ? ` — ${board.name}` : ''}`}
       onClose={onClose}
       canSave={!!sprint ? !!f.name.trim() : true}
       onSave={async () => {
         if (sprint) await api.updateSprint(sprint.id, f);
-        else await api.createSprint(f);
+        else await api.createSprint({ ...f, boardId: board?.id ?? '' });
         await onSaved();
       }}
     >

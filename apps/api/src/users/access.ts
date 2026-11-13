@@ -36,6 +36,7 @@ export async function currentHubUser(email: string, displayName = ''): Promise<H
         perimeters: [],
         theme: DEFAULT_THEME,
         tools: null,
+        defaultBoardId: '',
         createdAt: now,
         createdBy: key,
         updatedAt: now,

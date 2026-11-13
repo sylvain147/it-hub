@@ -29,6 +29,7 @@ import * as sprints from '../sprints/repo.js';
 import * as users from '../users/repo.js';
 import { listNotes } from '../notes/routes.js';
 import { listFaq } from '../faq/routes.js';
+import { listBoards } from '../sprints/boards.js';
 import { linkLegacyChefs } from '../users/routes.js';
 import { globalContext, mentionedProjects, type AssistantData } from './context.js';
 import { assistantSystem } from './prompts.js';
@@ -130,7 +131,7 @@ export function sanitizeActions(
 const TIMEOUT_MS = 25_000;
 
 export async function loadAssistantData(email: string): Promise<AssistantData> {
-  const [lists, all, projects, tickets, sprintItems, todos, notes, faq] = await Promise.all([
+  const [lists, all, projects, tickets, sprintItems, todos, notes, faq, boards] = await Promise.all([
     getLists(),
     users.listUsers(),
     pr.listProjects(),
@@ -139,6 +140,7 @@ export async function loadAssistantData(email: string): Promise<AssistantData> {
     users.listTodos(),
     listNotes(email),
     listFaq(),
+    listBoards(),
   ]);
   await linkLegacyChefs(projects);
   const jalons = (await Promise.all(projects.map(async (p) => (await pr.listItems(p.id, 'jalons')).map((item) => ({ projectId: p.id, item }))))).flat();
@@ -151,6 +153,7 @@ export async function loadAssistantData(email: string): Promise<AssistantData> {
     jalons,
     tickets,
     sprints: sprintItems.map(sprints.toSprint),
+    boards,
     // La to-do personnelle des autres n'est pas envoyée, même à qui a le droit de la voir.
     todos: todos.filter((t) => t.assigneeId === email || t.createdBy === email || !!t.projectId),
     notes: notes.filter((n) => !n.archived),

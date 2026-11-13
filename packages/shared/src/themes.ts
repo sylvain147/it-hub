@@ -90,5 +90,5 @@ export function themeAssistant(id: string | undefined | null): AssistantPersona 
 }
 
 /** Préférences que chacun règle pour lui-même (`PUT /api/me/preferences`) : chacune facultative, seules celles envoyées changent. */
-export const mePreferencesSchema = z.object({ theme: z.enum(THEMES).optional(), tools: userToolsSchema.optional() });
+export const mePreferencesSchema = z.object({ theme: z.enum(THEMES).optional(), tools: userToolsSchema.optional(), defaultBoardId: z.string().trim().max(40).optional() });
 export type MePreferences = z.input<typeof mePreferencesSchema>;

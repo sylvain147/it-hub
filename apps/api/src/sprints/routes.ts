@@ -1,6 +1,8 @@
 import { Hono, type Context } from 'hono';
 import {
   addDays,
+  boardOf,
+  DEFAULT_BOARD_ID,
   closeSprintBody,
   createSprintBody,
   DEFAULT_SPRINT_DAYS,
@@ -35,6 +37,7 @@ import { notify } from '../notifications/teams.js';
 import * as repo from './repo.js';
 import { JOB_OF_DOC, sprintDocCall } from './jobs.js';
 import { overview, sprintDetail, ticketLabels } from './views.js';
+import { requireBoard } from './boards.js';
 
 function idParam(c: Context): number {
   const n = Number(c.req.param('sprintId'));
@@ -85,18 +88,28 @@ const frDate = (d: string) => d.split('-').reverse().join('/');
 export function sprintRoutes() {
   const r = new Hono();
 
-  r.get('/', async (c) => c.json(await overview()));
+  /** Sprints et tickets d'un tableau (`?tableau=<id>`, par défaut le tableau principal). */
+  r.get('/', async (c) => c.json(await overview((await requireBoard(c.req.query('tableau') || DEFAULT_BOARD_ID)).id)));
 
-  /** Nouveau sprint, à la suite du dernier : « Sprint N », deux semaines. Déjà terminé (fin passée) : enregistré clos. */
+  /**
+   * Nouveau sprint d'un tableau, à la suite du dernier de ce tableau : « Sprint N » (N-ième du tableau), deux semaines.
+   * Déjà terminé (fin passée) : enregistré clos.
+   */
   r.post('/', async (c) => {
     const b = await body(c, createSprintBody);
-    const last = (await repo.listSprintItems()).filter((s) => s.state !== 'closed').at(-1);
+    const boardId = (await requireBoard(b.boardId || DEFAULT_BOARD_ID)).id;
+    const ofBoard = await repo.listSprintItems(boardId);
+    const last = ofBoard.filter((s) => s.state !== 'closed').at(-1);
     const today = parisDay(Date.now());
     const startDate = b.startDate || (last?.endDate && last.endDate >= today ? addDays(last.endDate, 1) : today);
     const endDate = b.endDate || addDays(startDate, DEFAULT_SPRINT_DAYS - 1);
     if (endDate < startDate) throw new HttpError(400, 'La fin du sprint doit suivre son début.');
-    return c.json(await repo.createSprint({ ...b, startDate, endDate }, userName(c), endDate < today), 201);
+    const name = b.name || `Sprint ${ofBoard.length + 1}`;
+    return c.json(await repo.createSprint({ ...b, name, boardId, startDate, endDate }, userName(c), endDate < today), 201);
   });
+
+  /** Sprints de tous les tableaux, par numéro (choix du sprint d'un ticket, où qu'on soit ; noms des sprints clos). */
+  r.get('/tous', async (c) => c.json((await repo.listSprintItems()).map(repo.toSprint)));
 
   /** Tous les tickets (projets et hors projet, terminés compris), du plus récent au plus ancien : liste de la page Tickets. */
   r.get('/tickets', async (c) => c.json((await pr.listTickets()).sort((a, b) => b.number - a.number)));
@@ -115,12 +128,12 @@ export function sprintRoutes() {
     return c.json(await sprintDetail(id));
   });
 
-  /** Lance un sprint à venir. Un seul sprint est en cours à la fois. */
+  /** Lance un sprint à venir. Un seul sprint est en cours à la fois dans un tableau. */
   r.post('/:sprintId/start', async (c) => {
     const id = idParam(c);
     const it = await repo.requireSprintItem(id);
     if (it.state !== 'future') throw new HttpError(400, `Le sprint « ${it.name} » est déjà ${it.state === 'active' ? 'en cours' : 'clos'}.`);
-    const current = (await repo.listSprintItems()).find((s) => s.state === 'active');
+    const current = (await repo.listSprintItems(boardOf(it))).find((s) => s.state === 'active');
     if (current) throw new HttpError(409, `Le sprint « ${current.name} » est en cours : clôturez-le d’abord.`);
     const today = parisDay(Date.now());
     const startDate = it.startDate && it.startDate <= today ? it.startDate : today;
@@ -150,7 +163,7 @@ export function sprintRoutes() {
     if (it.state !== 'active') throw new HttpError(400, `Le sprint « ${it.name} » n’est pas en cours.`);
     if (b.moveTo !== null) {
       const dest = await repo.getSprintItem(b.moveTo);
-      if (!dest || dest.state !== 'future') throw new HttpError(400, 'Choisissez un sprint à venir, ou le backlog, pour les tickets non terminés.');
+      if (!dest || dest.state !== 'future' || boardOf(dest) !== boardOf(it)) throw new HttpError(400, 'Choisissez un sprint à venir du même tableau, ou le backlog, pour les tickets non terminés.');
     }
     // La clôture précède les déplacements : les chiffres du sprint s'arrêtent avant que ses tickets ne le quittent.
     await repo.setSprintFields(id, { state: 'closed', completedAt: nowIso() }, user);
@@ -179,7 +192,7 @@ export function sprintRoutes() {
     if (!isPastSprint(it, parisDay(Date.now()))) throw new HttpError(400, `Le sprint « ${it.name} » n’est pas terminé : sa date de fin n’est pas passée.`);
     if (b.moveTo !== null) {
       const dest = await repo.getSprintItem(b.moveTo);
-      if (!dest || dest.state === 'closed' || dest.id === id) throw new HttpError(400, 'Choisissez un sprint en cours ou à venir, ou le backlog, pour les tickets non terminés.');
+      if (!dest || dest.state === 'closed' || dest.id === id || boardOf(dest) !== boardOf(it)) throw new HttpError(400, 'Choisissez un sprint en cours ou à venir du même tableau, ou le backlog, pour les tickets non terminés.');
     }
     await repo.setSprintFields(id, { state: 'closed', ...pastSprintTimes(it.startDate, it.endDate), recordedAt: nowIso() }, user);
     const open = (await pr.ticketsOfSprint(id)).filter((t) => !t.done);
@@ -194,13 +207,13 @@ export function sprintRoutes() {
     return c.json({ moved: open.length, detail: await sprintDetail(id) });
   });
 
-  /** Planifie dans le sprint tous les tickets ouverts d'un projet (ou hors projet) restés au backlog. */
+  /** Planifie dans le sprint tous les tickets ouverts d'un projet (ou hors projet) restés au backlog de son tableau. */
   r.post('/:sprintId/plan-project', async (c) => {
     const id = idParam(c);
     const b = await body(c, planProjectBody);
     const user = userName(c);
-    await repo.assertPlannable(id);
-    const backlog = (await pr.listTickets()).filter((t) => t.projectId === b.projectId && t.sprintId === null && !t.done);
+    const sprint = await repo.assertPlannable(id);
+    const backlog = (await pr.listTickets()).filter((t) => t.projectId === b.projectId && t.sprintId === null && !t.done && boardOf(t) === sprint.boardId);
     if (!backlog.length) throw new HttpError(400, 'Aucun ticket ouvert de ce projet au backlog.');
     for (const t of backlog) await pr.updateItem(t.projectId, 'tasks', t.id, { sprintId: id }, user);
     return c.json({ planned: backlog.length });

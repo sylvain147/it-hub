@@ -18,7 +18,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   membre: 'Chargé de projet',
 };
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l’équipe ; lit les retours sur l’application ; connecte le hub à Teams ; supprime toute entrée de la FAQ.',
+  admin: 'Gère les utilisateurs et leurs rôles ; voit et attribue les to-do et les notes de toute l’équipe ; lit les retours sur l’application ; connecte le hub à Teams ; crée les tableaux de tickets ; supprime toute entrée de la FAQ.',
   responsable: 'Voit les to-do de toute l’équipe et peut en attribuer à chacun ; supprime toute entrée de la FAQ.',
   membre: 'Voit sa propre to-do et y ajoute ses tâches. Les projets (et leur to-do), les tickets et les sprints restent partagés par toute l’équipe.',
 };
@@ -37,6 +37,8 @@ export const PERMISSIONS = {
   manageFeedback: ['admin'],
   /** Supprimer une entrée de la FAQ ajoutée par quelqu'un d'autre (chacun ajoute et modifie les entrées). */
   manageFaq: ['admin', 'responsable'],
+  /** Créer, renommer et supprimer les tableaux de tickets. */
+  manageBoards: ['admin'],
   /** Connecter le hub à Teams et choisir les notifications envoyées. */
   manageIntegrations: ['admin'],
 } as const satisfies Record<string, readonly Role[]>;
@@ -101,6 +103,8 @@ export interface HubUser {
   theme: ThemeId;
   /** Section « Outils » du menu, composée sur sa fiche ; null : jamais réglée (tous les outils du hub). */
   tools: UserTools | null;
+  /** Tableau de tickets par défaut : les tickets qu'il crée sans tableau précis y vont ; vide : le tableau principal. */
+  defaultBoardId: string;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

@@ -54,6 +54,7 @@ import { GSI1, ttlInDays } from '../db/schema.js';
 import { HttpError, newId, notFound, nowIso } from '../lib/util.js';
 import { getLists } from '../settings/repo.js';
 import { getSprintItem } from '../sprints/repo.js';
+import { placeTicket } from '../sprints/boards.js';
 
 const T = () => config.tableName;
 const LIST_PK = 'PROJ';
@@ -412,7 +413,8 @@ export async function createItem<K extends ProjectItemKind>(
   opts: { extra?: Record<string, unknown>; silent?: boolean; itemId?: string } = {},
 ): Promise<ProjectItem<K>> {
   const project = await ownerProject(id, kind);
-  const data = PROJECT_ITEM_SCHEMAS[kind].parse(input) as Record<string, unknown>;
+  let data = PROJECT_ITEM_SCHEMAS[kind].parse(input) as Record<string, unknown>;
+  if (kind === 'tasks') data = await placeTicket(data, null, user);
   const now = nowIso();
   const itemId = opts.itemId ?? newId();
   const extra = kind === 'tasks' ? { ...opts.extra, number: await nextCounter(TICKET_COUNTER) } : opts.extra;
@@ -439,7 +441,8 @@ export async function updateItem<K extends ProjectItemKind>(
   const before = await getStored(id, kind, itemId);
   if (!before) throw notFound('Élément');
   if (kind === 'tasks' && !before.number) extra = { ...extra, number: await nextCounter(TICKET_COUNTER) };
-  const data = PROJECT_ITEM_SCHEMAS[kind].parse({ ...stripItem<Record<string, unknown>>(before), ...patch }) as Record<string, unknown>;
+  let data = PROJECT_ITEM_SCHEMAS[kind].parse({ ...stripItem<Record<string, unknown>>(before), ...patch }) as Record<string, unknown>;
+  if (kind === 'tasks') data = await placeTicket(data, before, user);
   const base = { ...data, ...extra, id: itemId, createdAt: before.createdAt, createdBy: before.createdBy, updatedAt: nowIso(), updatedBy: user };
   const merged = { ...base, ...derived(kind, base, { ...before, ...extra }) };
   const item = { ...projectKeys.item(id, kind, itemId), projectId: id, ...merged };

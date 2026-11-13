@@ -1,5 +1,6 @@
 /** Vues du module Sprints : liste des sprints et tickets à planifier, détail chiffré d'un sprint. */
 import {
+  boardOf,
   buildSprintPreparation,
   buildSprintReport,
   NO_PROJECT_ID,
@@ -31,10 +32,13 @@ function sprintOrder(a: Sprint, b: Sprint): number {
   return rank[a.state] - rank[b.state] || (a.state === 'closed' ? byRecentClosure(a, b) : a.id - b.id);
 }
 
-export async function overview(): Promise<SprintsOverview> {
-  const [items, tickets] = await Promise.all([repo.listSprintItems(), pr.listTickets()]);
+/** Sprints d'un tableau et ses tickets à planifier. */
+export async function overview(boardId: string): Promise<SprintsOverview> {
+  const [items, all] = await Promise.all([repo.listSprintItems(boardId), pr.listTickets()]);
+  const tickets = all.filter((t) => boardOf(t) === boardId);
   const open = new Set(items.filter((s) => s.state !== 'closed').map((s) => s.id));
   return {
+    boardId,
     sprints: items
       .map((it) => {
         const of = tickets.filter((t) => t.sprintId === it.id);
@@ -58,12 +62,15 @@ function history(sprints: Sprint[], tickets: TicketView[], labels: StatusLabels,
     });
 }
 
+/** Chiffres d'un sprint ; la préparation ne regarde que son tableau (sprints, rythme, backlog). */
 export async function sprintNumbers(sprint: Sprint): Promise<{ report: SprintReport | null; preparation: SprintPreparation | null; tickets: TicketView[]; labels: StatusLabels }> {
   const [items, tickets, labels] = await Promise.all([repo.listSprintItems(), pr.listTickets(), ticketLabels()]);
   const sprints = items.map(repo.toSprint);
   const now = nowIso();
   const report = sprint.state === 'future' ? null : buildSprintReport({ sprint, tickets, sprintNames: Object.fromEntries(sprints.map((s) => [s.id, s.name])), now, labels });
-  const preparation = sprint.state === 'closed' ? null : buildSprintPreparation({ sprint, tickets, sprints, history: history(sprints, tickets, labels, now), now, labels });
+  const board = sprints.filter((s) => s.boardId === sprint.boardId);
+  const boardTickets = tickets.filter((t) => boardOf(t) === sprint.boardId || t.sprintId === sprint.id);
+  const preparation = sprint.state === 'closed' ? null : buildSprintPreparation({ sprint, tickets: boardTickets, sprints: board, history: history(board, tickets, labels, now), now, labels });
   return { report, preparation, tickets, labels };
 }
 
