@@ -26,6 +26,7 @@ export * from './notes.js';
 export * from './anneau.js';
 export * from './ideas.js';
 export * from './faq.js';
+export * from './patch.js';
 export * from './themes.js';
 export * from './assistant.js';
 export * from './notifications.js';
