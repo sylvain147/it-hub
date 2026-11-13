@@ -4,7 +4,7 @@ Hobbit est l’application interne de l’équipe IT (chargés de projet en lien
 
 ## Modules
 
-Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes — où l'on transcrit aussi une réunion —, idées d'amélioration, FAQ) et **Outils** (composée par chacun sur sa fiche : lecteur de fichiers, suivi TMA, liens personnels). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), **Ma fiche** (mes informations — nom, poste, backup, périmètres, que je modifie moi-même —, mon thème et mes outils), le **thème de couleur** (dont **Mordor** et **Nazgûl**, noir absolu avec fumées et flammes des ténèbres, qui réservent quelques surprises), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
+Le menu latéral regroupe les modules en trois sections repliables : **Projets** (projets, planning, sprints), **Au quotidien** (to-do, notes — où l'on transcrit aussi une réunion —, idées d'amélioration, FAQ) et **Outils** (composée par chacun sur sa fiche : lecteur de fichiers, suivi TMA, patch management, liens personnels). L'assistant, **Gandalf**, n'est pas dans le menu : c'est la bulle en bas à droite de chaque page. L’administration (utilisateurs, paramétrage, retours, consommation IA), **Ma fiche** (mes informations — nom, poste, backup, périmètres, que je modifie moi-même —, mon thème et mes outils), le **thème de couleur** (dont **Mordor** et **Nazgûl**, noir absolu avec fumées et flammes des ténèbres, qui réservent quelques surprises), « Faire un retour » et la déconnexion sont dans le menu de l’utilisateur, en bas.
 
 ### ✅ To-do
 
@@ -159,6 +159,12 @@ Pour piloter le contrat de TMA du prestataire à partir de ses deux fichiers.
 - **Synthèse du mois** rédigée par l'assistant à partir des seuls chiffres calculés.
 - **Confidentialité** : les fichiers sont lus dans le navigateur ; seules les colonnes utiles sont envoyées, après **masquage des données personnelles** (e-mails, téléphones, numéros de client / commande / chèque, noms après une civilité, noms des demandeurs, signatures). Un nom cité sans civilité au milieu d'une phrase peut subsister.
 - **Coût** : classement des tickets par le modèle rapide, une seule fois par ticket (moins d'un euro pour un an de tickets) ; quelques centimes par synthèse. Les rapports eux-mêmes n'utilisent pas l'IA.
+
+### 🔧 Patch management
+
+- **Les tests à faire après chaque patch des serveurs**, une ligne par test : qui, quoi, description, paramètres et résultat attendu, adresses en production et en testing. Les lignes se configurent (✏️ Lignes de tests) : ajout, modification, ordre ; un test déjà renseigné se **retire** (il quitte les nouvelles sessions et reste dans l'historique).
+- **Une colonne par session de patch** (production ou testing, à une date, avec une précision comme le créneau), la plus récente d'abord, avec son avancement (tests faits, KO). Un clic sur une case note le résultat — **OK, KO, sans objet** ou à faire — et un commentaire ; plusieurs personnes renseignent la même session en même temps. Les six dernières sessions sont affichées, tout l'historique sur demande.
+- **Reprise de l'ancien classeur** au départ : l'onglet « Tests » (lignes et résultats passés) est lu sur le poste, puis enregistré.
 
 ### 👥 Utilisateurs et connexion
 

@@ -28,6 +28,7 @@ import { TmaMonthPage } from './tma/TmaMonthPage';
 import { TmaThemesPage } from './tma/TmaThemesPage';
 import { IdeasPage } from './ideas/IdeasPage';
 import { FaqPage } from './faq/FaqPage';
+import { PatchPage } from './patch/PatchPage';
 import { MeetingRedirect } from './meetings/recorder';
 import { applyStoredTheme } from './theme';
 import { PublicReviewPage } from './cdc/PublicReviewPage';
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
       { path: 'planning', element: <GlobalPlanningPage /> },
       { path: 'idees', element: <IdeasPage /> },
       { path: 'faq', element: <FaqPage /> },
+      { path: 'patch', element: <PatchPage /> },
       // La transcription de réunion a rejoint la page Notes.
       { path: 'reunion', element: <MeetingRedirect /> },
       { path: 'notes', element: <NotesPage /> },

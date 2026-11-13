@@ -37,6 +37,7 @@ import { assistantRoutes } from './assistant/routes.js';
 import { anneauRoutes } from './anneau/routes.js';
 import { ideaRoutes } from './ideas/routes.js';
 import { faqRoutes } from './faq/routes.js';
+import { patchRoutes } from './patch/routes.js';
 import { cdcReviewRoutes, publicReviewRoutes } from './cdcReviews/routes.js';
 import * as pr from './projects/repo.js';
 import { config } from './config.js';
@@ -314,6 +315,7 @@ export function createApp() {
   api.route('/anneau', anneauRoutes());
   api.route('/idees', ideaRoutes());
   api.route('/faq', faqRoutes());
+  api.route('/patch', patchRoutes());
   api.route('/cdcs', cdcReviewRoutes());
 
   // Activité récente des projets (accueil).
