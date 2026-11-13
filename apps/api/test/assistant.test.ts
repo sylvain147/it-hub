@@ -200,6 +200,48 @@ describe('assistant (chat global)', () => {
   });
 });
 
+describe('pièces jointes de l’assistant', () => {
+  // PNG 1×1 et PDF minimal, en base64.
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const PDF = Buffer.from('%PDF-1.4\n%%EOF').toString('base64');
+
+  it('envoie les images et PDF joints au modèle, avec cette question seulement', async () => {
+    const calls = spy();
+    const r = await env.call('POST', '/assistant', { question: 'Que montre cette capture ?', attachments: [{ name: 'erreur.png', mediaType: 'image/png', data: PNG }, { name: 'devis.pdf', mediaType: 'application/pdf', data: PDF }] }, ADMIN);
+    expect(r.status).toBe(200);
+    expect(r.json.answer).toContain('erreur.png (image)');
+    const call = calls.at(-1)!;
+    expect(call.attachments).toEqual([{ mediaType: 'image/png', data: PNG }, { mediaType: 'application/pdf', data: PDF }]);
+    expect(call.input).toContain('<pieces_jointes>\n1. erreur.png (image)\n2. devis.pdf (PDF)\n</pieces_jointes>');
+    // Sans pièce jointe : rien de plus dans l'appel.
+    await env.call('POST', '/assistant', { question: 'Et sinon ?' }, ADMIN);
+    expect(calls.at(-1)!.attachments).toEqual([]);
+    expect(calls.at(-1)!.input).not.toContain('pieces_jointes');
+  });
+
+  it('refuse un format inconnu, trop de pièces jointes ou des pièces trop lourdes', async () => {
+    const ask = (attachments: unknown[]) => env.call('POST', '/assistant', { question: 'Voici', attachments }, ADMIN);
+    expect((await ask([{ name: 'a.exe', mediaType: 'application/x-msdownload', data: PNG }])).json.error).toMatch(/Format de pièce jointe non pris en charge/);
+    expect((await ask(Array.from({ length: 6 }, () => ({ name: 'a.png', mediaType: 'image/png', data: PNG })))).json.error).toMatch(/5 pièces jointes au plus/);
+    expect((await ask([{ name: 'a.png', mediaType: 'image/png', data: 'A'.repeat(4_600_000) }])).json.error).toMatch(/trop lourdes/);
+    expect((await ask([{ name: 'a.png', mediaType: 'image/png', data: 'pas du base64 !' }])).status).toBe(400);
+  });
+
+  it('place les pièces jointes avant le texte dans la requête Bedrock', async () => {
+    const { captureBedrockRequest } = await import('../src/ai/bedrock.js');
+    const { z } = await import('zod');
+    const req = await captureBedrockRequest(
+      { tier: 'fast', operation: 'assistant', system: 's', input: 'q', attachments: [{ mediaType: 'image/png', data: PNG }, { mediaType: 'application/pdf', data: PDF }], schema: z.object({ a: z.string() }), maxTokens: 100, effort: 'low', ctx: { user: 'u', cdcId: '' } },
+      'eu.anthropic.claude-haiku-5-5',
+    );
+    expect((req.body.messages as any[])[0].content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG } },
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: PDF } },
+      { type: 'text', text: 'q' },
+    ]);
+  });
+});
+
 describe('erreurs de Bedrock', () => {
   it('rend lisible un refus de Bedrock au lieu d’une « erreur interne »', async () => {
     const { BedrockProvider } = await import('../src/ai/bedrock.js');

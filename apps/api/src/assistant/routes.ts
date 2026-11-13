@@ -142,7 +142,7 @@ export function assistantRoutes() {
 
   r.post('/', async (c) => {
     const user = userName(c);
-    const { question, history } = await body(c, assistantAskBody);
+    const { question, history, attachments } = await body(c, assistantAskBody);
     await assertBudget();
     const data = await loadAssistantData(user);
     const focus = mentionedProjects(data.projects, question, history);
@@ -150,6 +150,8 @@ export function assistantRoutes() {
     const input = [
       details.length && `<projets_detailles>\n${details.join('\n\n')}\n</projets_detailles>`,
       history.length && `<conversation>\n${conversation(history)}\n</conversation>`,
+      // Les pièces jointes (images, PDF) précèdent ce texte dans le message ; leurs noms aident à les citer.
+      attachments.length && `<pieces_jointes>\n${attachments.map((a, i) => `${i + 1}. ${a.name} (${a.mediaType === 'application/pdf' ? 'PDF' : 'image'})`).join('\n')}\n</pieces_jointes>`,
       `<question>\n${question}\n</question>`,
     ]
       .filter(Boolean)
@@ -161,6 +163,7 @@ export function assistantRoutes() {
       system: assistantSystem(themeAssistant(data.users.find((u) => u.email === user)?.theme)),
       context: globalContext(data),
       input,
+      attachments: attachments.map(({ mediaType, data }) => ({ mediaType, data })),
       schema: assistantOutputSchema,
       maxTokens: 4000,
       effort: 'low',

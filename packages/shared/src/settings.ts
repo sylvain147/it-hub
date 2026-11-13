@@ -64,7 +64,9 @@ export const DEFAULT_CONTACT_ROLES = [
 export const DEFAULT_TICKET_TYPES = ['Cadrage', 'Dev', 'Recette', 'MEP', 'Correctif'];
 
 /** Domaines proposés pour un projet (choix multiple). */
-export const DEFAULT_PROJECT_DOMAINS = ['IT', 'Logistique', 'Marketing', 'Finance'];
+export const DEFAULT_PROJECT_DOMAINS = ['IT', 'Logistique', 'Marketing', 'Finance', 'Juridique', 'Relation client', 'Web'];
+/** Domaines ajoutés aux valeurs par défaut après coup : ajoutés une fois à un paramétrage déjà enregistré (`REF#LISTS`). */
+export const ADDED_PROJECT_DOMAINS = ['Juridique', 'Relation client', 'Web'];
 
 const statusSettingSchema = z.object({
   key: z.string().max(40),

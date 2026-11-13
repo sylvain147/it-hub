@@ -23,10 +23,34 @@ export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 export const ASSISTANT_QUESTION_MAX = 60_000;
 export const ASSISTANT_HISTORY_CHARS = 2000;
 
+/**
+ * Pièces jointes d'une question : images (collées ou jointes) et PDF, envoyés tels quels au modèle avec cette seule
+ * question (ils ne repartent pas avec les suivantes). Les fichiers texte, Word et Excel sont lus dans le navigateur
+ * et ajoutés au texte de la question. Taille limitée par celle d'une requête à l'API (6 Mo).
+ */
+export const ASSISTANT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export const ASSISTANT_ATTACHMENT_TYPES = [...ASSISTANT_IMAGE_TYPES, 'application/pdf'] as const;
+export const ASSISTANT_ATTACHMENTS_MAX = 5;
+/** Taille totale des pièces jointes, encodées en base64 (caractères). */
+export const ASSISTANT_ATTACHMENTS_CHARS = 4_500_000;
+
+export const assistantAttachmentSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  mediaType: z.enum(ASSISTANT_ATTACHMENT_TYPES, 'Format de pièce jointe non pris en charge (images PNG, JPEG, GIF, WebP ou PDF).'),
+  /** Contenu en base64 (sans le préfixe `data:`). */
+  data: z.string().min(1).regex(/^[A-Za-z0-9+/]+=*$/, 'Pièce jointe illisible.'),
+});
+export type AssistantAttachment = z.infer<typeof assistantAttachmentSchema>;
+
 export const assistantAskBody = z.object({
   question: z.string().trim().min(1, 'Posez une question.').max(ASSISTANT_QUESTION_MAX, `Texte trop long (${ASSISTANT_QUESTION_MAX.toLocaleString('fr-FR')} caractères au plus).`),
   /** Échanges précédents, du plus ancien au plus récent. */
   history: z.array(assistantMessageSchema).max(ASSISTANT_HISTORY_MAX * 2).default([]),
+  attachments: z
+    .array(assistantAttachmentSchema)
+    .max(ASSISTANT_ATTACHMENTS_MAX, `${ASSISTANT_ATTACHMENTS_MAX} pièces jointes au plus.`)
+    .refine((xs) => xs.reduce((n, a) => n + a.data.length, 0) <= ASSISTANT_ATTACHMENTS_CHARS, 'Pièces jointes trop lourdes (3 Mo au total au plus).')
+    .default([]),
 });
 export type AssistantAskBody = z.input<typeof assistantAskBody>;
 

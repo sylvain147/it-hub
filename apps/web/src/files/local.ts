@@ -2,7 +2,7 @@
  * Fichiers manipulés uniquement dans le navigateur : ils ne sont jamais envoyés au serveur
  * (seul un extrait, anonymisé par défaut, part à l'IA lors de la création d'un type).
  */
-import { decodeFile, guessEncoding, xlsxToText } from '@samm/shared';
+import { decodeFile, docxToText, guessEncoding, xlsxToText } from '@samm/shared';
 
 export interface LocalFile {
   name: string;
@@ -25,7 +25,8 @@ export async function documentToText(file: File): Promise<{ name: string; text: 
     const { sheets } = xlsxToText(bytes);
     return { name: file.name, text: sheets.map((s) => `--- Onglet « ${s.name} » ---\n${s.text}`).join('\n\n') };
   }
-  if (/\.(xls|docx?|pdf)$/i.test(file.name)) throw new Error(`« ${file.name} » : format non pris en charge pour l’instant (Excel .xlsx, CSV ou texte uniquement).`);
+  if (/\.docx$/i.test(file.name)) return { name: file.name, text: docxToText(bytes) };
+  if (/\.(xls|doc|pdf)$/i.test(file.name)) throw new Error(`« ${file.name} » : format non pris en charge pour l’instant (Excel .xlsx, Word .docx, CSV ou texte uniquement).`);
   return { name: file.name, text: decodeFile(bytes, guessEncoding(bytes)).text };
 }
 

@@ -3,7 +3,7 @@ import { APIError } from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from '../config.js';
 import { HttpError } from '../lib/util.js';
-import type { LlmProvider, LlmUsage, StructuredCall } from './llm.js';
+import type { LlmAttachment, LlmProvider, LlmUsage, StructuredCall } from './llm.js';
 
 /** Options communes aux deux clients Bedrock du SDK. */
 interface BedrockOptions {
@@ -90,6 +90,14 @@ export function bedrockError(e: unknown, model: string): HttpError {
   return new HttpError(502, `Appel à l’IA (Bedrock, ${model}, ${config.bedrockRegion}) impossible : ${err?.name ?? 'Erreur'} — ${err?.message ?? String(e)}`);
 }
 
+/** Image ou PDF joint, en bloc de contenu Messages. */
+function attachmentBlock(a: LlmAttachment) {
+  const source = { type: 'base64' as const, media_type: a.mediaType, data: a.data };
+  return a.mediaType === 'application/pdf'
+    ? { type: 'document' as const, source: source as { type: 'base64'; media_type: 'application/pdf'; data: string } }
+    : { type: 'image' as const, source: source as { type: 'base64'; media_type: Exclude<LlmAttachment['mediaType'], 'application/pdf'>; data: string } };
+}
+
 /** Paramètres de l'appel Messages. */
 function bedrockParams<T>(call: StructuredCall<T>, model: string) {
   // Les instructions système (et le contexte stable éventuel) sont identiques d'un appel à l'autre : on les met en cache.
@@ -101,7 +109,7 @@ function bedrockParams<T>(call: StructuredCall<T>, model: string) {
     model,
     max_tokens: call.maxTokens,
     system,
-    messages: [{ role: 'user' as const, content: call.input }],
+    messages: [{ role: 'user' as const, content: call.attachments?.length ? [...call.attachments.map(attachmentBlock), { type: 'text' as const, text: call.input }] : call.input }],
     output_config: { effort: call.effort, format: zodOutputFormat(call.schema) },
   };
 }

@@ -55,7 +55,8 @@ export function ProjectsList() {
   // Domaines du paramétrage, et ceux encore portés par un projet après leur retrait du paramétrage.
   const domains = [...new Set([...lists.projectDomains, ...(data ?? []).flatMap((p) => p.domains)])];
 
-  const active = (data ?? []).filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status));
+  // Les compteurs suivent « Mes projets » et le domaine choisis (pas la recherche ni le statut : ils comptent les projets actifs).
+  const active = (data ?? []).filter((p) => !CLOSED_PROJECT_STATUSES.includes(p.status) && (!mine || isMyProject(p, email)) && (!domain || p.domains.includes(domain)));
   const counters = {
     actifs: active.length,
     rouge: active.filter((p) => p.health === 'rouge').length,
@@ -78,7 +79,7 @@ export function ProjectsList() {
 
       {data && data.length > 0 && (
         <div className="kpis">
-          <div className="kpi"><span className="kpi-value">{counters.actifs}</span><span className="kpi-label">projets actifs</span></div>
+          <div className="kpi"><span className="kpi-value">{counters.actifs}</span><span className="kpi-label">{['projets actifs', mine && 'mes projets', domain].filter(Boolean).join(' · ')}</span></div>
           <div className={`kpi${counters.rouge ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.rouge}</span><span className="kpi-label"><HealthDot health="rouge" /> en difficulté</span></div>
           <div className={`kpi${counters.orange ? ' kpi-warn' : ''}`}><span className="kpi-value">{counters.orange}</span><span className="kpi-label"><HealthDot health="orange" /> en vigilance</span></div>
           <div className={`kpi${counters.bloques ? ' kpi-danger' : ''}`}><span className="kpi-value">{counters.bloques}</span><span className="kpi-label">⛔ bloqués</span></div>

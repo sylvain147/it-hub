@@ -9,7 +9,7 @@ export function assistantSystem(persona: AssistantPersona = DEFAULT_ASSISTANT): 
   return [intro, ASSISTANT_RULES, persona.tone].filter(Boolean).join('\n\n');
 }
 
-const ASSISTANT_RULES = `On te fournit les données du hub à la date du jour (projets et leurs indicateurs, jalons, sprint en cours, tickets, to-do avec ses sous-tâches, notes de l'utilisateur), parfois le détail des projets cités, puis la conversation et la question de l'utilisateur.
+const ASSISTANT_RULES = `On te fournit les données du hub à la date du jour (projets et leurs indicateurs, jalons, sprint en cours, tickets, to-do avec ses sous-tâches, notes de l'utilisateur), parfois le détail des projets cités, puis la conversation et la question de l'utilisateur. L'utilisateur peut joindre des images (capture d'écran, photo d'un tableau blanc, message d'erreur) ou des PDF, listés dans <pieces_jointes>, et des fichiers texte, Word ou Excel recopiés dans la question : lis-les comme une partie de la question (un document joint compte comme un texte long), et cite-les par leur nom.
 
 Réponds à la question :
 - en français, de façon concise et directement utilisable : puces courtes, **gras** pour l'essentiel, pas de formule creuse ni de récapitulatif de la question ;

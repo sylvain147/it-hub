@@ -1048,6 +1048,16 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .gandalf-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--bg); }
 .gandalf-input { display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px 4px; border-top: 1px solid var(--line); }
 .gandalf-input textarea { flex: 1; resize: none; }
+.gandalf-pop.dragging { outline: 3px dashed var(--blue); outline-offset: -6px; }
+.gandalf-attach { padding: 6px 8px; font-size: 16px; }
+.gandalf-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.gandalf-files > img { max-width: 120px; max-height: 90px; border-radius: 6px; border: 1px solid var(--line); object-fit: cover; }
+.gandalf-pending { padding: 8px 12px 0; margin: 0; border-top: 1px solid var(--line); }
+.gandalf-file { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 4px 2px 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 12px; white-space: nowrap; }
+.gandalf-file img { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; }
+.gandalf-file-name { overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.gandalf-file-remove { border: none; background: none; cursor: pointer; font-size: 16px; line-height: 1; color: var(--muted); padding: 0 2px; }
+.gandalf-pending + .gandalf-input { border-top: none; }
 .gandalf-foot { margin: 0; padding: 0 12px 8px; font-size: 11px; }
 .assistant-empty { margin: auto 0; }
 .assistant-chips { display: flex; flex-wrap: wrap; gap: 6px; }

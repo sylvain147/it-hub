@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { demoSpec } from './fixtures/demo-spec.js';
 import { parseFile, readRecord, diagnostics, specToText, scoreSpec, decodeFile, convert, parseDecimal } from '../src/files/parse.js';
 import { buildExcerpt, anonymizeLine } from '../src/files/excerpt.js';
-import { writeXlsx, xlsxToText } from '../src/files/xlsx.js';
+import { docxToText, writeXlsx, xlsxToText } from '../src/files/xlsx.js';
+import { strToU8, zipSync } from 'fflate';
 import { fileSpecSchema } from '../src/files/spec.js';
 
 const demo = readFileSync(join(__dirname, 'fixtures/demo.ww'), 'utf8');
@@ -131,5 +132,15 @@ describe('classeurs Excel', () => {
     const { sheets } = xlsxToText(bytes);
     expect(sheets.map((s) => s.name)).toEqual(['Enregistrement 12', 'Autre']);
     expect(sheets[0]!.text).toBe('Pos. | Long. | Description\n1 | 2 | Type d’enregistrement « 12 »\n3 |  | A & B < C');
+  });
+});
+
+describe('documents Word', () => {
+  it('lit le texte d’un .docx : paragraphes, tabulations, tableaux', () => {
+    const body = '<w:p><w:r><w:t>Compte rendu</w:t></w:r></w:p><w:p><w:r><w:t>A &amp; B</w:t><w:tab/><w:t>suite</w:t></w:r></w:p>'
+      + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Action</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Qui</w:t></w:r></w:p></w:tc></w:tr></w:tbl>';
+    const bytes = zipSync({ 'word/document.xml': strToU8(`<?xml version="1.0"?><w:document><w:body>${body}</w:body></w:document>`) });
+    expect(docxToText(bytes)).toBe('Compte rendu\nA & B\tsuite\nAction | Qui');
+    expect(() => docxToText(zipSync({ 'x.txt': strToU8('x') }))).toThrow(/illisible/);
   });
 });

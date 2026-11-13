@@ -76,8 +76,10 @@ export class MockProvider implements LlmProvider {
       const m = new RegExp(`## ${title}[^\\n]*\\n([\\s\\S]*?)(\\n## |$)`).exec(context);
       return (m?.[1] ?? '').split('\n').filter((l) => l.startsWith('- ')).slice(0, 5);
     };
+    const joined = between(input, 'pieces_jointes').split('\n').filter(Boolean);
     const focus = [...between(input, 'projets_detailles').matchAll(/^# Projet (.+) \((\/projets\/[^)]+)\)$/gm)].map((m) => `- [${m[1]}](${m[2]})`);
     const blocks = [
+      joined.length && `Pièces jointes reçues (non lues en simulation) :\n${joined.map((l) => `- ${l.replace(/^\d+\.\s*/, '')}`).join('\n')}`,
       focus.length && `Projets cités :\n${focus.join('\n')}`,
       part('Ma to-do').length && `**Ma to-do**\n${part('Ma to-do').join('\n')}`,
       part('Mes tickets ouverts').length && `**Mes tickets**\n${part('Mes tickets ouverts').join('\n')}`,

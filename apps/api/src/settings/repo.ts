@@ -6,7 +6,7 @@
  *  REF#PRESTA   P#<id>      prestataire et son carnet de contacts
  */
 import { DeleteCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { normalizeListSettings, type ListSettings, type Prestataire, type PrestataireContact } from '@samm/shared';
+import { ADDED_PROJECT_DOMAINS, nameKey, normalizeListSettings, type ListSettings, type Prestataire, type PrestataireContact } from '@samm/shared';
 import { config } from '../config.js';
 import { ddb, queryAll } from '../db/client.js';
 import { notFound, nowIso } from '../lib/util.js';
@@ -23,17 +23,30 @@ export const settingsKeys = {
 let cache: { at: number; lists: ListSettings } | null = null;
 const CACHE_MS = 10_000;
 
+/** Oublie le paramétrage en cache (tests). */
+export function clearListsCache() {
+  cache = null;
+}
+
 export async function getLists(): Promise<ListSettings> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.lists;
   const res = await ddb().send(new GetCommand({ TableName: T(), Key: settingsKeys.lists() }));
-  const lists = normalizeListSettings((res.Item?.lists as Partial<ListSettings> | undefined) ?? null);
+  let lists = normalizeListSettings((res.Item?.lists as Partial<ListSettings> | undefined) ?? null);
+  // Domaine ajouté aux valeurs par défaut depuis l'enregistrement : proposé une fois (on peut ensuite le retirer).
+  const seen = (res.Item?.addedDomains as string[] | undefined) ?? [];
+  const missing = ADDED_PROJECT_DOMAINS.filter((d) => !seen.includes(d));
+  if (res.Item && missing.length) {
+    const add = missing.filter((d) => !lists.projectDomains.some((x) => nameKey(x) === nameKey(d)));
+    lists = { ...lists, projectDomains: [...lists.projectDomains, ...add] };
+    await ddb().send(new PutCommand({ TableName: T(), Item: { ...res.Item, lists, addedDomains: ADDED_PROJECT_DOMAINS } }));
+  }
   cache = { at: Date.now(), lists };
   return lists;
 }
 
 export async function putLists(lists: ListSettings, user: string): Promise<ListSettings> {
   const clean = normalizeListSettings(lists);
-  await ddb().send(new PutCommand({ TableName: T(), Item: { ...settingsKeys.lists(), lists: clean, updatedAt: nowIso(), updatedBy: user } }));
+  await ddb().send(new PutCommand({ TableName: T(), Item: { ...settingsKeys.lists(), lists: clean, addedDomains: ADDED_PROJECT_DOMAINS, updatedAt: nowIso(), updatedBy: user } }));
   cache = { at: Date.now(), lists: clean };
   return clean;
 }
