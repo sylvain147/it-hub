@@ -136,7 +136,7 @@ export function projectRoutes() {
       const dated = todos
         .filter((t) => t.projectId === p.id && t.dueDate)
         .map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, done: t.done, assigneeId: t.assigneeId }));
-      out.push({ id: p.id, chefDeProjetIds: p.chefDeProjetIds, followers: p.followers, name: p.name, code: p.code, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
+      out.push({ id: p.id, chefDeProjetIds: p.chefDeProjetIds, followers: p.followers, name: p.name, status: p.status, health: p.health, startDate: p.startDate, targetDate: p.targetDate, jalons: await pr.listItems(p.id, 'jalons'), todos: dated });
     }
     return c.json(out);
   });

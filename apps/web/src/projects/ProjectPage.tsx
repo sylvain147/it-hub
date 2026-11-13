@@ -136,7 +136,7 @@ export function ProjectPage() {
         <div className="project-head">
           <div>
             <h1>
-              {project.name} {project.code && <span className="muted project-code">{project.code}</span>}
+              {project.name}
             </h1>
             <div className="project-badges">
               <ProjectStatusBadge status={project.status} />

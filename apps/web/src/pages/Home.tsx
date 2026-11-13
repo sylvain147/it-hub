@@ -133,6 +133,7 @@ export function Home() {
                       {p.stats.overdueTasks > 0 && <span className="due-late"> · {p.stats.overdueTasks} en retard</span>}
                       {p.domains.length > 0 && ` · ${p.domains.join(', ')}`}
                     </span>
+                    {p.healthComment && <span className="small clamp health-comment" title={p.healthComment}>« {p.healthComment} »</span>}
                   </div>
                   <ProjectSteps project={p} compact />
                 </Link>

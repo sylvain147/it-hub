@@ -4,6 +4,7 @@ import { setupTestEnv } from './helpers.js';
 import { ddb } from '../src/db/client.js';
 import { config } from '../src/config.js';
 import { projectKeys } from '../src/projects/repo.js';
+import { projectSpentHours } from '@samm/shared';
 
 const MEETING = `Julien: point hebdo sur la migration Coliéco avec Coqliqo
 Marie: le prestataire doit envoyer le devis révisé avant vendredi
@@ -25,7 +26,7 @@ describe('module Projets', () => {
   it('crée un projet et refuse une fiche invalide', async () => {
     const bad = await env.call('POST', '/projects', { name: '  ' });
     expect(bad.status).toBe(400);
-    const res = await env.call('POST', '/projects', { name: 'Migration Coliéco', code: 'COL-27', description: 'La Poste arrête l’offre **Coliéco** en janvier 2027.', sections: [{ id: 'obj', title: 'Objectifs', content: '- Basculer vers l’offre Essentiel' }] });
+    const res = await env.call('POST', '/projects', { name: 'Migration Coliéco', description: 'La Poste arrête l’offre **Coliéco** en janvier 2027.', sections: [{ id: 'obj', title: 'Objectifs', content: '- Basculer vers l’offre Essentiel' }] });
     expect(res.status).toBe(201);
     id = res.json.id;
     expect(res.json).toMatchObject({ status: 'cadrage', priority: 'normale', health: 'vert', rev: 1 });
@@ -93,7 +94,7 @@ describe('module Projets', () => {
 
   it('rattache les anciens chefs de projet saisis en texte', async () => {
     const now = new Date().toISOString();
-    const base = { gsi1pk: 'PROJ', gsi1sk: now, status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', demandeur: '', startDate: '', targetDate: '', description: '', objectifs: '', horsPerimetre: '', budgetPrevu: null, tags: [], code: '', rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    const base = { gsi1pk: 'PROJ', gsi1sk: now, status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', demandeur: '', startDate: '', targetDate: '', description: '', objectifs: '', horsPerimetre: '', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-1'), ...base, id: 'ancien-1', name: 'Ancien 1', chefDeProjet: 'bob' } }));
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: { ...projectKeys.meta('ancien-2'), ...base, id: 'ancien-2', name: 'Ancien 2', chefDeProjet: 'Prestataire externe' } }));
     const { json: list } = await env.call('GET', '/projects');
@@ -110,7 +111,7 @@ describe('module Projets', () => {
 
   it('reprend l’ancien chef de projet unique dans la liste des chefs', async () => {
     const now = new Date().toISOString();
-    const item = { ...projectKeys.meta('ancien-4'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-4', name: 'Ancien 4', code: '', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjetId: 'bob@test', chefDeProjet: 'Bob', demandeur: '', startDate: '', targetDate: '', description: '', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    const item = { ...projectKeys.meta('ancien-4'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-4', name: 'Ancien 4', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjetId: 'bob@test', chefDeProjet: 'Bob', demandeur: '', startDate: '', targetDate: '', description: '', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: item }));
     const { json: p } = await env.call('GET', '/projects/ancien-4');
     expect(p.chefDeProjetIds).toEqual(['bob@test']);
@@ -127,7 +128,7 @@ describe('module Projets', () => {
 
   it('reprend les anciens champs objectifs et hors périmètre en sections', async () => {
     const now = new Date().toISOString();
-    const item = { ...projectKeys.meta('ancien-3'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-3', name: 'Ancien 3', code: '', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjet: '', demandeur: '', startDate: '', targetDate: '', description: 'Contexte', objectifs: 'Livrer', horsPerimetre: 'La facturation', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
+    const item = { ...projectKeys.meta('ancien-3'), gsi1pk: 'PROJ', gsi1sk: now, id: 'ancien-3', name: 'Ancien 3', status: 'cadrage', priority: 'normale', health: 'vert', healthComment: '', chefDeProjet: '', demandeur: '', startDate: '', targetDate: '', description: 'Contexte', objectifs: 'Livrer', horsPerimetre: 'La facturation', budgetPrevu: null, tags: [], rev: 1, stats: {}, activeJobId: null, activeJobAt: null, createdAt: now, createdBy: 'x', updatedAt: now, updatedBy: 'x' };
     await ddb().send(new PutCommand({ TableName: config.tableName, Item: item }));
     const { json: p } = await env.call('GET', '/projects/ancien-3');
     expect(p.sections).toEqual([{ id: 'objectifs', title: 'Objectifs', content: 'Livrer' }, { id: 'hors-perimetre', title: 'Hors périmètre', content: 'La facturation' }]);
@@ -244,6 +245,22 @@ describe('module Projets', () => {
     expect(cleared.json).toMatchObject({ estimatedHours: null, spentHours: 7.25 });
     const { json: o } = await env.call('GET', '/sprints');
     expect(o.tickets.find((x: any) => x.id === t.json.id)).toMatchObject({ estimatedHours: null, spentHours: 7.25 });
+    await env.call('DELETE', `/projects/${id}/items/tasks/${t.json.id}`);
+  });
+
+  it('enregistre du temps passé hors ticket et le compte dans le temps passé du projet', async () => {
+    const t = await env.call('POST', `/projects/${id}/items/tasks`, { title: 'Recette des tarifs', spentHours: 10 });
+    expect((await env.call('POST', `/projects/${id}/items/times`, { hours: 0, label: 'Rien' })).status).toBe(400);
+    const a = await env.call('POST', `/projects/${id}/items/times`, { date: '2026-11-02', hours: 12, label: 'Comité de pilotage', userId: 'a@test.fr' });
+    expect(a.status).toBe(201);
+    await env.call('POST', `/projects/${id}/items/times`, { date: '2026-11-05', hours: 1.5 });
+    const { json: p } = await env.call('GET', `/projects/${id}`);
+    expect(p.items.times.map((x: any) => x.hours)).toEqual([1.5, 12]); // le plus récent d'abord
+    expect(projectSpentHours(p.items)).toMatchObject({ other: 13.5 });
+    expect(projectSpentHours(p.items).tickets).toBeGreaterThanOrEqual(10);
+    expect(p.activity.map((x: any) => x.text)).toContain('a ajouté le temps passé « 1 j 4 h — Comité de pilotage »');
+    await env.call('DELETE', `/projects/${id}/items/times/${a.json.id}`);
+    expect((await env.call('GET', `/projects/${id}`)).json.items.times).toHaveLength(1);
     await env.call('DELETE', `/projects/${id}/items/tasks/${t.json.id}`);
   });
 
