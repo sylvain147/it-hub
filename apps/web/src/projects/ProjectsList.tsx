@@ -42,7 +42,7 @@ export function ProjectsList() {
       if (mine && !isMyProject(p, email)) return false;
       if (domain && !p.domains.includes(domain)) return false;
       if (!needle) return true;
-      return [p.name, p.code, p.demandeur, p.chefDeProjet, p.blockedReason, ...p.stats.prestataires, ...p.tags, ...p.domains].some((s) => s.toLowerCase().includes(needle));
+      return [p.name, p.demandeur, p.chefDeProjet, p.blockedReason, ...p.stats.prestataires, ...p.tags, ...p.domains].some((s) => s.toLowerCase().includes(needle));
     });
     const prio = (p: ProjectSummary) => -PRIORITIES.indexOf(p.priority);
     return list.sort((a, b) => {
@@ -88,7 +88,7 @@ export function ProjectsList() {
       )}
 
       <div className="filters">
-        <input className="input" placeholder="Rechercher (nom, code, prestataire, demandeur, étiquette)…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Rechercher (nom, prestataire, demandeur, étiquette)…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
           <option value="actifs">Projets actifs</option>
           <option value="tous">Tous les projets</option>
@@ -143,7 +143,8 @@ export function ProjectsList() {
                 <tr key={p.id}>
                   <td>
                     <HealthDot health={p.health} title={`${HEALTH_LABELS[p.health]}${p.healthComment ? ` : ${p.healthComment}` : ''}`} /> <Link to={`/projets/${p.id}`} className="strong">{p.name}</Link> <PriorityTag priority={p.priority} hideNormal />
-                    <div className="muted small">{[p.code, p.demandeur, p.domains.join(', ')].filter(Boolean).join(' · ')}</div>
+                    <div className="muted small">{[p.demandeur, p.domains.join(', ')].filter(Boolean).join(' · ')}</div>
+                    {p.healthComment && <div className="small clamp health-comment" title={p.healthComment}>« {p.healthComment} »</div>}
                   </td>
                   <td>
                     <ProjectStatusBadge status={p.status} />
