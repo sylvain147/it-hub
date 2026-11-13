@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { boardOf, deskKey, NO_PROJECT_ID, NO_PROJECT_LABEL, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
+import { boardOf, deskKey, formatDuration, NO_PROJECT_ID, NO_PROJECT_LABEL, parseDuration, PRIORITIES, PRIORITY_LABELS, ticketKey, ticketTypeKey, type DeskTicketInfo, type Priority, type Sprint, type Task, type TicketComment, type TicketStatus } from '@samm/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useLoad } from '../hooks';
@@ -84,19 +84,29 @@ export function TicketTimes({ t }: { t: Pick<Task, 'estimatedHours' | 'spentHour
   );
 }
 
-/** Saisie d'une durée en heures (virgule acceptée) ; vide : non renseignée. */
+/** Saisie d'une durée en jours et heures (« 1j 4h », journée de 8 h ; un nombre seul est en heures) ; vide : non renseignée. */
 function HoursInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const hours = parseDuration(value);
+  const invalid = hours != null && Number.isNaN(hours);
   return (
     <span className="hours-input">
-      <input className="input" inputMode="decimal" aria-label={label} value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, ''))} placeholder="—" />
-      <span className="muted">h</span>
+      <input
+        className="input"
+        aria-label={label}
+        aria-invalid={invalid}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="ex. 1j 4h"
+        title="Jours (j ou d, journée de 8 h) et heures (h) : 1j 4h, 2d, 1,5j, 3h30. Un nombre seul est en heures."
+      />
+      {invalid ? <span className="small due-late">Durée illisible (ex. 1j 4h)</span> : hours != null && /[jd]/i.test(value) && <span className="muted small">= {fmtHours(hours)}</span>}
     </span>
   );
 }
 
 /** Texte saisi → heures (null si vide, NaN si invalide). */
-const parseHours = (v: string): number | null => (v.trim() ? Number(v.replace(',', '.')) : null);
-const hoursText = (h: number | null | undefined) => (h == null ? '' : String(h).replace('.', ','));
+const parseHours = parseDuration;
+const hoursText = (h: number | null | undefined) => (h == null ? '' : formatDuration(h));
 
 /** Projet d'un ticket : lien vers ses tickets, ou « Hors projet ». */
 export function TicketProject({ t }: { t: Pick<TicketRow, 'projectId' | 'projectName'> }) {
@@ -109,7 +119,7 @@ export function DeskBadge({ id }: { id: string }) {
   return <span className="badge badge-desk" title="Ticket Desk du prestataire">Desk #{id}</span>;
 }
 
-const fmtHours = (h: number) => `${h.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} h`;
+const fmtHours = formatDuration;
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const monthShort = (m: string) => `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`;
 

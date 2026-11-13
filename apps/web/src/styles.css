@@ -1018,8 +1018,8 @@ pre.raw { white-space: pre; overflow: auto; max-height: 340px; font-size: 11.5px
 .rec-pill { position: fixed; bottom: 36px; right: 98px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: #fef3f2; border: 1px solid #fda29b; color: var(--danger); font-weight: 600; font-size: 13px; text-decoration: none !important; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); }
 @media (max-width: 640px) { .rec-pill { bottom: 24px; right: 76px; padding: 6px 10px; font-size: 12px; } }
 /* Temps estimé / passé des tickets */
-.hours-input { display: inline-flex; align-items: center; gap: 6px; }
-.hours-input .input { width: 90px; }
+.hours-input { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hours-input .input { width: 120px; }
 .ticket-times { white-space: nowrap; }
 
 /* ---- Thème de couleur (menu de l'utilisateur) ---- */

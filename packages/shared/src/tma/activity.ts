@@ -7,7 +7,7 @@ import { pdfTableRows, type PdfTextItem } from '../files/pdfTable.js';
 import { readXlsx, type CellValue } from '../files/xlsx.js';
 import { maskPersonalData } from './mask.js';
 
-/** Une journée de TMA = 8 heures. */
+/** Une journée de travail (TMA, durées des tickets) = 8 heures. */
 export const HOURS_PER_DAY = 8;
 
 export type ActivityKind = 'pilotage' | 'autre';
